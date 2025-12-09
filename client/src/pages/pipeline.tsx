@@ -34,6 +34,7 @@ import {
 import { Plus, DollarSign, User, Building2, GripVertical, ChevronDown } from "lucide-react";
 import { FilterPanel, type PipelineFilters } from "@/components/filter-panel";
 import { EntityHistory } from "@/components/entity-history";
+import { LeadScorePanel } from "@/components/LeadScorePanel";
 import type { Deal, PipelineStage, Pipeline, Contact, Company } from "@shared/schema";
 
 interface DealWithRelations extends Deal {
@@ -468,6 +469,8 @@ export default function PipelinePage() {
                 <h4 className="mb-2 text-sm font-medium">Status</h4>
                 <Badge>{selectedDeal.status}</Badge>
               </div>
+
+              <LeadScorePanel entityType="deal" entityId={selectedDeal.id} />
 
               <div className="rounded-md border">
                 <EntityHistory entityType="deal" entityId={selectedDeal.id} />

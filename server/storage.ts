@@ -14,6 +14,7 @@ import {
   emailTemplates,
   auditLogs,
   files,
+  leadScores,
   type User,
   type UpsertUser,
   type Organization,
@@ -47,6 +48,9 @@ import {
   type File as FileRecord,
   type InsertFile,
   type FileEntityType,
+  type LeadScore,
+  type InsertLeadScore,
+  type LeadScoreEntityType,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, sql, count } from "drizzle-orm";
@@ -152,6 +156,20 @@ export interface IStorage {
   getFile(id: number): Promise<FileRecord | undefined>;
   createFile(file: InsertFile): Promise<FileRecord>;
   deleteFile(id: number): Promise<void>;
+  
+  getLeadScore(entityType: LeadScoreEntityType, entityId: number): Promise<LeadScore | undefined>;
+  getLeadScores(organizationId: number): Promise<LeadScore[]>;
+  createLeadScore(score: InsertLeadScore): Promise<LeadScore>;
+  getContactScoringData(contactId: number): Promise<{
+    activities: { totalActivities: number; completedActivities: number; pendingActivities: number; lastActivityDate: Date | null; activityTypes: Record<string, number> };
+    conversations: { totalConversations: number; totalMessages: number; lastMessageDate: Date | null; channels: string[] };
+    deals: { count: number; totalValue: number; wonDeals: number };
+  }>;
+  getDealScoringData(dealId: number): Promise<{
+    deal: { id: number; title: string; value: string | null; stageName: string; stageOrder: number; totalStages: number; probability: number | null; status: string | null; contactName: string | null; companyName: string | null } | null;
+    activities: { totalActivities: number; completedActivities: number; pendingActivities: number; lastActivityDate: Date | null; activityTypes: Record<string, number> };
+    conversations: { totalConversations: number; totalMessages: number; lastMessageDate: Date | null; channels: string[] };
+  }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -684,6 +702,181 @@ export class DatabaseStorage implements IStorage {
 
   async deleteFile(id: number): Promise<void> {
     await db.delete(files).where(eq(files.id, id));
+  }
+
+  async getLeadScore(entityType: LeadScoreEntityType, entityId: number): Promise<LeadScore | undefined> {
+    const [score] = await db.select().from(leadScores)
+      .where(and(eq(leadScores.entityType, entityType), eq(leadScores.entityId, entityId)))
+      .orderBy(desc(leadScores.createdAt))
+      .limit(1);
+    return score;
+  }
+
+  async getLeadScores(organizationId: number): Promise<LeadScore[]> {
+    return await db.select().from(leadScores)
+      .where(eq(leadScores.organizationId, organizationId))
+      .orderBy(desc(leadScores.createdAt));
+  }
+
+  async createLeadScore(score: InsertLeadScore): Promise<LeadScore> {
+    const [created] = await db.insert(leadScores).values(score).returning();
+    return created;
+  }
+
+  async getContactScoringData(contactId: number): Promise<{
+    activities: { totalActivities: number; completedActivities: number; pendingActivities: number; lastActivityDate: Date | null; activityTypes: Record<string, number> };
+    conversations: { totalConversations: number; totalMessages: number; lastMessageDate: Date | null; channels: string[] };
+    deals: { count: number; totalValue: number; wonDeals: number };
+  }> {
+    const contactActivities = await db.select().from(activities).where(eq(activities.contactId, contactId));
+    const contactConversations = await db.select().from(conversations).where(eq(conversations.contactId, contactId));
+    const contactDeals = await db.select().from(deals).where(eq(deals.contactId, contactId));
+
+    const activityTypes: Record<string, number> = {};
+    let lastActivityDate: Date | null = null;
+    let completedActivities = 0;
+    let pendingActivities = 0;
+
+    contactActivities.forEach(a => {
+      activityTypes[a.type] = (activityTypes[a.type] || 0) + 1;
+      if (a.status === 'completed') completedActivities++;
+      else pendingActivities++;
+      if (a.createdAt && (!lastActivityDate || a.createdAt > lastActivityDate)) {
+        lastActivityDate = a.createdAt;
+      }
+    });
+
+    let totalMessages = 0;
+    let lastMessageDate: Date | null = null;
+    const channels: Set<string> = new Set();
+
+    for (const conv of contactConversations) {
+      channels.add(conv.channel);
+      const convMessages = await db.select().from(messages).where(eq(messages.conversationId, conv.id));
+      totalMessages += convMessages.length;
+      convMessages.forEach(m => {
+        if (m.createdAt && (!lastMessageDate || m.createdAt > lastMessageDate)) {
+          lastMessageDate = m.createdAt;
+        }
+      });
+    }
+
+    let totalValue = 0;
+    let wonDeals = 0;
+    contactDeals.forEach(d => {
+      if (d.value) totalValue += parseFloat(d.value);
+      if (d.status === 'won') wonDeals++;
+    });
+
+    return {
+      activities: {
+        totalActivities: contactActivities.length,
+        completedActivities,
+        pendingActivities,
+        lastActivityDate,
+        activityTypes
+      },
+      conversations: {
+        totalConversations: contactConversations.length,
+        totalMessages,
+        lastMessageDate,
+        channels: Array.from(channels)
+      },
+      deals: {
+        count: contactDeals.length,
+        totalValue,
+        wonDeals
+      }
+    };
+  }
+
+  async getDealScoringData(dealId: number): Promise<{
+    deal: { id: number; title: string; value: string | null; stageName: string; stageOrder: number; totalStages: number; probability: number | null; status: string | null; contactName: string | null; companyName: string | null } | null;
+    activities: { totalActivities: number; completedActivities: number; pendingActivities: number; lastActivityDate: Date | null; activityTypes: Record<string, number> };
+    conversations: { totalConversations: number; totalMessages: number; lastMessageDate: Date | null; channels: string[] };
+  }> {
+    const [dealRecord] = await db.select().from(deals).where(eq(deals.id, dealId));
+    if (!dealRecord) {
+      return {
+        deal: null,
+        activities: { totalActivities: 0, completedActivities: 0, pendingActivities: 0, lastActivityDate: null, activityTypes: {} },
+        conversations: { totalConversations: 0, totalMessages: 0, lastMessageDate: null, channels: [] }
+      };
+    }
+
+    const [stage] = await db.select().from(pipelineStages).where(eq(pipelineStages.id, dealRecord.stageId));
+    const allStages = await db.select().from(pipelineStages).where(eq(pipelineStages.pipelineId, dealRecord.pipelineId));
+
+    let contactName: string | null = null;
+    let companyName: string | null = null;
+    if (dealRecord.contactId) {
+      const [contact] = await db.select().from(contacts).where(eq(contacts.id, dealRecord.contactId));
+      if (contact) contactName = `${contact.firstName} ${contact.lastName || ''}`.trim();
+    }
+    if (dealRecord.companyId) {
+      const [company] = await db.select().from(companies).where(eq(companies.id, dealRecord.companyId));
+      if (company) companyName = company.name;
+    }
+
+    const dealActivities = await db.select().from(activities).where(eq(activities.dealId, dealId));
+    const dealConversations = await db.select().from(conversations).where(eq(conversations.dealId, dealId));
+
+    const activityTypes: Record<string, number> = {};
+    let lastActivityDate: Date | null = null;
+    let completedActivities = 0;
+    let pendingActivities = 0;
+
+    dealActivities.forEach(a => {
+      activityTypes[a.type] = (activityTypes[a.type] || 0) + 1;
+      if (a.status === 'completed') completedActivities++;
+      else pendingActivities++;
+      if (a.createdAt && (!lastActivityDate || a.createdAt > lastActivityDate)) {
+        lastActivityDate = a.createdAt;
+      }
+    });
+
+    let totalMessages = 0;
+    let lastMessageDate: Date | null = null;
+    const channels: Set<string> = new Set();
+
+    for (const conv of dealConversations) {
+      channels.add(conv.channel);
+      const convMessages = await db.select().from(messages).where(eq(messages.conversationId, conv.id));
+      totalMessages += convMessages.length;
+      convMessages.forEach(m => {
+        if (m.createdAt && (!lastMessageDate || m.createdAt > lastMessageDate)) {
+          lastMessageDate = m.createdAt;
+        }
+      });
+    }
+
+    return {
+      deal: {
+        id: dealRecord.id,
+        title: dealRecord.title,
+        value: dealRecord.value,
+        stageName: stage?.name || 'Unknown',
+        stageOrder: stage?.order || 0,
+        totalStages: allStages.length,
+        probability: dealRecord.probability,
+        status: dealRecord.status,
+        contactName,
+        companyName
+      },
+      activities: {
+        totalActivities: dealActivities.length,
+        completedActivities,
+        pendingActivities,
+        lastActivityDate,
+        activityTypes
+      },
+      conversations: {
+        totalConversations: dealConversations.length,
+        totalMessages,
+        lastMessageDate,
+        channels: Array.from(channels)
+      }
+    };
   }
 }
 

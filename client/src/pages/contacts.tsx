@@ -34,6 +34,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Search, Mail, Phone, Building2, User, MoreHorizontal, Calendar, FileText, CheckSquare } from "lucide-react";
 import { EntityHistory } from "@/components/entity-history";
+import { LeadScorePanel } from "@/components/LeadScorePanel";
 import type { Contact, Company, Activity } from "@shared/schema";
 
 interface ContactWithRelations extends Contact {
@@ -351,6 +352,8 @@ export default function ContactsPage() {
                   </div>
                 )}
               </div>
+
+              <LeadScorePanel entityType="contact" entityId={selectedContact.id} />
 
               <div>
                 <h4 className="mb-3 font-semibold">Activity Timeline</h4>
