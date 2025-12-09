@@ -1,0 +1,265 @@
+import { useState } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { queryClient, apiRequest } from "@/lib/queryClient";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { useToast } from "@/hooks/use-toast";
+import { Plus, Search, Building2, Globe, Users, ExternalLink } from "lucide-react";
+import type { Company, Contact } from "@shared/schema";
+
+interface CompanyWithContacts extends Company {
+  contacts?: Contact[];
+}
+
+export default function CompaniesPage() {
+  const { toast } = useToast();
+  const [searchQuery, setSearchQuery] = useState("");
+  const [newCompanyOpen, setNewCompanyOpen] = useState(false);
+
+  const { data: companies, isLoading } = useQuery<CompanyWithContacts[]>({
+    queryKey: ["/api/companies"],
+  });
+
+  const createCompanyMutation = useMutation({
+    mutationFn: async (data: Partial<Company>) => {
+      await apiRequest("POST", "/api/companies", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/companies"] });
+      setNewCompanyOpen(false);
+      toast({ title: "Company created successfully" });
+    },
+    onError: () => {
+      toast({ title: "Failed to create company", variant: "destructive" });
+    },
+  });
+
+  const handleCreateCompany = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    createCompanyMutation.mutate({
+      name: formData.get("name") as string,
+      domain: formData.get("domain") as string,
+      website: formData.get("website") as string,
+      industry: formData.get("industry") as string,
+      size: formData.get("size") as string,
+    });
+  };
+
+  const filteredCompanies = companies?.filter((company) => {
+    if (!searchQuery) return true;
+    return (
+      company.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      company.domain?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      company.industry?.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  });
+
+  return (
+    <div className="flex h-full flex-col p-6">
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold" data-testid="text-companies-title">Companies</h1>
+          <p className="text-muted-foreground">
+            Manage your company accounts
+          </p>
+        </div>
+        <Dialog open={newCompanyOpen} onOpenChange={setNewCompanyOpen}>
+          <DialogTrigger asChild>
+            <Button data-testid="button-new-company">
+              <Plus className="mr-2 h-4 w-4" />
+              Add Company
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <form onSubmit={handleCreateCompany}>
+              <DialogHeader>
+                <DialogTitle>Add New Company</DialogTitle>
+                <DialogDescription>
+                  Create a new company in your CRM
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="name">Company Name</Label>
+                  <Input
+                    id="name"
+                    name="name"
+                    required
+                    data-testid="input-company-name"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="domain">Domain</Label>
+                  <Input
+                    id="domain"
+                    name="domain"
+                    placeholder="example.com"
+                    data-testid="input-company-domain"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="website">Website</Label>
+                  <Input
+                    id="website"
+                    name="website"
+                    placeholder="https://example.com"
+                    data-testid="input-company-website"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="industry">Industry</Label>
+                  <Input
+                    id="industry"
+                    name="industry"
+                    placeholder="Technology"
+                    data-testid="input-company-industry"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="size">Company Size</Label>
+                  <select
+                    id="size"
+                    name="size"
+                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    data-testid="select-company-size"
+                  >
+                    <option value="">Select size...</option>
+                    <option value="1-10">1-10 employees</option>
+                    <option value="11-50">11-50 employees</option>
+                    <option value="51-200">51-200 employees</option>
+                    <option value="201-500">201-500 employees</option>
+                    <option value="500+">500+ employees</option>
+                  </select>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setNewCompanyOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={createCompanyMutation.isPending}
+                  data-testid="button-create-company-submit"
+                >
+                  {createCompanyMutation.isPending ? "Creating..." : "Create Company"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      <div className="mb-4">
+        <div className="relative max-w-sm">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Search companies..."
+            className="pl-9"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            data-testid="input-search-companies"
+          />
+        </div>
+      </div>
+
+      {isLoading ? (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {[...Array(6)].map((_, i) => (
+            <Card key={i}>
+              <CardHeader>
+                <Skeleton className="h-6 w-40" />
+                <Skeleton className="h-4 w-24" />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="mt-2 h-4 w-32" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : filteredCompanies && filteredCompanies.length > 0 ? (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {filteredCompanies.map((company) => (
+            <Card
+              key={company.id}
+              className="cursor-pointer transition-shadow hover:shadow-md"
+              data-testid={`card-company-${company.id}`}
+            >
+              <CardHeader>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary/10">
+                    <Building2 className="h-5 w-5 text-primary" />
+                  </div>
+                  {company.industry && (
+                    <Badge variant="secondary">{company.industry}</Badge>
+                  )}
+                </div>
+                <CardTitle className="mt-2">{company.name}</CardTitle>
+                {company.domain && (
+                  <CardDescription>{company.domain}</CardDescription>
+                )}
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2 text-sm">
+                  {company.website && (
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Globe className="h-4 w-4" />
+                      <a
+                        href={company.website}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1 hover:text-foreground"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        Website
+                        <ExternalLink className="h-3 w-3" />
+                      </a>
+                    </div>
+                  )}
+                  {company.size && (
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Users className="h-4 w-4" />
+                      {company.size} employees
+                    </div>
+                  )}
+                  {company.contacts && company.contacts.length > 0 && (
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Users className="h-4 w-4" />
+                      {company.contacts.length} contacts
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <div className="flex h-64 items-center justify-center rounded-md border">
+          <div className="text-center text-muted-foreground">
+            <Building2 className="mx-auto mb-4 h-12 w-12 opacity-50" />
+            <p>No companies found</p>
+            <p className="text-sm">Add your first company to get started</p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
