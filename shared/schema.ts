@@ -262,6 +262,24 @@ export const auditLogs = pgTable("audit_logs", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// File entity types for attachments
+export const fileEntityTypes = ["message", "activity", "deal", "contact"] as const;
+export type FileEntityType = (typeof fileEntityTypes)[number];
+
+// Files table for attachments
+export const files = pgTable("files", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  name: varchar("name", { length: 500 }).notNull(),
+  mimeType: varchar("mime_type", { length: 100 }),
+  size: integer("size"),
+  objectPath: varchar("object_path", { length: 1000 }).notNull(),
+  entityType: varchar("entity_type", { length: 50 }).$type<FileEntityType>().notNull(),
+  entityId: integer("entity_id").notNull(),
+  organizationId: integer("organization_id").notNull(),
+  uploadedBy: varchar("uploaded_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Relations
 export const usersRelations = relations(users, ({ one, many }) => ({
   organization: one(organizations, {
@@ -450,6 +468,17 @@ export const auditLogsRelations = relations(auditLogs, ({ one }) => ({
   }),
 }));
 
+export const filesRelations = relations(files, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [files.organizationId],
+    references: [organizations.id],
+  }),
+  uploader: one(users, {
+    fields: [files.uploadedBy],
+    references: [users.id],
+  }),
+}));
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({ createdAt: true, updatedAt: true });
 export const insertOrganizationSchema = createInsertSchema(organizations).omit({ id: true, createdAt: true, updatedAt: true });
@@ -465,6 +494,7 @@ export const insertNotificationSchema = createInsertSchema(notifications).omit({
 export const insertSavedViewSchema = createInsertSchema(savedViews).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertEmailTemplateSchema = createInsertSchema(emailTemplates).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({ id: true, createdAt: true });
+export const insertFileSchema = createInsertSchema(files).omit({ id: true, createdAt: true });
 
 // Types
 export type UpsertUser = typeof users.$inferInsert;
@@ -495,3 +525,5 @@ export type InsertEmailTemplate = z.infer<typeof insertEmailTemplateSchema>;
 export type EmailTemplate = typeof emailTemplates.$inferSelect;
 export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
 export type AuditLog = typeof auditLogs.$inferSelect;
+export type InsertFile = z.infer<typeof insertFileSchema>;
+export type File = typeof files.$inferSelect;

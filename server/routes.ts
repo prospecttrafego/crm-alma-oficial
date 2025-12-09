@@ -17,10 +17,15 @@ import {
   insertAuditLogSchema,
   insertPipelineSchema,
   insertPipelineStageSchema,
+  insertFileSchema,
   savedViewTypes,
   auditLogEntityTypes,
+  fileEntityTypes,
   type AuditLogEntityType,
+  type FileEntityType,
 } from "@shared/schema";
+import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
+import { ObjectPermission } from "./objectAcl";
 
 const clients = new Set<WebSocket>();
 
@@ -1197,6 +1202,121 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error fetching report data:", error);
       res.status(500).json({ message: "Failed to fetch report data" });
+    }
+  });
+
+  // File upload - get presigned URL
+  app.post("/api/files/upload-url", isAuthenticated, async (req: any, res) => {
+    try {
+      const objectStorageService = new ObjectStorageService();
+      const uploadURL = await objectStorageService.getObjectEntityUploadURL();
+      res.json({ uploadURL });
+    } catch (error) {
+      console.error("Error getting upload URL:", error);
+      res.status(500).json({ message: "Failed to get upload URL" });
+    }
+  });
+
+  // Register uploaded file
+  app.post("/api/files", isAuthenticated, async (req: any, res) => {
+    try {
+      const org = await storage.getDefaultOrganization();
+      if (!org) {
+        return res.status(400).json({ message: "No organization found" });
+      }
+
+      const userId = req.user.claims.sub;
+      const { name, mimeType, size, uploadURL, entityType, entityId } = req.body;
+
+      if (!name || !uploadURL || !entityType || !entityId) {
+        return res.status(400).json({ message: "Missing required fields" });
+      }
+
+      if (!fileEntityTypes.includes(entityType)) {
+        return res.status(400).json({ message: "Invalid entity type" });
+      }
+
+      const objectStorageService = new ObjectStorageService();
+      const objectPath = await objectStorageService.trySetObjectEntityAclPolicy(
+        uploadURL,
+        {
+          owner: userId,
+          visibility: "public",
+        }
+      );
+
+      const file = await storage.createFile({
+        name,
+        mimeType: mimeType || null,
+        size: size || null,
+        objectPath,
+        entityType,
+        entityId: parseInt(entityId),
+        organizationId: org.id,
+        uploadedBy: userId,
+      });
+
+      res.status(201).json(file);
+    } catch (error) {
+      console.error("Error registering file:", error);
+      res.status(500).json({ message: "Failed to register file" });
+    }
+  });
+
+  // Get files for entity
+  app.get("/api/files/:entityType/:entityId", isAuthenticated, async (req: any, res) => {
+    try {
+      const { entityType, entityId } = req.params;
+
+      if (!fileEntityTypes.includes(entityType as FileEntityType)) {
+        return res.status(400).json({ message: "Invalid entity type" });
+      }
+
+      const files = await storage.getFiles(entityType as FileEntityType, parseInt(entityId));
+      res.json(files);
+    } catch (error) {
+      console.error("Error fetching files:", error);
+      res.status(500).json({ message: "Failed to fetch files" });
+    }
+  });
+
+  // Delete file
+  app.delete("/api/files/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid file ID" });
+      }
+
+      await storage.deleteFile(id);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting file:", error);
+      res.status(500).json({ message: "Failed to delete file" });
+    }
+  });
+
+  // Serve object files
+  app.get("/objects/:objectPath(*)", isAuthenticated, async (req: any, res) => {
+    const userId = req.user?.claims?.sub;
+    const objectStorageService = new ObjectStorageService();
+    try {
+      const objectFile = await objectStorageService.getObjectEntityFile(req.path);
+      const canAccess = await objectStorageService.canAccessObjectEntity({
+        objectFile,
+        userId: userId,
+        requestedPermission: ObjectPermission.READ,
+      });
+      if (!canAccess) {
+        return res.sendStatus(401);
+      }
+      objectStorageService.downloadObject(objectFile, res);
+    } catch (error) {
+      console.error("Error serving object:", error);
+      if (error instanceof ObjectNotFoundError) {
+        return res.sendStatus(404);
+      }
+      return res.sendStatus(500);
     }
   });
 

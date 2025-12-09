@@ -13,6 +13,7 @@ import {
   savedViews,
   emailTemplates,
   auditLogs,
+  files,
   type User,
   type UpsertUser,
   type Organization,
@@ -43,6 +44,9 @@ import {
   type AuditLog,
   type InsertAuditLog,
   type AuditLogEntityType,
+  type File as FileRecord,
+  type InsertFile,
+  type FileEntityType,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, sql, count } from "drizzle-orm";
@@ -143,6 +147,11 @@ export interface IStorage {
     activitySummary: { type: string; count: number }[];
     wonLostByMonth: { month: string; won: number; lost: number; wonValue: string; lostValue: string }[];
   }>;
+  
+  getFiles(entityType: FileEntityType, entityId: number): Promise<FileRecord[]>;
+  getFile(id: number): Promise<FileRecord | undefined>;
+  createFile(file: InsertFile): Promise<FileRecord>;
+  deleteFile(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -655,6 +664,26 @@ export class DatabaseStorage implements IStorage {
         lostValue: String(d.lostValue)
       })),
     };
+  }
+
+  async getFiles(entityType: FileEntityType, entityId: number): Promise<FileRecord[]> {
+    return await db.select().from(files)
+      .where(and(eq(files.entityType, entityType), eq(files.entityId, entityId)))
+      .orderBy(desc(files.createdAt));
+  }
+
+  async getFile(id: number): Promise<FileRecord | undefined> {
+    const [file] = await db.select().from(files).where(eq(files.id, id));
+    return file;
+  }
+
+  async createFile(file: InsertFile): Promise<FileRecord> {
+    const [created] = await db.insert(files).values(file).returning();
+    return created;
+  }
+
+  async deleteFile(id: number): Promise<void> {
+    await db.delete(files).where(eq(files.id, id));
   }
 }
 

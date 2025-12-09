@@ -28,9 +28,15 @@ import {
   AtSign,
   FileText,
   ChevronDown,
+  Paperclip,
+  Image,
+  File as FileIcon,
+  Loader2,
+  X,
 } from "lucide-react";
 import { FilterPanel, type InboxFilters } from "@/components/filter-panel";
-import type { Conversation, Message, Contact, Deal, User as UserType, EmailTemplate, Company } from "@shared/schema";
+import { FileList } from "@/components/file-uploader";
+import type { Conversation, Message, Contact, Deal, User as UserType, EmailTemplate, Company, File as FileRecord } from "@shared/schema";
 
 interface ContactWithCompany extends Contact {
   company?: Company;
@@ -72,6 +78,13 @@ interface MessageWithSender extends Message {
   sender?: UserType;
 }
 
+interface PendingFile {
+  id: string;
+  file: globalThis.File;
+  uploadURL?: string;
+  status: "pending" | "uploading" | "uploaded" | "error";
+}
+
 export default function InboxPage() {
   const { toast } = useToast();
   const { user } = useAuth();
@@ -80,7 +93,10 @@ export default function InboxPage() {
   const [newMessage, setNewMessage] = useState("");
   const [isInternalComment, setIsInternalComment] = useState(false);
   const [filters, setFilters] = useState<InboxFilters>({});
+  const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
+  const [uploading, setUploading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: conversations, isLoading: conversationsLoading } = useQuery<ConversationWithRelations[]>({
     queryKey: ["/api/conversations"],
@@ -109,9 +125,29 @@ export default function InboxPage() {
   };
 
   const sendMessageMutation = useMutation({
-    mutationFn: async (data: { content: string; isInternal: boolean }) => {
+    mutationFn: async (data: { content: string; isInternal: boolean; attachments?: PendingFile[] }) => {
       if (!selectedConversation) return;
-      await apiRequest("POST", `/api/conversations/${selectedConversation.id}/messages`, data);
+      const response = await apiRequest("POST", `/api/conversations/${selectedConversation.id}/messages`, {
+        content: data.content,
+        isInternal: data.isInternal,
+      });
+      const messageData = await response.json();
+      
+      if (data.attachments && data.attachments.length > 0) {
+        for (const pf of data.attachments) {
+          if (pf.uploadURL && pf.status === "uploaded") {
+            await apiRequest("POST", "/api/files", {
+              name: pf.file.name,
+              mimeType: pf.file.type,
+              size: pf.file.size,
+              uploadURL: pf.uploadURL,
+              entityType: "message",
+              entityId: String(messageData.id),
+            });
+          }
+        }
+      }
+      return messageData;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -119,11 +155,67 @@ export default function InboxPage() {
       });
       queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
       setNewMessage("");
+      setPendingFiles([]);
     },
     onError: () => {
       toast({ title: "Failed to send message", variant: "destructive" });
     },
   });
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFiles = e.target.files;
+    if (!selectedFiles || selectedFiles.length === 0) return;
+
+    setUploading(true);
+    const newPendingFiles: PendingFile[] = [];
+
+    for (const file of Array.from(selectedFiles)) {
+      try {
+        const urlResponse = await apiRequest("POST", "/api/files/upload-url", {});
+        const { uploadURL } = await urlResponse.json();
+
+        await fetch(uploadURL, {
+          method: "PUT",
+          body: file,
+          headers: {
+            "Content-Type": file.type || "application/octet-stream",
+          },
+        });
+
+        newPendingFiles.push({
+          id: crypto.randomUUID(),
+          file,
+          uploadURL,
+          status: "uploaded",
+        });
+      } catch (error) {
+        console.error("Upload error:", error);
+        newPendingFiles.push({
+          id: crypto.randomUUID(),
+          file,
+          status: "error",
+        });
+        toast({ title: `Failed to upload ${file.name}`, variant: "destructive" });
+      }
+    }
+
+    setPendingFiles((prev) => [...prev, ...newPendingFiles]);
+    setUploading(false);
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  const removePendingFile = (fileId: string) => {
+    setPendingFiles((prev) => prev.filter((f) => f.id !== fileId));
+  };
+
+  const getFileIcon = (mimeType: string) => {
+    if (mimeType.startsWith("image/")) return <Image className="h-3 w-3" />;
+    if (mimeType.includes("pdf") || mimeType.includes("document")) return <FileText className="h-3 w-3" />;
+    return <FileIcon className="h-3 w-3" />;
+  };
 
   const filteredConversations = conversations?.filter((conv) => {
     if (filters.channel && conv.channel !== filters.channel) return false;
@@ -193,8 +285,12 @@ export default function InboxPage() {
 
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newMessage.trim()) return;
-    sendMessageMutation.mutate({ content: newMessage, isInternal: isInternalComment });
+    if (!newMessage.trim() && pendingFiles.length === 0) return;
+    sendMessageMutation.mutate({
+      content: newMessage || (pendingFiles.length > 0 ? "[Attachment]" : ""),
+      isInternal: isInternalComment,
+      attachments: pendingFiles.filter((f) => f.status === "uploaded"),
+    });
   };
 
   const getChannelIcon = (channel: string) => {
@@ -377,6 +473,7 @@ export default function InboxPage() {
                           </div>
                         )}
                         <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                        <FileList entityType="message" entityId={message.id} inline />
                         <div className="mt-1 flex items-center justify-end gap-1 text-xs opacity-70">
                           <Clock className="h-3 w-3" />
                           {formatTime(message.createdAt)}
@@ -444,7 +541,53 @@ export default function InboxPage() {
                   </DropdownMenu>
                 )}
               </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                onChange={handleFileSelect}
+                className="hidden"
+                data-testid="input-file-upload"
+              />
+              {pendingFiles.length > 0 && (
+                <div className="mb-2 flex flex-wrap gap-2">
+                  {pendingFiles.map((pf) => (
+                    <div
+                      key={pf.id}
+                      className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs ${
+                        pf.status === "error" ? "border-destructive text-destructive" : ""
+                      }`}
+                      data-testid={`pending-file-${pf.id}`}
+                    >
+                      {getFileIcon(pf.file.type)}
+                      <span className="max-w-[120px] truncate">{pf.file.name}</span>
+                      <button
+                        type="button"
+                        onClick={() => removePendingFile(pf.id)}
+                        className="ml-1 rounded-full p-0.5 hover:bg-muted"
+                        data-testid={`button-remove-pending-${pf.id}`}
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
               <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                  data-testid="button-attach-file"
+                >
+                  {uploading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Paperclip className="h-4 w-4" />
+                  )}
+                </Button>
                 <Textarea
                   id="message-input"
                   placeholder={
@@ -462,7 +605,7 @@ export default function InboxPage() {
                 <Button
                   type="submit"
                   size="icon"
-                  disabled={!newMessage.trim() || sendMessageMutation.isPending}
+                  disabled={(!newMessage.trim() && pendingFiles.length === 0) || sendMessageMutation.isPending || uploading}
                   data-testid="button-send-message"
                 >
                   <Send className="h-4 w-4" />
