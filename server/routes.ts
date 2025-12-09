@@ -11,6 +11,7 @@ import {
   insertConversationSchema,
   insertMessageSchema,
   insertActivitySchema,
+  insertNotificationSchema,
 } from "@shared/schema";
 
 const clients = new Set<WebSocket>();
@@ -154,6 +155,7 @@ export async function registerRoutes(
   app.patch("/api/deals/:id/stage", isAuthenticated, async (req: any, res) => {
     try {
       const dealId = parseInt(req.params.id);
+      const userId = req.user.claims.sub;
       if (isNaN(dealId)) return res.status(400).json({ message: "Invalid ID" });
       
       const parsed = moveDealSchema.safeParse(req.body);
@@ -163,6 +165,18 @@ export async function registerRoutes(
       const deal = await storage.moveDealToStage(dealId, parsed.data.stageId);
       if (!deal) return res.status(404).json({ message: "Deal not found" });
       broadcast("deal:moved", deal);
+      
+      if (deal.status === "won" || deal.status === "lost") {
+        await storage.createNotification({
+          userId,
+          type: deal.status === "won" ? "deal_won" : "deal_lost",
+          title: deal.status === "won" ? "Deal Won!" : "Deal Lost",
+          message: `${deal.title} has been marked as ${deal.status}`,
+          entityType: "deal",
+          entityId: deal.id,
+        });
+        broadcast("notification:new", { userId });
+      }
       res.json(deal);
     } catch (error) {
       console.error("Error moving deal:", error);
@@ -404,6 +418,7 @@ export async function registerRoutes(
   app.post("/api/conversations/:id/messages", isAuthenticated, async (req: any, res) => {
     try {
       const conversationId = parseInt(req.params.id);
+      const senderId = req.user.claims.sub;
       if (isNaN(conversationId)) return res.status(400).json({ message: "Invalid ID" });
       
       const parsed = insertMessageSchema.safeParse({ ...req.body, conversationId });
@@ -412,6 +427,21 @@ export async function registerRoutes(
       }
       const message = await storage.createMessage(parsed.data);
       broadcast("message:created", message);
+      
+      // Create notification for assigned user if not the sender
+      const conversation = await storage.getConversation(conversationId);
+      if (conversation?.assignedToId && conversation.assignedToId !== senderId) {
+        await storage.createNotification({
+          userId: conversation.assignedToId,
+          type: "new_message",
+          title: "New Message",
+          message: `New message in conversation: ${conversation.subject || "No subject"}`,
+          entityType: "conversation",
+          entityId: conversationId,
+        });
+        broadcast("notification:new", { userId: conversation.assignedToId });
+      }
+      
       res.status(201).json(message);
     } catch (error) {
       console.error("Error creating message:", error);
@@ -488,6 +518,54 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error deleting activity:", error);
       res.status(500).json({ message: "Failed to delete activity" });
+    }
+  });
+
+  // Notifications endpoints
+  app.get("/api/notifications", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const notificationsList = await storage.getNotifications(userId);
+      res.json(notificationsList);
+    } catch (error) {
+      console.error("Error fetching notifications:", error);
+      res.status(500).json({ message: "Failed to fetch notifications" });
+    }
+  });
+
+  app.get("/api/notifications/unread-count", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const count = await storage.getUnreadNotificationCount(userId);
+      res.json({ count });
+    } catch (error) {
+      console.error("Error fetching unread count:", error);
+      res.status(500).json({ message: "Failed to fetch unread count" });
+    }
+  });
+
+  app.patch("/api/notifications/:id/read", isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const userId = req.user.claims.sub;
+      if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+      const notification = await storage.markNotificationRead(id, userId);
+      if (!notification) return res.status(404).json({ message: "Notification not found" });
+      res.json(notification);
+    } catch (error) {
+      console.error("Error marking notification read:", error);
+      res.status(500).json({ message: "Failed to mark notification read" });
+    }
+  });
+
+  app.post("/api/notifications/mark-all-read", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      await storage.markAllNotificationsRead(userId);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error marking all notifications read:", error);
+      res.status(500).json({ message: "Failed to mark all notifications read" });
     }
   });
 

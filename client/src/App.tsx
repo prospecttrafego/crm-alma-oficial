@@ -7,6 +7,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { AppSidebar } from "@/components/app-sidebar";
 import { CommandPalette } from "@/components/command-palette";
+import { NotificationBell } from "@/components/notification-bell";
 import { useAuth } from "@/hooks/useAuth";
 import {
   SidebarProvider,
@@ -41,6 +42,7 @@ function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
             </div>
             <div className="flex items-center gap-2">
               <CommandPalette />
+              <NotificationBell />
               <ThemeToggle />
             </div>
           </header>

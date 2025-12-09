@@ -168,6 +168,32 @@ export const messages = pgTable("messages", {
 export const activityTypes = ["call", "email", "meeting", "note", "task"] as const;
 export type ActivityType = (typeof activityTypes)[number];
 
+// Notification types
+export const notificationTypes = [
+  "new_message",
+  "deal_moved",
+  "deal_won",
+  "deal_lost",
+  "task_due",
+  "mention",
+  "activity_assigned",
+  "conversation_assigned",
+] as const;
+export type NotificationType = (typeof notificationTypes)[number];
+
+// Notifications table
+export const notifications = pgTable("notifications", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  userId: varchar("user_id").notNull(),
+  type: varchar("type", { length: 50 }).$type<NotificationType>().notNull(),
+  title: varchar("title", { length: 255 }).notNull(),
+  message: text("message"),
+  entityType: varchar("entity_type", { length: 50 }),
+  entityId: integer("entity_id"),
+  isRead: boolean("is_read").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Activities table
 export const activities = pgTable("activities", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
@@ -333,6 +359,13 @@ export const activitiesRelations = relations(activities, ({ one }) => ({
   }),
 }));
 
+export const notificationsRelations = relations(notifications, ({ one }) => ({
+  user: one(users, {
+    fields: [notifications.userId],
+    references: [users.id],
+  }),
+}));
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({ createdAt: true, updatedAt: true });
 export const insertOrganizationSchema = createInsertSchema(organizations).omit({ id: true, createdAt: true, updatedAt: true });
@@ -344,6 +377,7 @@ export const insertDealSchema = createInsertSchema(deals).omit({ id: true, creat
 export const insertConversationSchema = createInsertSchema(conversations).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertMessageSchema = createInsertSchema(messages).omit({ id: true, createdAt: true });
 export const insertActivitySchema = createInsertSchema(activities).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertNotificationSchema = createInsertSchema(notifications).omit({ id: true, createdAt: true });
 
 // Types
 export type UpsertUser = typeof users.$inferInsert;
@@ -366,3 +400,5 @@ export type InsertMessage = z.infer<typeof insertMessageSchema>;
 export type Message = typeof messages.$inferSelect;
 export type InsertActivity = z.infer<typeof insertActivitySchema>;
 export type Activity = typeof activities.$inferSelect;
+export type InsertNotification = z.infer<typeof insertNotificationSchema>;
+export type Notification = typeof notifications.$inferSelect;
