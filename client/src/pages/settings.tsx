@@ -45,9 +45,10 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { User, Bell, Palette, Shield, LogOut, Mail, Plus, Pencil, Trash2, FileText, Copy, GitBranch, Star, GripVertical } from "lucide-react";
+import { User, Bell, Palette, Shield, LogOut, Mail, Plus, Pencil, Trash2, FileText, Copy, GitBranch, Star, GripVertical, MessageSquare, CheckCircle, XCircle, Loader2 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
-import type { EmailTemplate, Pipeline, PipelineStage } from "@shared/schema";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import type { EmailTemplate, Pipeline, PipelineStage, ChannelConfig } from "@shared/schema";
 
 interface PipelineWithStages extends Pipeline {
   stages: PipelineStage[];
@@ -705,6 +706,648 @@ function PipelineManagementSection() {
   );
 }
 
+const emailConfigSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  imapHost: z.string().min(1, "IMAP host is required"),
+  imapPort: z.coerce.number().min(1, "IMAP port is required"),
+  imapSecure: z.boolean().default(true),
+  smtpHost: z.string().min(1, "SMTP host is required"),
+  smtpPort: z.coerce.number().min(1, "SMTP port is required"),
+  smtpSecure: z.boolean().default(true),
+  email: z.string().email("Valid email is required"),
+  password: z.string().optional(),
+  fromName: z.string().optional(),
+});
+
+const emailConfigCreateSchema = emailConfigSchema.extend({
+  password: z.string().min(1, "Password is required"),
+});
+
+const whatsappConfigSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  phoneNumberId: z.string().min(1, "Phone Number ID is required"),
+  accessToken: z.string().optional(),
+  businessAccountId: z.string().min(1, "Business Account ID is required"),
+  webhookVerifyToken: z.string().optional(),
+});
+
+const whatsappConfigCreateSchema = whatsappConfigSchema.extend({
+  accessToken: z.string().min(1, "Access Token is required"),
+});
+
+type EmailConfigFormData = z.infer<typeof emailConfigSchema>;
+type WhatsappConfigFormData = z.infer<typeof whatsappConfigSchema>;
+
+function ChannelConfigDialog({
+  config,
+  channelType,
+  open,
+  onOpenChange,
+}: {
+  config?: ChannelConfig;
+  channelType: "email" | "whatsapp";
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const { toast } = useToast();
+  const isEditing = !!config;
+
+  const emailForm = useForm<EmailConfigFormData>({
+    resolver: zodResolver(isEditing ? emailConfigSchema : emailConfigCreateSchema),
+    defaultValues: {
+      name: "",
+      imapHost: "",
+      imapPort: 993,
+      imapSecure: true,
+      smtpHost: "",
+      smtpPort: 587,
+      smtpSecure: true,
+      email: "",
+      password: "",
+      fromName: "",
+    },
+  });
+
+  const whatsappForm = useForm<WhatsappConfigFormData>({
+    resolver: zodResolver(isEditing ? whatsappConfigSchema : whatsappConfigCreateSchema),
+    defaultValues: {
+      name: "",
+      phoneNumberId: "",
+      accessToken: "",
+      businessAccountId: "",
+      webhookVerifyToken: "",
+    },
+  });
+
+  const hasExistingPassword = config?.type === "email" && 
+    (config.emailConfig as Record<string, unknown>)?.hasPassword === true;
+  const hasExistingAccessToken = config?.type === "whatsapp" && 
+    (config.whatsappConfig as Record<string, unknown>)?.hasAccessToken === true;
+
+  useEffect(() => {
+    if (open && config) {
+      if (config.type === "email" && config.emailConfig) {
+        const ec = config.emailConfig as Record<string, unknown>;
+        emailForm.reset({
+          name: config.name,
+          imapHost: (ec.imapHost as string) || "",
+          imapPort: (ec.imapPort as number) || 993,
+          imapSecure: (ec.imapSecure as boolean) ?? true,
+          smtpHost: (ec.smtpHost as string) || "",
+          smtpPort: (ec.smtpPort as number) || 587,
+          smtpSecure: (ec.smtpSecure as boolean) ?? true,
+          email: (ec.email as string) || "",
+          password: "",
+          fromName: (ec.fromName as string) || "",
+        });
+      } else if (config.type === "whatsapp" && config.whatsappConfig) {
+        const wc = config.whatsappConfig as Record<string, unknown>;
+        whatsappForm.reset({
+          name: config.name,
+          phoneNumberId: (wc.phoneNumberId as string) || "",
+          accessToken: "",
+          businessAccountId: (wc.businessAccountId as string) || "",
+          webhookVerifyToken: (wc.webhookVerifyToken as string) || "",
+        });
+      }
+    } else if (open && !config) {
+      emailForm.reset({
+        name: "",
+        imapHost: "",
+        imapPort: 993,
+        imapSecure: true,
+        smtpHost: "",
+        smtpPort: 587,
+        smtpSecure: true,
+        email: "",
+        password: "",
+        fromName: "",
+      });
+      whatsappForm.reset({
+        name: "",
+        phoneNumberId: "",
+        accessToken: "",
+        businessAccountId: "",
+        webhookVerifyToken: "",
+      });
+    }
+  }, [open, config, emailForm, whatsappForm]);
+
+  const createMutation = useMutation({
+    mutationFn: async (data: { type: string; name: string; emailConfig?: Record<string, unknown>; whatsappConfig?: Record<string, unknown> }) => {
+      await apiRequest("POST", "/api/channel-configs", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/channel-configs"] });
+      toast({ title: "Channel configuration created successfully" });
+      onOpenChange(false);
+    },
+    onError: () => {
+      toast({ title: "Failed to create channel configuration", variant: "destructive" });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async (data: { name: string; emailConfig?: Record<string, unknown>; whatsappConfig?: Record<string, unknown> }) => {
+      await apiRequest("PATCH", `/api/channel-configs/${config?.id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/channel-configs"] });
+      toast({ title: "Channel configuration updated successfully" });
+      onOpenChange(false);
+    },
+    onError: () => {
+      toast({ title: "Failed to update channel configuration", variant: "destructive" });
+    },
+  });
+
+  const onEmailSubmit = (data: EmailConfigFormData) => {
+    const emailConfig: Record<string, unknown> = {
+      imapHost: data.imapHost,
+      imapPort: data.imapPort,
+      imapSecure: data.imapSecure,
+      smtpHost: data.smtpHost,
+      smtpPort: data.smtpPort,
+      smtpSecure: data.smtpSecure,
+      email: data.email,
+      fromName: data.fromName,
+    };
+    if (data.password) {
+      emailConfig.password = data.password;
+    } else if (!isEditing) {
+      emailConfig.password = "";
+    }
+    const payload = {
+      type: "email",
+      name: data.name,
+      emailConfig,
+    };
+    if (isEditing) {
+      updateMutation.mutate(payload);
+    } else {
+      createMutation.mutate(payload);
+    }
+  };
+
+  const onWhatsappSubmit = (data: WhatsappConfigFormData) => {
+    const whatsappConfig: Record<string, unknown> = {
+      phoneNumberId: data.phoneNumberId,
+      businessAccountId: data.businessAccountId,
+      webhookVerifyToken: data.webhookVerifyToken,
+    };
+    if (data.accessToken) {
+      whatsappConfig.accessToken = data.accessToken;
+    } else if (!isEditing) {
+      whatsappConfig.accessToken = "";
+    }
+    const payload = {
+      type: "whatsapp",
+      name: data.name,
+      whatsappConfig,
+    };
+    if (isEditing) {
+      updateMutation.mutate(payload);
+    } else {
+      createMutation.mutate(payload);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>
+            {isEditing ? "Edit" : "Add"} {channelType === "email" ? "Email" : "WhatsApp"} Channel
+          </DialogTitle>
+          <DialogDescription>
+            {channelType === "email"
+              ? "Configure IMAP/SMTP settings to sync emails with your inbox."
+              : "Connect your WhatsApp Business API account."}
+          </DialogDescription>
+        </DialogHeader>
+
+        {channelType === "email" ? (
+          <Form {...emailForm}>
+            <form onSubmit={emailForm.handleSubmit(onEmailSubmit)} className="space-y-4">
+              <FormField
+                control={emailForm.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Configuration Name</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g., Support Email, Sales Inbox" {...field} data-testid="input-email-config-name" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={emailForm.control}
+                  name="imapHost"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>IMAP Host</FormLabel>
+                      <FormControl>
+                        <Input placeholder="imap.gmail.com" {...field} data-testid="input-imap-host" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={emailForm.control}
+                  name="imapPort"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>IMAP Port</FormLabel>
+                      <FormControl>
+                        <Input type="number" {...field} data-testid="input-imap-port" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <FormField
+                control={emailForm.control}
+                name="imapSecure"
+                render={({ field }) => (
+                  <FormItem className="flex items-center gap-2">
+                    <FormControl>
+                      <Switch checked={field.value} onCheckedChange={field.onChange} data-testid="switch-imap-secure" />
+                    </FormControl>
+                    <FormLabel className="!mt-0">Use SSL/TLS for IMAP</FormLabel>
+                  </FormItem>
+                )}
+              />
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={emailForm.control}
+                  name="smtpHost"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>SMTP Host</FormLabel>
+                      <FormControl>
+                        <Input placeholder="smtp.gmail.com" {...field} data-testid="input-smtp-host" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={emailForm.control}
+                  name="smtpPort"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>SMTP Port</FormLabel>
+                      <FormControl>
+                        <Input type="number" {...field} data-testid="input-smtp-port" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <FormField
+                control={emailForm.control}
+                name="smtpSecure"
+                render={({ field }) => (
+                  <FormItem className="flex items-center gap-2">
+                    <FormControl>
+                      <Switch checked={field.value} onCheckedChange={field.onChange} data-testid="switch-smtp-secure" />
+                    </FormControl>
+                    <FormLabel className="!mt-0">Use SSL/TLS for SMTP</FormLabel>
+                  </FormItem>
+                )}
+              />
+              <Separator />
+              <FormField
+                control={emailForm.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email Address</FormLabel>
+                    <FormControl>
+                      <Input type="email" placeholder="support@company.com" {...field} data-testid="input-email-address" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={emailForm.control}
+                name="password"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>
+                      Password / App Password
+                      {isEditing && hasExistingPassword && (
+                        <span className="text-muted-foreground ml-2 font-normal">(leave blank to keep current)</span>
+                      )}
+                    </FormLabel>
+                    <FormControl>
+                      <Input 
+                        type="password" 
+                        placeholder={hasExistingPassword ? "Enter new password to change" : "App-specific password"} 
+                        {...field} 
+                        data-testid="input-email-password" 
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={emailForm.control}
+                name="fromName"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>From Name (Optional)</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Support Team" {...field} data-testid="input-from-name" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => onOpenChange(false)} data-testid="button-cancel-channel">
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending} data-testid="button-save-channel">
+                  {createMutation.isPending || updateMutation.isPending ? "Saving..." : isEditing ? "Update" : "Add Channel"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        ) : (
+          <Form {...whatsappForm}>
+            <form onSubmit={whatsappForm.handleSubmit(onWhatsappSubmit)} className="space-y-4">
+              <FormField
+                control={whatsappForm.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Configuration Name</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g., Main WhatsApp, Support Line" {...field} data-testid="input-whatsapp-config-name" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={whatsappForm.control}
+                name="phoneNumberId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Phone Number ID</FormLabel>
+                    <FormControl>
+                      <Input placeholder="From Meta Business Suite" {...field} data-testid="input-phone-number-id" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={whatsappForm.control}
+                name="accessToken"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>
+                      Access Token
+                      {isEditing && hasExistingAccessToken && (
+                        <span className="text-muted-foreground ml-2 font-normal">(leave blank to keep current)</span>
+                      )}
+                    </FormLabel>
+                    <FormControl>
+                      <Input 
+                        type="password" 
+                        placeholder={hasExistingAccessToken ? "Enter new token to change" : "WhatsApp Business API token"} 
+                        {...field} 
+                        data-testid="input-access-token" 
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={whatsappForm.control}
+                name="businessAccountId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Business Account ID</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Your WABA ID" {...field} data-testid="input-business-account-id" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={whatsappForm.control}
+                name="webhookVerifyToken"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Webhook Verify Token (Optional)</FormLabel>
+                    <FormControl>
+                      <Input placeholder="For webhook verification" {...field} data-testid="input-webhook-token" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => onOpenChange(false)} data-testid="button-cancel-whatsapp">
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending} data-testid="button-save-whatsapp">
+                  {createMutation.isPending || updateMutation.isPending ? "Saving..." : isEditing ? "Update" : "Add Channel"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ChannelConfigsSection() {
+  const { toast } = useToast();
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [channelType, setChannelType] = useState<"email" | "whatsapp">("email");
+  const [editingConfig, setEditingConfig] = useState<ChannelConfig | undefined>();
+  const [testingId, setTestingId] = useState<number | null>(null);
+
+  const { data: configs, isLoading } = useQuery<ChannelConfig[]>({
+    queryKey: ["/api/channel-configs"],
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest("DELETE", `/api/channel-configs/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/channel-configs"] });
+      toast({ title: "Channel configuration deleted successfully" });
+    },
+    onError: () => {
+      toast({ title: "Failed to delete channel configuration", variant: "destructive" });
+    },
+  });
+
+  const testMutation = useMutation({
+    mutationFn: async (id: number) => {
+      setTestingId(id);
+      const res = await apiRequest("POST", `/api/channel-configs/${id}/test`);
+      return res.json();
+    },
+    onSuccess: (data) => {
+      setTestingId(null);
+      toast({ title: data.message || "Connection test successful" });
+    },
+    onError: () => {
+      setTestingId(null);
+      toast({ title: "Connection test failed", variant: "destructive" });
+    },
+  });
+
+  const handleCreate = (type: "email" | "whatsapp") => {
+    setChannelType(type);
+    setEditingConfig(undefined);
+    setDialogOpen(true);
+  };
+
+  const handleEdit = (config: ChannelConfig) => {
+    setChannelType(config.type as "email" | "whatsapp");
+    setEditingConfig(config);
+    setDialogOpen(true);
+  };
+
+  const handleDialogChange = (open: boolean) => {
+    setDialogOpen(open);
+    if (!open) {
+      setEditingConfig(undefined);
+    }
+  };
+
+  return (
+    <Card className="lg:col-span-2">
+      <CardHeader>
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex items-center gap-2">
+            <MessageSquare className="h-5 w-5 text-primary" />
+            <CardTitle>Channel Integrations</CardTitle>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => handleCreate("email")} data-testid="button-add-email-channel">
+              <Mail className="h-4 w-4 mr-2" />
+              Add Email
+            </Button>
+            <Button variant="outline" onClick={() => handleCreate("whatsapp")} data-testid="button-add-whatsapp-channel">
+              <MessageSquare className="h-4 w-4 mr-2" />
+              Add WhatsApp
+            </Button>
+          </div>
+        </div>
+        <CardDescription>Connect email accounts and WhatsApp Business to sync messages</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="space-y-3">
+            {[1, 2].map((i) => (
+              <Skeleton key={i} className="h-20 w-full" />
+            ))}
+          </div>
+        ) : configs && configs.length > 0 ? (
+          <div className="space-y-3">
+            {configs.map((config) => (
+              <div
+                key={config.id}
+                className="flex items-center justify-between gap-4 p-4 rounded-md border"
+                data-testid={`channel-item-${config.id}`}
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className={`p-2 rounded-md ${config.type === "email" ? "bg-blue-500/10" : "bg-green-500/10"}`}>
+                    {config.type === "email" ? (
+                      <Mail className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                    ) : (
+                      <MessageSquare className="h-5 w-5 text-green-600 dark:text-green-400" />
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h4 className="font-medium truncate" data-testid={`text-channel-name-${config.id}`}>
+                        {config.name}
+                      </h4>
+                      <Badge variant={config.isActive ? "default" : "secondary"} className="capitalize text-xs">
+                        {config.isActive ? "Active" : "Inactive"}
+                      </Badge>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {config.type === "email"
+                        ? (config.emailConfig as Record<string, unknown>)?.email || "No email configured"
+                        : "WhatsApp Business API"}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => testMutation.mutate(config.id)}
+                    disabled={testingId === config.id}
+                    data-testid={`button-test-channel-${config.id}`}
+                  >
+                    {testingId === config.id ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <CheckCircle className="h-4 w-4" />
+                    )}
+                  </Button>
+                  <Button size="icon" variant="ghost" onClick={() => handleEdit(config)} data-testid={`button-edit-channel-${config.id}`}>
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button size="icon" variant="ghost" data-testid={`button-delete-channel-${config.id}`}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete Channel Configuration?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Are you sure you want to delete &quot;{config.name}&quot;? This action cannot be undone.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => deleteMutation.mutate(config.id)}>Delete</AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-8 text-muted-foreground">
+            <MessageSquare className="h-12 w-12 mx-auto mb-3 opacity-50" />
+            <p>No channel integrations configured</p>
+            <p className="text-sm">Add email or WhatsApp channels to sync messages</p>
+          </div>
+        )}
+      </CardContent>
+      <ChannelConfigDialog key={editingConfig?.id ?? 'new'} config={editingConfig} channelType={channelType} open={dialogOpen} onOpenChange={handleDialogChange} />
+    </Card>
+  );
+}
+
 const templateFormSchema = z.object({
   name: z.string().min(1, "Name is required"),
   subject: z.string().min(1, "Subject is required"),
@@ -1269,6 +1912,8 @@ export default function SettingsPage() {
         <PipelineManagementSection />
 
         <EmailTemplatesSection />
+
+        <ChannelConfigsSection />
       </div>
     </div>
   );

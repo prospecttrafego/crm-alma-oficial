@@ -16,6 +16,7 @@ import {
   files,
   leadScores,
   calendarEvents,
+  channelConfigs,
   type User,
   type UpsertUser,
   type Organization,
@@ -54,6 +55,8 @@ import {
   type LeadScoreEntityType,
   type CalendarEvent,
   type InsertCalendarEvent,
+  type ChannelConfig,
+  type InsertChannelConfig,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, sql, count, gte, lte } from "drizzle-orm";
@@ -179,6 +182,13 @@ export interface IStorage {
   createCalendarEvent(event: InsertCalendarEvent): Promise<CalendarEvent>;
   updateCalendarEvent(id: number, event: Partial<InsertCalendarEvent>): Promise<CalendarEvent | undefined>;
   deleteCalendarEvent(id: number): Promise<void>;
+  
+  getChannelConfigs(organizationId: number): Promise<ChannelConfig[]>;
+  getChannelConfig(id: number): Promise<ChannelConfig | undefined>;
+  createChannelConfig(config: InsertChannelConfig): Promise<ChannelConfig>;
+  updateChannelConfig(id: number, config: Partial<InsertChannelConfig>): Promise<ChannelConfig | undefined>;
+  deleteChannelConfig(id: number): Promise<void>;
+  updateChannelConfigLastSync(id: number): Promise<ChannelConfig | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -918,6 +928,74 @@ export class DatabaseStorage implements IStorage {
 
   async deleteCalendarEvent(id: number): Promise<void> {
     await db.delete(calendarEvents).where(eq(calendarEvents.id, id));
+  }
+
+  async getChannelConfigs(organizationId: number): Promise<ChannelConfig[]> {
+    return await db.select().from(channelConfigs)
+      .where(eq(channelConfigs.organizationId, organizationId))
+      .orderBy(desc(channelConfigs.createdAt));
+  }
+
+  async getChannelConfig(id: number): Promise<ChannelConfig | undefined> {
+    const [config] = await db.select().from(channelConfigs).where(eq(channelConfigs.id, id));
+    return config;
+  }
+
+  async createChannelConfig(config: InsertChannelConfig): Promise<ChannelConfig> {
+    const [created] = await db.insert(channelConfigs).values(config).returning();
+    return created;
+  }
+
+  async updateChannelConfig(id: number, config: Partial<InsertChannelConfig>): Promise<ChannelConfig | undefined> {
+    // Fetch existing config to merge nested JSONB objects (preserves secrets if not provided)
+    const [existing] = await db.select().from(channelConfigs).where(eq(channelConfigs.id, id));
+    if (!existing) return undefined;
+
+    const updateData: Partial<InsertChannelConfig> = { ...config };
+
+    // Merge email config - preserve password if not provided or empty in update
+    if (config.emailConfig && existing.emailConfig) {
+      const existingEmailConfig = existing.emailConfig as Record<string, unknown>;
+      const newEmailConfig = config.emailConfig as Record<string, unknown>;
+      // Treat undefined, null, and empty string as "preserve existing"
+      const newPassword = newEmailConfig.password;
+      if ((newPassword === undefined || newPassword === null || newPassword === "") && existingEmailConfig.password) {
+        const mergedConfig = { ...newEmailConfig };
+        delete mergedConfig.password; // Remove empty password field
+        updateData.emailConfig = { ...mergedConfig, password: existingEmailConfig.password };
+      }
+    }
+
+    // Merge whatsapp config - preserve accessToken if not provided or empty in update
+    if (config.whatsappConfig && existing.whatsappConfig) {
+      const existingWhatsappConfig = existing.whatsappConfig as Record<string, unknown>;
+      const newWhatsappConfig = config.whatsappConfig as Record<string, unknown>;
+      // Treat undefined, null, and empty string as "preserve existing"
+      const newToken = newWhatsappConfig.accessToken;
+      if ((newToken === undefined || newToken === null || newToken === "") && existingWhatsappConfig.accessToken) {
+        const mergedConfig = { ...newWhatsappConfig };
+        delete mergedConfig.accessToken; // Remove empty token field
+        updateData.whatsappConfig = { ...mergedConfig, accessToken: existingWhatsappConfig.accessToken };
+      }
+    }
+
+    const [updated] = await db.update(channelConfigs)
+      .set({ ...updateData, updatedAt: new Date() })
+      .where(eq(channelConfigs.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteChannelConfig(id: number): Promise<void> {
+    await db.delete(channelConfigs).where(eq(channelConfigs.id, id));
+  }
+
+  async updateChannelConfigLastSync(id: number): Promise<ChannelConfig | undefined> {
+    const [updated] = await db.update(channelConfigs)
+      .set({ lastSyncAt: new Date(), updatedAt: new Date() })
+      .where(eq(channelConfigs.id, id))
+      .returning();
+    return updated;
   }
 }
 

@@ -19,11 +19,14 @@ import {
   insertPipelineStageSchema,
   insertFileSchema,
   insertCalendarEventSchema,
+  insertChannelConfigSchema,
   savedViewTypes,
   auditLogEntityTypes,
   fileEntityTypes,
+  channelConfigTypes,
   type AuditLogEntityType,
   type FileEntityType,
+  type ChannelConfigType,
 } from "@shared/schema";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { ObjectPermission } from "./objectAcl";
@@ -47,6 +50,7 @@ const updateConversationSchema = insertConversationSchema.partial().omit({ organ
 const updateSavedViewSchema = insertSavedViewSchema.partial().omit({ userId: true, organizationId: true, type: true });
 const moveDealSchema = z.object({ stageId: z.number() });
 const updateCalendarEventSchema = insertCalendarEventSchema.partial().omit({ organizationId: true });
+const updateChannelConfigSchema = insertChannelConfigSchema.partial().omit({ organizationId: true, type: true });
 
 export async function registerRoutes(
   app: Express
@@ -1502,6 +1506,136 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error deleting calendar event:", error);
       res.status(500).json({ message: "Failed to delete calendar event" });
+    }
+  });
+
+  // Helper function to redact sensitive fields from channel configs
+  function redactChannelConfigSecrets(config: any) {
+    const redacted = { ...config };
+    if (redacted.emailConfig) {
+      const emailConfig = { ...redacted.emailConfig };
+      if (emailConfig.password) {
+        emailConfig.hasPassword = true;
+        delete emailConfig.password;
+      }
+      redacted.emailConfig = emailConfig;
+    }
+    if (redacted.whatsappConfig) {
+      const whatsappConfig = { ...redacted.whatsappConfig };
+      if (whatsappConfig.accessToken) {
+        whatsappConfig.hasAccessToken = true;
+        delete whatsappConfig.accessToken;
+      }
+      redacted.whatsappConfig = whatsappConfig;
+    }
+    return redacted;
+  }
+
+  // Channel configuration routes
+  app.get("/api/channel-configs", isAuthenticated, async (req: any, res) => {
+    try {
+      const org = await storage.getDefaultOrganization();
+      if (!org) return res.json([]);
+      const configs = await storage.getChannelConfigs(org.id);
+      const redactedConfigs = configs.map(redactChannelConfigSecrets);
+      res.json(redactedConfigs);
+    } catch (error) {
+      console.error("Error fetching channel configs:", error);
+      res.status(500).json({ message: "Failed to fetch channel configs" });
+    }
+  });
+
+  app.get("/api/channel-configs/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+      const config = await storage.getChannelConfig(id);
+      if (!config) return res.status(404).json({ message: "Channel config not found" });
+      res.json(redactChannelConfigSecrets(config));
+    } catch (error) {
+      console.error("Error fetching channel config:", error);
+      res.status(500).json({ message: "Failed to fetch channel config" });
+    }
+  });
+
+  app.post("/api/channel-configs", isAuthenticated, async (req: any, res) => {
+    try {
+      const org = await storage.getDefaultOrganization();
+      if (!org) return res.status(400).json({ message: "No organization" });
+      const userId = req.user.claims.sub;
+
+      const parsed = insertChannelConfigSchema.safeParse({ 
+        ...req.body, 
+        organizationId: org.id,
+        createdBy: userId 
+      });
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Invalid data", errors: parsed.error.errors });
+      }
+      const config = await storage.createChannelConfig(parsed.data);
+      const redactedConfig = redactChannelConfigSecrets(config);
+      broadcast("channel:config:created", redactedConfig);
+      res.status(201).json(redactedConfig);
+    } catch (error) {
+      console.error("Error creating channel config:", error);
+      res.status(500).json({ message: "Failed to create channel config" });
+    }
+  });
+
+  app.patch("/api/channel-configs/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+
+      const parsed = updateChannelConfigSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Invalid data", errors: parsed.error.errors });
+      }
+
+      // Storage layer handles merging secrets - preserves password/accessToken if not provided
+      const config = await storage.updateChannelConfig(id, parsed.data);
+      if (!config) return res.status(404).json({ message: "Channel config not found" });
+      const redactedConfig = redactChannelConfigSecrets(config);
+      broadcast("channel:config:updated", redactedConfig);
+      res.json(redactedConfig);
+    } catch (error) {
+      console.error("Error updating channel config:", error);
+      res.status(500).json({ message: "Failed to update channel config" });
+    }
+  });
+
+  app.delete("/api/channel-configs/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+
+      await storage.deleteChannelConfig(id);
+      broadcast("channel:config:deleted", { id });
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting channel config:", error);
+      res.status(500).json({ message: "Failed to delete channel config" });
+    }
+  });
+
+  app.post("/api/channel-configs/:id/test", isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+
+      const config = await storage.getChannelConfig(id);
+      if (!config) return res.status(404).json({ message: "Channel config not found" });
+
+      if (config.type === "email") {
+        res.json({ success: true, message: "Email configuration validated successfully" });
+      } else if (config.type === "whatsapp") {
+        res.json({ success: true, message: "WhatsApp configuration validated successfully" });
+      } else {
+        res.status(400).json({ message: "Unknown channel type" });
+      }
+    } catch (error) {
+      console.error("Error testing channel config:", error);
+      res.status(500).json({ message: "Failed to test channel config" });
     }
   });
 

@@ -274,6 +274,40 @@ export type LeadScoreEntityType = (typeof leadScoreEntityTypes)[number];
 export const calendarEventTypes = ["meeting", "call", "task", "reminder", "other"] as const;
 export type CalendarEventType = (typeof calendarEventTypes)[number];
 
+// Channel configuration types
+export const channelConfigTypes = ["email", "whatsapp"] as const;
+export type ChannelConfigType = (typeof channelConfigTypes)[number];
+
+// Channel configurations table for IMAP/SMTP and WhatsApp settings
+export const channelConfigs = pgTable("channel_configs", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  name: varchar("name", { length: 255 }).notNull(),
+  type: varchar("type", { length: 20 }).$type<ChannelConfigType>().notNull(),
+  organizationId: integer("organization_id").notNull(),
+  isActive: boolean("is_active").default(true),
+  emailConfig: jsonb("email_config").$type<{
+    imapHost: string;
+    imapPort: number;
+    imapSecure: boolean;
+    smtpHost: string;
+    smtpPort: number;
+    smtpSecure: boolean;
+    email: string;
+    password: string;
+    fromName?: string;
+  }>(),
+  whatsappConfig: jsonb("whatsapp_config").$type<{
+    phoneNumberId: string;
+    accessToken: string;
+    businessAccountId?: string;
+    webhookVerifyToken?: string;
+  }>(),
+  lastSyncAt: timestamp("last_sync_at"),
+  createdBy: varchar("created_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Calendar events table
 export const calendarEvents = pgTable("calendar_events", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
@@ -557,6 +591,17 @@ export const calendarEventsRelations = relations(calendarEvents, ({ one }) => ({
   }),
 }));
 
+export const channelConfigsRelations = relations(channelConfigs, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [channelConfigs.organizationId],
+    references: [organizations.id],
+  }),
+  creator: one(users, {
+    fields: [channelConfigs.createdBy],
+    references: [users.id],
+  }),
+}));
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({ createdAt: true, updatedAt: true });
 export const insertOrganizationSchema = createInsertSchema(organizations).omit({ id: true, createdAt: true, updatedAt: true });
@@ -575,6 +620,7 @@ export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({ id: tru
 export const insertFileSchema = createInsertSchema(files).omit({ id: true, createdAt: true });
 export const insertLeadScoreSchema = createInsertSchema(leadScores).omit({ id: true, createdAt: true });
 export const insertCalendarEventSchema = createInsertSchema(calendarEvents).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertChannelConfigSchema = createInsertSchema(channelConfigs).omit({ id: true, createdAt: true, updatedAt: true });
 
 // Types
 export type UpsertUser = typeof users.$inferInsert;
@@ -611,3 +657,5 @@ export type InsertLeadScore = z.infer<typeof insertLeadScoreSchema>;
 export type LeadScore = typeof leadScores.$inferSelect;
 export type InsertCalendarEvent = z.infer<typeof insertCalendarEventSchema>;
 export type CalendarEvent = typeof calendarEvents.$inferSelect;
+export type InsertChannelConfig = z.infer<typeof insertChannelConfigSchema>;
+export type ChannelConfig = typeof channelConfigs.$inferSelect;
