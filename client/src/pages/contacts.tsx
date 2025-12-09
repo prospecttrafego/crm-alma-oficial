@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/sheet";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Search, Mail, Phone, Building2, User, MoreHorizontal, Calendar, FileText, CheckSquare } from "lucide-react";
+import { EntityHistory } from "@/components/entity-history";
 import type { Contact, Company, Activity } from "@shared/schema";
 
 interface ContactWithRelations extends Contact {
@@ -386,6 +387,10 @@ export default function ContactsPage() {
                     No activities yet
                   </div>
                 )}
+              </div>
+
+              <div className="rounded-md border">
+                <EntityHistory entityType="contact" entityId={selectedContact.id} />
               </div>
             </div>
           )}

@@ -17,7 +17,15 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { Plus, Search, Building2, Globe, Users, ExternalLink } from "lucide-react";
+import { EntityHistory } from "@/components/entity-history";
 import type { Company, Contact } from "@shared/schema";
 
 interface CompanyWithContacts extends Company {
@@ -28,6 +36,7 @@ export default function CompaniesPage() {
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [newCompanyOpen, setNewCompanyOpen] = useState(false);
+  const [selectedCompany, setSelectedCompany] = useState<CompanyWithContacts | null>(null);
 
   const { data: companies, isLoading } = useQuery<CompanyWithContacts[]>({
     queryKey: ["/api/companies"],
@@ -201,6 +210,7 @@ export default function CompaniesPage() {
             <Card
               key={company.id}
               className="cursor-pointer transition-shadow hover:shadow-md"
+              onClick={() => setSelectedCompany(company)}
               data-testid={`card-company-${company.id}`}
             >
               <CardHeader>
@@ -260,6 +270,82 @@ export default function CompaniesPage() {
           </div>
         </div>
       )}
+
+      <Sheet open={!!selectedCompany} onOpenChange={() => setSelectedCompany(null)}>
+        <SheetContent className="w-[400px] sm:w-[540px]">
+          <SheetHeader>
+            <SheetTitle className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary/10">
+                <Building2 className="h-5 w-5 text-primary" />
+              </div>
+              <span>{selectedCompany?.name}</span>
+            </SheetTitle>
+            <SheetDescription>Company details and history</SheetDescription>
+          </SheetHeader>
+
+          {selectedCompany && (
+            <div className="mt-6 space-y-6">
+              <div className="space-y-3">
+                {selectedCompany.domain && (
+                  <div className="flex items-center gap-3">
+                    <Globe className="h-4 w-4 text-muted-foreground" />
+                    <span>{selectedCompany.domain}</span>
+                  </div>
+                )}
+                {selectedCompany.website && (
+                  <div className="flex items-center gap-3">
+                    <Globe className="h-4 w-4 text-muted-foreground" />
+                    <a
+                      href={selectedCompany.website}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 text-primary hover:underline"
+                    >
+                      {selectedCompany.website}
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  </div>
+                )}
+                {selectedCompany.industry && (
+                  <div className="flex items-center gap-3">
+                    <Building2 className="h-4 w-4 text-muted-foreground" />
+                    <Badge variant="secondary">{selectedCompany.industry}</Badge>
+                  </div>
+                )}
+                {selectedCompany.size && (
+                  <div className="flex items-center gap-3">
+                    <Users className="h-4 w-4 text-muted-foreground" />
+                    <span>{selectedCompany.size} employees</span>
+                  </div>
+                )}
+              </div>
+
+              {selectedCompany.contacts && selectedCompany.contacts.length > 0 && (
+                <div className="rounded-md border p-4">
+                  <h4 className="mb-3 text-sm font-medium">Contacts</h4>
+                  <div className="space-y-2">
+                    {selectedCompany.contacts.map((contact) => (
+                      <div
+                        key={contact.id}
+                        className="flex items-center gap-2 text-sm"
+                      >
+                        <Users className="h-4 w-4 text-muted-foreground" />
+                        <span>
+                          {contact.firstName} {contact.lastName}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="rounded-md border">
+                <EntityHistory entityType="company" entityId={selectedCompany.id} />
+              </div>
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

@@ -8,6 +8,7 @@ import {
   Activity,
   Settings,
   LogOut,
+  Shield,
 } from "lucide-react";
 import {
   Sidebar,
@@ -152,6 +153,20 @@ export function AppSidebar() {
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
+          {user?.role === "admin" && (
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
+                isActive={location === "/audit-log"}
+                tooltip="Audit Log"
+              >
+                <Link href="/audit-log" data-testid="link-nav-audit-log">
+                  <Shield className="h-4 w-4" />
+                  <span>Audit Log</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
         </SidebarMenu>
 
         <SidebarSeparator />

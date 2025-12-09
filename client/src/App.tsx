@@ -23,6 +23,7 @@ import ContactsPage from "@/pages/contacts";
 import CompaniesPage from "@/pages/companies";
 import ActivitiesPage from "@/pages/activities";
 import SettingsPage from "@/pages/settings";
+import AuditLogPage from "@/pages/audit-log";
 import NotFound from "@/pages/not-found";
 
 function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
@@ -92,6 +93,7 @@ function Router() {
         <Route path="/companies" component={CompaniesPage} />
         <Route path="/activities" component={ActivitiesPage} />
         <Route path="/settings" component={SettingsPage} />
+        <Route path="/audit-log" component={AuditLogPage} />
         <Route component={NotFound} />
       </Switch>
     </AuthenticatedLayout>

@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/sheet";
 import { Plus, DollarSign, User, Building2, GripVertical } from "lucide-react";
 import { FilterPanel, type PipelineFilters } from "@/components/filter-panel";
+import { EntityHistory } from "@/components/entity-history";
 import type { Deal, PipelineStage, Pipeline, Contact, Company } from "@shared/schema";
 
 interface DealWithRelations extends Deal {
@@ -403,6 +404,10 @@ export default function PipelinePage() {
               <div className="rounded-md border p-4">
                 <h4 className="mb-2 text-sm font-medium">Status</h4>
                 <Badge>{selectedDeal.status}</Badge>
+              </div>
+
+              <div className="rounded-md border">
+                <EntityHistory entityType="deal" entityId={selectedDeal.id} />
               </div>
             </div>
           )}

@@ -14,7 +14,10 @@ import {
   insertNotificationSchema,
   insertSavedViewSchema,
   insertEmailTemplateSchema,
+  insertAuditLogSchema,
   savedViewTypes,
+  auditLogEntityTypes,
+  type AuditLogEntityType,
 } from "@shared/schema";
 
 const clients = new Set<WebSocket>();
@@ -123,12 +126,24 @@ export async function registerRoutes(
     try {
       const org = await storage.getDefaultOrganization();
       if (!org) return res.status(400).json({ message: "No organization" });
+      const userId = req.user.claims.sub;
       
       const parsed = insertDealSchema.safeParse({ ...req.body, organizationId: org.id });
       if (!parsed.success) {
         return res.status(400).json({ message: "Invalid data", errors: parsed.error.errors });
       }
       const deal = await storage.createDeal(parsed.data);
+      
+      await storage.createAuditLog({
+        userId,
+        action: "create",
+        entityType: "deal",
+        entityId: deal.id,
+        entityName: deal.title,
+        organizationId: org.id,
+        changes: { after: deal as unknown as Record<string, unknown> },
+      });
+      
       broadcast("deal:created", deal);
       res.status(201).json(deal);
     } catch (error) {
@@ -141,13 +156,32 @@ export async function registerRoutes(
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+      const userId = req.user.claims.sub;
       
+      const existingDeal = await storage.getDeal(id);
       const parsed = updateDealSchema.safeParse(req.body);
       if (!parsed.success) {
         return res.status(400).json({ message: "Invalid data", errors: parsed.error.errors });
       }
       const deal = await storage.updateDeal(id, parsed.data);
       if (!deal) return res.status(404).json({ message: "Deal not found" });
+      
+      const org = await storage.getDefaultOrganization();
+      if (org) {
+        await storage.createAuditLog({
+          userId,
+          action: "update",
+          entityType: "deal",
+          entityId: deal.id,
+          entityName: deal.title,
+          organizationId: org.id,
+          changes: { 
+            before: existingDeal as unknown as Record<string, unknown>, 
+            after: deal as unknown as Record<string, unknown> 
+          },
+        });
+      }
+      
       broadcast("deal:updated", deal);
       res.json(deal);
     } catch (error) {
@@ -192,7 +226,24 @@ export async function registerRoutes(
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+      const userId = req.user.claims.sub;
+      
+      const existingDeal = await storage.getDeal(id);
       await storage.deleteDeal(id);
+      
+      const org = await storage.getDefaultOrganization();
+      if (org && existingDeal) {
+        await storage.createAuditLog({
+          userId,
+          action: "delete",
+          entityType: "deal",
+          entityId: id,
+          entityName: existingDeal.title,
+          organizationId: org.id,
+          changes: { before: existingDeal as unknown as Record<string, unknown> },
+        });
+      }
+      
       broadcast("deal:deleted", { id });
       res.status(204).send();
     } catch (error) {
@@ -230,12 +281,24 @@ export async function registerRoutes(
     try {
       const org = await storage.getDefaultOrganization();
       if (!org) return res.status(400).json({ message: "No organization" });
+      const userId = req.user.claims.sub;
       
       const parsed = insertContactSchema.safeParse({ ...req.body, organizationId: org.id });
       if (!parsed.success) {
         return res.status(400).json({ message: "Invalid data", errors: parsed.error.errors });
       }
       const contact = await storage.createContact(parsed.data);
+      
+      await storage.createAuditLog({
+        userId,
+        action: "create",
+        entityType: "contact",
+        entityId: contact.id,
+        entityName: `${contact.firstName} ${contact.lastName || ""}`.trim(),
+        organizationId: org.id,
+        changes: { after: contact as unknown as Record<string, unknown> },
+      });
+      
       res.status(201).json(contact);
     } catch (error) {
       console.error("Error creating contact:", error);
@@ -247,13 +310,32 @@ export async function registerRoutes(
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+      const userId = req.user.claims.sub;
       
+      const existingContact = await storage.getContact(id);
       const parsed = updateContactSchema.safeParse(req.body);
       if (!parsed.success) {
         return res.status(400).json({ message: "Invalid data", errors: parsed.error.errors });
       }
       const contact = await storage.updateContact(id, parsed.data);
       if (!contact) return res.status(404).json({ message: "Contact not found" });
+      
+      const org = await storage.getDefaultOrganization();
+      if (org) {
+        await storage.createAuditLog({
+          userId,
+          action: "update",
+          entityType: "contact",
+          entityId: contact.id,
+          entityName: `${contact.firstName} ${contact.lastName || ""}`.trim(),
+          organizationId: org.id,
+          changes: { 
+            before: existingContact as unknown as Record<string, unknown>, 
+            after: contact as unknown as Record<string, unknown> 
+          },
+        });
+      }
+      
       res.json(contact);
     } catch (error) {
       console.error("Error updating contact:", error);
@@ -265,7 +347,24 @@ export async function registerRoutes(
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+      const userId = req.user.claims.sub;
+      
+      const existingContact = await storage.getContact(id);
       await storage.deleteContact(id);
+      
+      const org = await storage.getDefaultOrganization();
+      if (org && existingContact) {
+        await storage.createAuditLog({
+          userId,
+          action: "delete",
+          entityType: "contact",
+          entityId: id,
+          entityName: `${existingContact.firstName} ${existingContact.lastName || ""}`.trim(),
+          organizationId: org.id,
+          changes: { before: existingContact as unknown as Record<string, unknown> },
+        });
+      }
+      
       res.status(204).send();
     } catch (error) {
       console.error("Error deleting contact:", error);
@@ -302,12 +401,24 @@ export async function registerRoutes(
     try {
       const org = await storage.getDefaultOrganization();
       if (!org) return res.status(400).json({ message: "No organization" });
+      const userId = req.user.claims.sub;
       
       const parsed = insertCompanySchema.safeParse({ ...req.body, organizationId: org.id });
       if (!parsed.success) {
         return res.status(400).json({ message: "Invalid data", errors: parsed.error.errors });
       }
       const company = await storage.createCompany(parsed.data);
+      
+      await storage.createAuditLog({
+        userId,
+        action: "create",
+        entityType: "company",
+        entityId: company.id,
+        entityName: company.name,
+        organizationId: org.id,
+        changes: { after: company as unknown as Record<string, unknown> },
+      });
+      
       res.status(201).json(company);
     } catch (error) {
       console.error("Error creating company:", error);
@@ -319,13 +430,32 @@ export async function registerRoutes(
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+      const userId = req.user.claims.sub;
       
+      const existingCompany = await storage.getCompany(id);
       const parsed = updateCompanySchema.safeParse(req.body);
       if (!parsed.success) {
         return res.status(400).json({ message: "Invalid data", errors: parsed.error.errors });
       }
       const company = await storage.updateCompany(id, parsed.data);
       if (!company) return res.status(404).json({ message: "Company not found" });
+      
+      const org = await storage.getDefaultOrganization();
+      if (org) {
+        await storage.createAuditLog({
+          userId,
+          action: "update",
+          entityType: "company",
+          entityId: company.id,
+          entityName: company.name,
+          organizationId: org.id,
+          changes: { 
+            before: existingCompany as unknown as Record<string, unknown>, 
+            after: company as unknown as Record<string, unknown> 
+          },
+        });
+      }
+      
       res.json(company);
     } catch (error) {
       console.error("Error updating company:", error);
@@ -337,7 +467,24 @@ export async function registerRoutes(
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+      const userId = req.user.claims.sub;
+      
+      const existingCompany = await storage.getCompany(id);
       await storage.deleteCompany(id);
+      
+      const org = await storage.getDefaultOrganization();
+      if (org && existingCompany) {
+        await storage.createAuditLog({
+          userId,
+          action: "delete",
+          entityType: "company",
+          entityId: id,
+          entityName: existingCompany.name,
+          organizationId: org.id,
+          changes: { before: existingCompany as unknown as Record<string, unknown> },
+        });
+      }
+      
       res.status(204).send();
     } catch (error) {
       console.error("Error deleting company:", error);
@@ -767,6 +914,60 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error deleting email template:", error);
       res.status(500).json({ message: "Failed to delete email template" });
+    }
+  });
+
+  // Audit Logs endpoints
+  app.get("/api/audit-logs", isAuthenticated, async (req: any, res) => {
+    try {
+      const org = await storage.getDefaultOrganization();
+      if (!org) return res.json([]);
+      const user = await storage.getUser(req.user.claims.sub);
+      if (!user || user.role !== "admin") {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+      const limit = parseInt(req.query.limit as string) || 100;
+      const logs = await storage.getAuditLogs(org.id, limit);
+      
+      const enrichedLogs = await Promise.all(
+        logs.map(async (log) => {
+          const logUser = await storage.getUser(log.userId);
+          return {
+            ...log,
+            user: logUser ? { id: logUser.id, firstName: logUser.firstName, lastName: logUser.lastName } : null,
+          };
+        })
+      );
+      res.json(enrichedLogs);
+    } catch (error) {
+      console.error("Error fetching audit logs:", error);
+      res.status(500).json({ message: "Failed to fetch audit logs" });
+    }
+  });
+
+  app.get("/api/audit-logs/entity/:entityType/:entityId", isAuthenticated, async (req: any, res) => {
+    try {
+      const entityType = req.params.entityType as AuditLogEntityType;
+      const entityId = parseInt(req.params.entityId);
+      if (!auditLogEntityTypes.includes(entityType)) {
+        return res.status(400).json({ message: "Invalid entity type" });
+      }
+      if (isNaN(entityId)) return res.status(400).json({ message: "Invalid entity ID" });
+      
+      const logs = await storage.getAuditLogsByEntity(entityType, entityId);
+      const enrichedLogs = await Promise.all(
+        logs.map(async (log) => {
+          const logUser = await storage.getUser(log.userId);
+          return {
+            ...log,
+            user: logUser ? { id: logUser.id, firstName: logUser.firstName, lastName: logUser.lastName } : null,
+          };
+        })
+      );
+      res.json(enrichedLogs);
+    } catch (error) {
+      console.error("Error fetching entity audit logs:", error);
+      res.status(500).json({ message: "Failed to fetch audit logs" });
     }
   });
 

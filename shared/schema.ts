@@ -241,6 +241,27 @@ export const activities = pgTable("activities", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Audit log action types
+export const auditLogActions = ["create", "update", "delete"] as const;
+export type AuditLogAction = (typeof auditLogActions)[number];
+
+// Audit log entity types
+export const auditLogEntityTypes = ["deal", "contact", "company", "conversation", "activity", "pipeline", "email_template"] as const;
+export type AuditLogEntityType = (typeof auditLogEntityTypes)[number];
+
+// Audit logs table
+export const auditLogs = pgTable("audit_logs", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  userId: varchar("user_id").notNull(),
+  action: varchar("action", { length: 20 }).$type<AuditLogAction>().notNull(),
+  entityType: varchar("entity_type", { length: 50 }).$type<AuditLogEntityType>().notNull(),
+  entityId: integer("entity_id").notNull(),
+  entityName: varchar("entity_name", { length: 255 }),
+  organizationId: integer("organization_id").notNull(),
+  changes: jsonb("changes").$type<{ before?: Record<string, unknown>; after?: Record<string, unknown> }>(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Relations
 export const usersRelations = relations(users, ({ one, many }) => ({
   organization: one(organizations, {
@@ -418,6 +439,17 @@ export const emailTemplatesRelations = relations(emailTemplates, ({ one }) => ({
   }),
 }));
 
+export const auditLogsRelations = relations(auditLogs, ({ one }) => ({
+  user: one(users, {
+    fields: [auditLogs.userId],
+    references: [users.id],
+  }),
+  organization: one(organizations, {
+    fields: [auditLogs.organizationId],
+    references: [organizations.id],
+  }),
+}));
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({ createdAt: true, updatedAt: true });
 export const insertOrganizationSchema = createInsertSchema(organizations).omit({ id: true, createdAt: true, updatedAt: true });
@@ -432,6 +464,7 @@ export const insertActivitySchema = createInsertSchema(activities).omit({ id: tr
 export const insertNotificationSchema = createInsertSchema(notifications).omit({ id: true, createdAt: true });
 export const insertSavedViewSchema = createInsertSchema(savedViews).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertEmailTemplateSchema = createInsertSchema(emailTemplates).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({ id: true, createdAt: true });
 
 // Types
 export type UpsertUser = typeof users.$inferInsert;
@@ -460,3 +493,5 @@ export type InsertSavedView = z.infer<typeof insertSavedViewSchema>;
 export type SavedView = typeof savedViews.$inferSelect;
 export type InsertEmailTemplate = z.infer<typeof insertEmailTemplateSchema>;
 export type EmailTemplate = typeof emailTemplates.$inferSelect;
+export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
+export type AuditLog = typeof auditLogs.$inferSelect;

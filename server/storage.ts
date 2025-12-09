@@ -12,6 +12,7 @@ import {
   notifications,
   savedViews,
   emailTemplates,
+  auditLogs,
   type User,
   type UpsertUser,
   type Organization,
@@ -39,6 +40,9 @@ import {
   type SavedViewType,
   type EmailTemplate,
   type InsertEmailTemplate,
+  type AuditLog,
+  type InsertAuditLog,
+  type AuditLogEntityType,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, sql, count } from "drizzle-orm";
@@ -121,6 +125,10 @@ export interface IStorage {
   createEmailTemplate(template: InsertEmailTemplate): Promise<EmailTemplate>;
   updateEmailTemplate(id: number, organizationId: number, template: Partial<InsertEmailTemplate>): Promise<EmailTemplate | undefined>;
   deleteEmailTemplate(id: number, organizationId: number): Promise<void>;
+  
+  getAuditLogs(organizationId: number, limit?: number): Promise<AuditLog[]>;
+  getAuditLogsByEntity(entityType: AuditLogEntityType, entityId: number): Promise<AuditLog[]>;
+  createAuditLog(log: InsertAuditLog): Promise<AuditLog>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -466,6 +474,24 @@ export class DatabaseStorage implements IStorage {
 
   async deleteEmailTemplate(id: number, organizationId: number): Promise<void> {
     await db.delete(emailTemplates).where(and(eq(emailTemplates.id, id), eq(emailTemplates.organizationId, organizationId)));
+  }
+
+  async getAuditLogs(organizationId: number, limit: number = 100): Promise<AuditLog[]> {
+    return await db.select().from(auditLogs)
+      .where(eq(auditLogs.organizationId, organizationId))
+      .orderBy(desc(auditLogs.createdAt))
+      .limit(limit);
+  }
+
+  async getAuditLogsByEntity(entityType: AuditLogEntityType, entityId: number): Promise<AuditLog[]> {
+    return await db.select().from(auditLogs)
+      .where(and(eq(auditLogs.entityType, entityType), eq(auditLogs.entityId, entityId)))
+      .orderBy(desc(auditLogs.createdAt));
+  }
+
+  async createAuditLog(log: InsertAuditLog): Promise<AuditLog> {
+    const [created] = await db.insert(auditLogs).values(log).returning();
+    return created;
   }
 }
 
