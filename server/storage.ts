@@ -72,8 +72,13 @@ export interface IStorage {
   getPipeline(id: number): Promise<Pipeline | undefined>;
   getDefaultPipeline(organizationId: number): Promise<Pipeline | undefined>;
   createPipeline(pipeline: InsertPipeline): Promise<Pipeline>;
+  updatePipeline(id: number, pipeline: Partial<InsertPipeline>): Promise<Pipeline | undefined>;
+  deletePipeline(id: number): Promise<void>;
+  setDefaultPipeline(id: number, organizationId: number): Promise<Pipeline | undefined>;
   getPipelineStages(pipelineId: number): Promise<PipelineStage[]>;
   createPipelineStage(stage: InsertPipelineStage): Promise<PipelineStage>;
+  updatePipelineStage(id: number, stage: Partial<InsertPipelineStage>): Promise<PipelineStage | undefined>;
+  deletePipelineStage(id: number): Promise<void>;
   
   getDeals(organizationId: number): Promise<Deal[]>;
   getDealsByPipeline(pipelineId: number): Promise<Deal[]>;
@@ -246,6 +251,31 @@ export class DatabaseStorage implements IStorage {
   async createPipelineStage(stage: InsertPipelineStage): Promise<PipelineStage> {
     const [created] = await db.insert(pipelineStages).values(stage).returning();
     return created;
+  }
+
+  async updatePipeline(id: number, pipeline: Partial<InsertPipeline>): Promise<Pipeline | undefined> {
+    const [updated] = await db.update(pipelines).set({ ...pipeline, updatedAt: new Date() }).where(eq(pipelines.id, id)).returning();
+    return updated;
+  }
+
+  async deletePipeline(id: number): Promise<void> {
+    await db.delete(pipelineStages).where(eq(pipelineStages.pipelineId, id));
+    await db.delete(pipelines).where(eq(pipelines.id, id));
+  }
+
+  async setDefaultPipeline(id: number, organizationId: number): Promise<Pipeline | undefined> {
+    await db.update(pipelines).set({ isDefault: false }).where(eq(pipelines.organizationId, organizationId));
+    const [updated] = await db.update(pipelines).set({ isDefault: true, updatedAt: new Date() }).where(eq(pipelines.id, id)).returning();
+    return updated;
+  }
+
+  async updatePipelineStage(id: number, stage: Partial<InsertPipelineStage>): Promise<PipelineStage | undefined> {
+    const [updated] = await db.update(pipelineStages).set(stage).where(eq(pipelineStages.id, id)).returning();
+    return updated;
+  }
+
+  async deletePipelineStage(id: number): Promise<void> {
+    await db.delete(pipelineStages).where(eq(pipelineStages.id, id));
   }
 
   async getDeals(organizationId: number): Promise<Deal[]> {

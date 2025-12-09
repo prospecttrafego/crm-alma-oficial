@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
@@ -24,7 +24,14 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { Plus, DollarSign, User, Building2, GripVertical } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Plus, DollarSign, User, Building2, GripVertical, ChevronDown } from "lucide-react";
 import { FilterPanel, type PipelineFilters } from "@/components/filter-panel";
 import { EntityHistory } from "@/components/entity-history";
 import type { Deal, PipelineStage, Pipeline, Contact, Company } from "@shared/schema";
@@ -46,10 +53,31 @@ export default function PipelinePage() {
   const [draggedDeal, setDraggedDeal] = useState<DealWithRelations | null>(null);
   const [dragOverStage, setDragOverStage] = useState<number | null>(null);
   const [filters, setFilters] = useState<PipelineFilters>({});
+  const [selectedPipelineId, setSelectedPipelineId] = useState<number | null>(null);
+
+  const { data: allPipelines } = useQuery<PipelineWithStages[]>({
+    queryKey: ["/api/pipelines"],
+  });
 
   const { data: pipeline, isLoading: pipelineLoading } = useQuery<PipelineWithStages>({
-    queryKey: ["/api/pipelines/default"],
+    queryKey: ["/api/pipelines", selectedPipelineId],
+    queryFn: async () => {
+      if (selectedPipelineId) {
+        const res = await fetch(`/api/pipelines/${selectedPipelineId}`, { credentials: "include" });
+        if (!res.ok) throw new Error("Failed to fetch pipeline");
+        return res.json();
+      }
+      const res = await fetch("/api/pipelines/default", { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch pipeline");
+      return res.json();
+    },
   });
+
+  useEffect(() => {
+    if (pipeline && !selectedPipelineId) {
+      setSelectedPipelineId(pipeline.id);
+    }
+  }, [pipeline, selectedPipelineId]);
 
   const { data: deals, isLoading: dealsLoading } = useQuery<DealWithRelations[]>({
     queryKey: ["/api/deals"],
@@ -171,13 +199,48 @@ export default function PipelinePage() {
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between gap-4 border-b p-4">
-        <div>
-          <h1 className="text-2xl font-bold" data-testid="text-pipeline-title">
-            {pipeline?.name || "Sales Pipeline"}
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Drag and drop deals between stages
-          </p>
+        <div className="flex items-center gap-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-bold" data-testid="text-pipeline-title">
+                Pipeline
+              </h1>
+              {allPipelines && allPipelines.length > 1 && (
+                <Select
+                  value={selectedPipelineId?.toString() || ""}
+                  onValueChange={(val) => setSelectedPipelineId(Number(val))}
+                >
+                  <SelectTrigger 
+                    className="w-[200px]" 
+                    data-testid="select-pipeline"
+                  >
+                    <SelectValue placeholder="Select pipeline">
+                      {pipeline?.name}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {allPipelines.map((p) => (
+                      <SelectItem 
+                        key={p.id} 
+                        value={p.id.toString()}
+                        data-testid={`select-pipeline-option-${p.id}`}
+                      >
+                        {p.name} {p.isDefault && "(Default)"}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              {(!allPipelines || allPipelines.length <= 1) && (
+                <span className="text-lg font-semibold text-muted-foreground">
+                  {pipeline?.name}
+                </span>
+              )}
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Drag and drop deals between stages
+            </p>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <FilterPanel

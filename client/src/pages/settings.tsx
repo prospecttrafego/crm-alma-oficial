@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
@@ -45,8 +45,665 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { User, Bell, Palette, Shield, LogOut, Mail, Plus, Pencil, Trash2, FileText, Copy } from "lucide-react";
-import type { EmailTemplate } from "@shared/schema";
+import { User, Bell, Palette, Shield, LogOut, Mail, Plus, Pencil, Trash2, FileText, Copy, GitBranch, Star, GripVertical } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import type { EmailTemplate, Pipeline, PipelineStage } from "@shared/schema";
+
+interface PipelineWithStages extends Pipeline {
+  stages: PipelineStage[];
+}
+
+const pipelineFormSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  description: z.string().optional(),
+});
+
+type PipelineFormData = z.infer<typeof pipelineFormSchema>;
+
+const stageFormSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  color: z.string().min(1, "Color is required"),
+  isWon: z.boolean().default(false),
+  isLost: z.boolean().default(false),
+});
+
+type StageFormData = z.infer<typeof stageFormSchema>;
+
+const STAGE_COLORS = [
+  "#605be5", "#22c55e", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#06b6d4", "#14b8a6"
+];
+
+function PipelineDialog({ 
+  pipeline, 
+  open, 
+  onOpenChange 
+}: { 
+  pipeline?: PipelineWithStages; 
+  open: boolean; 
+  onOpenChange: (open: boolean) => void;
+}) {
+  const { toast } = useToast();
+  const isEditing = !!pipeline;
+
+  const form = useForm<PipelineFormData>({
+    resolver: zodResolver(pipelineFormSchema),
+    defaultValues: {
+      name: "",
+      description: "",
+    },
+  });
+
+  useEffect(() => {
+    if (open) {
+      form.reset({
+        name: pipeline?.name || "",
+        description: pipeline?.description || "",
+      });
+    }
+  }, [open, pipeline, form]);
+
+  const createMutation = useMutation({
+    mutationFn: async (data: PipelineFormData) => {
+      const defaultStages = [
+        { name: "Lead", order: 0, color: "#605be5", isWon: false, isLost: false },
+        { name: "Qualified", order: 1, color: "#22c55e", isWon: false, isLost: false },
+        { name: "Proposal", order: 2, color: "#f59e0b", isWon: false, isLost: false },
+        { name: "Won", order: 3, color: "#22c55e", isWon: true, isLost: false },
+        { name: "Lost", order: 4, color: "#ef4444", isWon: false, isLost: true },
+      ];
+      await apiRequest("POST", "/api/pipelines", { ...data, stages: defaultStages });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/pipelines"] });
+      toast({ title: "Pipeline created successfully" });
+      onOpenChange(false);
+      form.reset();
+    },
+    onError: () => {
+      toast({ title: "Failed to create pipeline", variant: "destructive" });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async (data: PipelineFormData) => {
+      await apiRequest("PATCH", `/api/pipelines/${pipeline?.id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/pipelines"] });
+      toast({ title: "Pipeline updated successfully" });
+      onOpenChange(false);
+    },
+    onError: () => {
+      toast({ title: "Failed to update pipeline", variant: "destructive" });
+    },
+  });
+
+  const onSubmit = (data: PipelineFormData) => {
+    if (isEditing) {
+      updateMutation.mutate(data);
+    } else {
+      createMutation.mutate(data);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{isEditing ? "Edit Pipeline" : "Create Pipeline"}</DialogTitle>
+          <DialogDescription>
+            {isEditing ? "Update pipeline details" : "Create a new sales pipeline with default stages"}
+          </DialogDescription>
+        </DialogHeader>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Pipeline Name</FormLabel>
+                  <FormControl>
+                    <Input 
+                      placeholder="e.g., Enterprise Sales, SMB Pipeline" 
+                      {...field} 
+                      data-testid="input-pipeline-name"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="description"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Description (Optional)</FormLabel>
+                  <FormControl>
+                    <Textarea 
+                      placeholder="Describe the purpose of this pipeline..."
+                      {...field} 
+                      data-testid="input-pipeline-description"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <DialogFooter>
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={() => onOpenChange(false)}
+                data-testid="button-cancel-pipeline"
+              >
+                Cancel
+              </Button>
+              <Button 
+                type="submit" 
+                disabled={createMutation.isPending || updateMutation.isPending}
+                data-testid="button-save-pipeline"
+              >
+                {createMutation.isPending || updateMutation.isPending ? "Saving..." : isEditing ? "Update" : "Create Pipeline"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function StageDialog({ 
+  stage,
+  pipelineId,
+  stageCount,
+  open, 
+  onOpenChange 
+}: { 
+  stage?: PipelineStage;
+  pipelineId: number;
+  stageCount: number;
+  open: boolean; 
+  onOpenChange: (open: boolean) => void;
+}) {
+  const { toast } = useToast();
+  const isEditing = !!stage;
+
+  const form = useForm<StageFormData>({
+    resolver: zodResolver(stageFormSchema),
+    defaultValues: {
+      name: "",
+      color: "#605be5",
+      isWon: false,
+      isLost: false,
+    },
+  });
+
+  useEffect(() => {
+    if (open) {
+      form.reset({
+        name: stage?.name || "",
+        color: stage?.color || "#605be5",
+        isWon: stage?.isWon || false,
+        isLost: stage?.isLost || false,
+      });
+    }
+  }, [open, stage, form]);
+
+  const createMutation = useMutation({
+    mutationFn: async (data: StageFormData) => {
+      await apiRequest("POST", `/api/pipelines/${pipelineId}/stages`, { 
+        ...data, 
+        order: stageCount,
+        pipelineId 
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/pipelines"] });
+      toast({ title: "Stage added successfully" });
+      onOpenChange(false);
+      form.reset();
+    },
+    onError: () => {
+      toast({ title: "Failed to add stage", variant: "destructive" });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async (data: StageFormData) => {
+      await apiRequest("PATCH", `/api/pipelines/${pipelineId}/stages/${stage?.id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/pipelines"] });
+      toast({ title: "Stage updated successfully" });
+      onOpenChange(false);
+    },
+    onError: () => {
+      toast({ title: "Failed to update stage", variant: "destructive" });
+    },
+  });
+
+  const onSubmit = (data: StageFormData) => {
+    if (isEditing) {
+      updateMutation.mutate(data);
+    } else {
+      createMutation.mutate(data);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{isEditing ? "Edit Stage" : "Add Stage"}</DialogTitle>
+          <DialogDescription>
+            {isEditing ? "Update stage details" : "Add a new stage to the pipeline"}
+          </DialogDescription>
+        </DialogHeader>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Stage Name</FormLabel>
+                  <FormControl>
+                    <Input 
+                      placeholder="e.g., Qualified, Proposal Sent" 
+                      {...field} 
+                      data-testid="input-stage-name"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="color"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Color</FormLabel>
+                  <FormControl>
+                    <div className="flex flex-wrap gap-2">
+                      {STAGE_COLORS.map((color) => (
+                        <button
+                          key={color}
+                          type="button"
+                          onClick={() => field.onChange(color)}
+                          className={`h-8 w-8 rounded-full border-2 transition-all ${
+                            field.value === color ? "border-foreground scale-110" : "border-transparent"
+                          }`}
+                          style={{ backgroundColor: color }}
+                          data-testid={`button-color-${color}`}
+                        />
+                      ))}
+                    </div>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <div className="flex gap-6">
+              <FormField
+                control={form.control}
+                name="isWon"
+                render={({ field }) => (
+                  <FormItem className="flex items-center gap-2">
+                    <FormControl>
+                      <Switch 
+                        checked={field.value} 
+                        onCheckedChange={(checked) => {
+                          field.onChange(checked);
+                          if (checked) form.setValue("isLost", false);
+                        }}
+                        data-testid="switch-is-won"
+                      />
+                    </FormControl>
+                    <FormLabel className="!mt-0">Won Stage</FormLabel>
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="isLost"
+                render={({ field }) => (
+                  <FormItem className="flex items-center gap-2">
+                    <FormControl>
+                      <Switch 
+                        checked={field.value} 
+                        onCheckedChange={(checked) => {
+                          field.onChange(checked);
+                          if (checked) form.setValue("isWon", false);
+                        }}
+                        data-testid="switch-is-lost"
+                      />
+                    </FormControl>
+                    <FormLabel className="!mt-0">Lost Stage</FormLabel>
+                  </FormItem>
+                )}
+              />
+            </div>
+            <DialogFooter>
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={() => onOpenChange(false)}
+                data-testid="button-cancel-stage"
+              >
+                Cancel
+              </Button>
+              <Button 
+                type="submit" 
+                disabled={createMutation.isPending || updateMutation.isPending}
+                data-testid="button-save-stage"
+              >
+                {createMutation.isPending || updateMutation.isPending ? "Saving..." : isEditing ? "Update" : "Add Stage"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function PipelineManagementSection() {
+  const { toast } = useToast();
+  const [pipelineDialogOpen, setPipelineDialogOpen] = useState(false);
+  const [stageDialogOpen, setStageDialogOpen] = useState(false);
+  const [editingPipeline, setEditingPipeline] = useState<PipelineWithStages | undefined>();
+  const [editingStage, setEditingStage] = useState<PipelineStage | undefined>();
+  const [selectedPipelineForStage, setSelectedPipelineForStage] = useState<PipelineWithStages | undefined>();
+  const [expandedPipeline, setExpandedPipeline] = useState<number | null>(null);
+
+  const { data: pipelines, isLoading } = useQuery<PipelineWithStages[]>({
+    queryKey: ["/api/pipelines"],
+  });
+
+  const deletePipelineMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest("DELETE", `/api/pipelines/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/pipelines"] });
+      toast({ title: "Pipeline deleted successfully" });
+    },
+    onError: (error: Error) => {
+      toast({ title: error.message || "Failed to delete pipeline", variant: "destructive" });
+    },
+  });
+
+  const setDefaultMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest("POST", `/api/pipelines/${id}/set-default`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/pipelines"] });
+      toast({ title: "Default pipeline updated" });
+    },
+    onError: () => {
+      toast({ title: "Failed to set default pipeline", variant: "destructive" });
+    },
+  });
+
+  const deleteStageMutation = useMutation({
+    mutationFn: async ({ pipelineId, stageId }: { pipelineId: number; stageId: number }) => {
+      await apiRequest("DELETE", `/api/pipelines/${pipelineId}/stages/${stageId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/pipelines"] });
+      toast({ title: "Stage deleted successfully" });
+    },
+    onError: () => {
+      toast({ title: "Failed to delete stage", variant: "destructive" });
+    },
+  });
+
+  const handleCreatePipeline = () => {
+    setEditingPipeline(undefined);
+    setPipelineDialogOpen(true);
+  };
+
+  const handleEditPipeline = (pipeline: PipelineWithStages) => {
+    setEditingPipeline(pipeline);
+    setPipelineDialogOpen(true);
+  };
+
+  const handleAddStage = (pipeline: PipelineWithStages) => {
+    setSelectedPipelineForStage(pipeline);
+    setEditingStage(undefined);
+    setStageDialogOpen(true);
+  };
+
+  const handleEditStage = (pipeline: PipelineWithStages, stage: PipelineStage) => {
+    setSelectedPipelineForStage(pipeline);
+    setEditingStage(stage);
+    setStageDialogOpen(true);
+  };
+
+  return (
+    <Card className="lg:col-span-2">
+      <CardHeader>
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex items-center gap-2">
+            <GitBranch className="h-5 w-5 text-primary" />
+            <CardTitle>Sales Pipelines</CardTitle>
+          </div>
+          <Button onClick={handleCreatePipeline} data-testid="button-create-pipeline">
+            <Plus className="h-4 w-4 mr-2" />
+            New Pipeline
+          </Button>
+        </div>
+        <CardDescription>Create and manage multiple sales pipelines with custom stages</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="space-y-3">
+            {[1, 2].map((i) => (
+              <Skeleton key={i} className="h-24 w-full" />
+            ))}
+          </div>
+        ) : pipelines && pipelines.length > 0 ? (
+          <div className="space-y-4">
+            {pipelines.map((pipeline) => (
+              <div 
+                key={pipeline.id} 
+                className="rounded-md border"
+                data-testid={`pipeline-item-${pipeline.id}`}
+              >
+                <div className="flex items-center justify-between gap-4 p-4">
+                  <div 
+                    className="flex-1 cursor-pointer"
+                    onClick={() => setExpandedPipeline(expandedPipeline === pipeline.id ? null : pipeline.id)}
+                  >
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-medium" data-testid={`text-pipeline-name-${pipeline.id}`}>
+                        {pipeline.name}
+                      </h4>
+                      {pipeline.isDefault && (
+                        <Badge variant="secondary" className="text-xs">
+                          <Star className="h-3 w-3 mr-1" />
+                          Default
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {pipeline.stages?.length || 0} stages
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    {!pipeline.isDefault && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setDefaultMutation.mutate(pipeline.id)}
+                        disabled={setDefaultMutation.isPending}
+                        data-testid={`button-set-default-${pipeline.id}`}
+                      >
+                        <Star className="h-4 w-4" />
+                      </Button>
+                    )}
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => handleEditPipeline(pipeline)}
+                      data-testid={`button-edit-pipeline-${pipeline.id}`}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    {!pipeline.isDefault && (
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            data-testid={`button-delete-pipeline-${pipeline.id}`}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete Pipeline?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Are you sure you want to delete "{pipeline.name}"? This will also delete all stages. Deals must be moved to another pipeline first.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => deletePipelineMutation.mutate(pipeline.id)}
+                            >
+                              Delete
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    )}
+                  </div>
+                </div>
+                
+                {expandedPipeline === pipeline.id && (
+                  <div className="border-t p-4 bg-muted/30">
+                    <div className="flex items-center justify-between mb-3">
+                      <p className="text-sm font-medium">Stages</p>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleAddStage(pipeline)}
+                        data-testid={`button-add-stage-${pipeline.id}`}
+                      >
+                        <Plus className="h-3 w-3 mr-1" />
+                        Add Stage
+                      </Button>
+                    </div>
+                    <div className="space-y-2">
+                      {pipeline.stages?.sort((a, b) => a.order - b.order).map((stage) => (
+                        <div 
+                          key={stage.id}
+                          className="flex items-center justify-between gap-3 p-2 rounded-md bg-background border"
+                          data-testid={`stage-item-${stage.id}`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <GripVertical className="h-4 w-4 text-muted-foreground" />
+                            <div
+                              className="h-3 w-3 rounded-full"
+                              style={{ backgroundColor: stage.color || "#605be5" }}
+                            />
+                            <span className="text-sm font-medium">{stage.name}</span>
+                            {stage.isWon && (
+                              <Badge variant="outline" className="text-xs text-green-600">Won</Badge>
+                            )}
+                            {stage.isLost && (
+                              <Badge variant="outline" className="text-xs text-red-600">Lost</Badge>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => handleEditStage(pipeline, stage)}
+                              data-testid={`button-edit-stage-${stage.id}`}
+                            >
+                              <Pencil className="h-3 w-3" />
+                            </Button>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  data-testid={`button-delete-stage-${stage.id}`}
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Delete Stage?</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    Are you sure you want to delete "{stage.name}"? Deals in this stage must be moved first.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    onClick={() => deleteStageMutation.mutate({ 
+                                      pipelineId: pipeline.id, 
+                                      stageId: stage.id 
+                                    })}
+                                  >
+                                    Delete
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-8 text-muted-foreground">
+            <GitBranch className="h-12 w-12 mx-auto mb-3 opacity-50" />
+            <p>No pipelines yet</p>
+            <p className="text-sm">Create your first pipeline to organize your sales process</p>
+          </div>
+        )}
+      </CardContent>
+      <PipelineDialog 
+        pipeline={editingPipeline} 
+        open={pipelineDialogOpen} 
+        onOpenChange={(open) => {
+          setPipelineDialogOpen(open);
+          if (!open) setEditingPipeline(undefined);
+        }} 
+      />
+      {selectedPipelineForStage && (
+        <StageDialog 
+          stage={editingStage}
+          pipelineId={selectedPipelineForStage.id}
+          stageCount={selectedPipelineForStage.stages?.length || 0}
+          open={stageDialogOpen} 
+          onOpenChange={(open) => {
+            setStageDialogOpen(open);
+            if (!open) {
+              setEditingStage(undefined);
+              setSelectedPipelineForStage(undefined);
+            }
+          }} 
+        />
+      )}
+    </Card>
+  );
+}
 
 const templateFormSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -608,6 +1265,8 @@ export default function SettingsPage() {
             </div>
           </CardContent>
         </Card>
+
+        <PipelineManagementSection />
 
         <EmailTemplatesSection />
       </div>
