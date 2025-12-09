@@ -134,6 +134,15 @@ export interface IStorage {
   getAuditLogs(organizationId: number, limit?: number): Promise<AuditLog[]>;
   getAuditLogsByEntity(entityType: AuditLogEntityType, entityId: number): Promise<AuditLog[]>;
   createAuditLog(log: InsertAuditLog): Promise<AuditLog>;
+  
+  getReportData(organizationId: number, startDate: Date, endDate: Date): Promise<{
+    dealsByStage: { stage: string; count: number; value: string }[];
+    dealsOverTime: { date: string; count: number; value: string }[];
+    conversionFunnel: { stage: string; deals: number; value: string; order: number }[];
+    teamPerformance: { userId: string; name: string; deals: number; value: string; wonDeals: number }[];
+    activitySummary: { type: string; count: number }[];
+    wonLostByMonth: { month: string; won: number; lost: number; wonValue: string; lostValue: string }[];
+  }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -522,6 +531,130 @@ export class DatabaseStorage implements IStorage {
   async createAuditLog(log: InsertAuditLog): Promise<AuditLog> {
     const [created] = await db.insert(auditLogs).values(log).returning();
     return created;
+  }
+
+  async getReportData(organizationId: number, startDate: Date, endDate: Date): Promise<{
+    dealsByStage: { stage: string; count: number; value: string }[];
+    dealsOverTime: { date: string; count: number; value: string }[];
+    conversionFunnel: { stage: string; deals: number; value: string; order: number }[];
+    teamPerformance: { userId: string; name: string; deals: number; value: string; wonDeals: number }[];
+    activitySummary: { type: string; count: number }[];
+    wonLostByMonth: { month: string; won: number; lost: number; wonValue: string; lostValue: string }[];
+  }> {
+    const stages = await db.select().from(pipelineStages)
+      .innerJoin(pipelines, eq(pipelineStages.pipelineId, pipelines.id))
+      .where(eq(pipelines.organizationId, organizationId))
+      .orderBy(pipelineStages.order);
+
+    const dealsByStage = await db.select({
+      stageName: sql<string>`coalesce(${pipelineStages.name}, 'Unassigned')`,
+      count: count(),
+      value: sql<string>`coalesce(sum(${deals.value}), 0)::numeric`,
+    })
+      .from(deals)
+      .leftJoin(pipelineStages, eq(deals.stageId, pipelineStages.id))
+      .where(and(
+        eq(deals.organizationId, organizationId),
+        sql`${deals.createdAt} >= ${startDate}`,
+        sql`${deals.createdAt} <= ${endDate}`
+      ))
+      .groupBy(pipelineStages.name);
+
+    const dealsOverTime = await db.select({
+      date: sql<string>`date_trunc('day', ${deals.createdAt})::date::text`,
+      count: count(),
+      value: sql<string>`coalesce(sum(${deals.value}), 0)`,
+    })
+      .from(deals)
+      .where(and(
+        eq(deals.organizationId, organizationId),
+        sql`${deals.createdAt} >= ${startDate}`,
+        sql`${deals.createdAt} <= ${endDate}`
+      ))
+      .groupBy(sql`date_trunc('day', ${deals.createdAt})`)
+      .orderBy(sql`date_trunc('day', ${deals.createdAt})`);
+
+    const conversionFunnel = await db.select({
+      stage: sql<string>`coalesce(${pipelineStages.name}, 'Unassigned')`,
+      deals: count(),
+      value: sql<string>`coalesce(sum(${deals.value}), 0)::numeric`,
+      order: sql<number>`coalesce(${pipelineStages.order}, 999)`,
+    })
+      .from(deals)
+      .leftJoin(pipelineStages, eq(deals.stageId, pipelineStages.id))
+      .where(and(
+        eq(deals.organizationId, organizationId),
+        sql`${deals.createdAt} >= ${startDate}`,
+        sql`${deals.createdAt} <= ${endDate}`
+      ))
+      .groupBy(pipelineStages.name, pipelineStages.order)
+      .orderBy(sql`coalesce(${pipelineStages.order}, 999)`);
+
+    const teamPerformance = await db.select({
+      userId: sql<string>`coalesce(${users.id}, 'unassigned')`,
+      firstName: users.firstName,
+      lastName: users.lastName,
+      deals: count(),
+      value: sql<string>`coalesce(sum(${deals.value}), 0)::numeric`,
+      wonDeals: sql<number>`count(*) filter (where ${deals.status} = 'won')`,
+    })
+      .from(deals)
+      .leftJoin(users, eq(deals.ownerId, users.id))
+      .where(and(
+        eq(deals.organizationId, organizationId),
+        sql`${deals.createdAt} >= ${startDate}`,
+        sql`${deals.createdAt} <= ${endDate}`
+      ))
+      .groupBy(users.id, users.firstName, users.lastName);
+
+    const activitySummary = await db.select({
+      type: activities.type,
+      count: count(),
+    })
+      .from(activities)
+      .where(and(
+        eq(activities.organizationId, organizationId),
+        sql`${activities.createdAt} >= ${startDate}`,
+        sql`${activities.createdAt} <= ${endDate}`
+      ))
+      .groupBy(activities.type);
+
+    const wonLostByMonth = await db.select({
+      month: sql<string>`to_char(${deals.updatedAt}, 'YYYY-MM')`,
+      won: sql<number>`count(*) filter (where ${deals.status} = 'won')`,
+      lost: sql<number>`count(*) filter (where ${deals.status} = 'lost')`,
+      wonValue: sql<string>`coalesce(sum(${deals.value}) filter (where ${deals.status} = 'won'), 0)`,
+      lostValue: sql<string>`coalesce(sum(${deals.value}) filter (where ${deals.status} = 'lost'), 0)`,
+    })
+      .from(deals)
+      .where(and(
+        eq(deals.organizationId, organizationId),
+        sql`${deals.updatedAt} >= ${startDate}`,
+        sql`${deals.updatedAt} <= ${endDate}`
+      ))
+      .groupBy(sql`to_char(${deals.updatedAt}, 'YYYY-MM')`)
+      .orderBy(sql`to_char(${deals.updatedAt}, 'YYYY-MM')`);
+
+    return {
+      dealsByStage: dealsByStage.map(d => ({ stage: d.stageName, count: Number(d.count), value: String(d.value) })),
+      dealsOverTime: dealsOverTime.map(d => ({ date: d.date, count: Number(d.count), value: String(d.value) })),
+      conversionFunnel: conversionFunnel.map(d => ({ stage: d.stage, deals: Number(d.deals), value: String(d.value), order: d.order })),
+      teamPerformance: teamPerformance.map(d => ({ 
+        userId: d.userId, 
+        name: `${d.firstName || ''} ${d.lastName || ''}`.trim() || 'Unknown',
+        deals: Number(d.deals), 
+        value: String(d.value),
+        wonDeals: Number(d.wonDeals)
+      })),
+      activitySummary: activitySummary.map(d => ({ type: d.type, count: Number(d.count) })),
+      wonLostByMonth: wonLostByMonth.map(d => ({ 
+        month: d.month, 
+        won: Number(d.won), 
+        lost: Number(d.lost),
+        wonValue: String(d.wonValue),
+        lostValue: String(d.lostValue)
+      })),
+    };
   }
 }
 

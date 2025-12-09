@@ -22,6 +22,7 @@ import InboxPage from "@/pages/inbox";
 import ContactsPage from "@/pages/contacts";
 import CompaniesPage from "@/pages/companies";
 import ActivitiesPage from "@/pages/activities";
+import ReportsPage from "@/pages/reports";
 import SettingsPage from "@/pages/settings";
 import AuditLogPage from "@/pages/audit-log";
 import NotFound from "@/pages/not-found";
@@ -92,6 +93,7 @@ function Router() {
         <Route path="/contacts" component={ContactsPage} />
         <Route path="/companies" component={CompaniesPage} />
         <Route path="/activities" component={ActivitiesPage} />
+        <Route path="/reports" component={ReportsPage} />
         <Route path="/settings" component={SettingsPage} />
         <Route path="/audit-log" component={AuditLogPage} />
         <Route component={NotFound} />

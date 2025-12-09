@@ -9,6 +9,7 @@ import {
   Settings,
   LogOut,
   Shield,
+  BarChart3,
 } from "lucide-react";
 import {
   Sidebar,
@@ -59,6 +60,11 @@ const managementItems = [
     title: "Activities",
     url: "/activities",
     icon: Activity,
+  },
+  {
+    title: "Reports",
+    url: "/reports",
+    icon: BarChart3,
   },
 ];
 
