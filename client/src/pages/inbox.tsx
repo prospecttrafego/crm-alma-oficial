@@ -9,6 +9,13 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Search,
   Send,
@@ -19,15 +26,46 @@ import {
   Building2,
   Clock,
   AtSign,
+  FileText,
+  ChevronDown,
 } from "lucide-react";
 import { FilterPanel, type InboxFilters } from "@/components/filter-panel";
-import type { Conversation, Message, Contact, Deal, User as UserType } from "@shared/schema";
+import type { Conversation, Message, Contact, Deal, User as UserType, EmailTemplate, Company } from "@shared/schema";
+
+interface ContactWithCompany extends Contact {
+  company?: Company;
+}
 
 interface ConversationWithRelations extends Conversation {
-  contact?: Contact;
+  contact?: ContactWithCompany;
   deal?: Deal;
+  company?: Company;
   messages?: Message[];
   assignedTo?: UserType;
+}
+
+function substituteVariables(
+  template: string,
+  context: {
+    contact?: ContactWithCompany | null;
+    deal?: Deal | null;
+    company?: Company | null;
+    user?: UserType | null;
+  }
+): string {
+  const { contact, deal, company, user } = context;
+  
+  return template
+    .replace(/\{\{contact\.firstName\}\}/g, contact?.firstName || "")
+    .replace(/\{\{contact\.lastName\}\}/g, contact?.lastName || "")
+    .replace(/\{\{contact\.email\}\}/g, contact?.email || "")
+    .replace(/\{\{contact\.phone\}\}/g, contact?.phone || "")
+    .replace(/\{\{contact\.jobTitle\}\}/g, contact?.jobTitle || "")
+    .replace(/\{\{deal\.title\}\}/g, deal?.title || "")
+    .replace(/\{\{deal\.value\}\}/g, deal?.value ? Number(deal.value).toLocaleString("pt-BR") : "")
+    .replace(/\{\{company\.name\}\}/g, company?.name || "")
+    .replace(/\{\{user\.firstName\}\}/g, user?.firstName || "")
+    .replace(/\{\{user\.lastName\}\}/g, user?.lastName || "");
 }
 
 interface MessageWithSender extends Message {
@@ -36,6 +74,7 @@ interface MessageWithSender extends Message {
 
 export default function InboxPage() {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [selectedConversation, setSelectedConversation] = useState<ConversationWithRelations | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [newMessage, setNewMessage] = useState("");
@@ -51,6 +90,23 @@ export default function InboxPage() {
     queryKey: ["/api/conversations", selectedConversation?.id, "messages"],
     enabled: !!selectedConversation,
   });
+
+  const { data: emailTemplates } = useQuery<EmailTemplate[]>({
+    queryKey: ["/api/email-templates"],
+  });
+
+  const applyTemplate = (template: EmailTemplate) => {
+    // Use top-level company from conversation (resolved from contact or deal)
+    const company = selectedConversation?.company || selectedConversation?.contact?.company;
+    const substitutedBody = substituteVariables(template.body, {
+      contact: selectedConversation?.contact,
+      deal: selectedConversation?.deal,
+      company: company,
+      user: user,
+    });
+    setNewMessage(substitutedBody);
+    toast({ title: `Template "${template.name}" applied` });
+  };
 
   const sendMessageMutation = useMutation({
     mutationFn: async (data: { content: string; isInternal: boolean }) => {
@@ -338,26 +394,55 @@ export default function InboxPage() {
             </ScrollArea>
 
             <form onSubmit={handleSendMessage} className="border-t p-4">
-              <div className="mb-2 flex gap-2">
-                <Button
-                  type="button"
-                  variant={isInternalComment ? "outline" : "default"}
-                  size="sm"
-                  onClick={() => setIsInternalComment(false)}
-                  data-testid="button-reply-mode"
-                >
-                  Reply
-                </Button>
-                <Button
-                  type="button"
-                  variant={isInternalComment ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setIsInternalComment(true)}
-                  data-testid="button-internal-mode"
-                >
-                  <AtSign className="mr-1 h-3 w-3" />
-                  Internal Note
-                </Button>
+              <div className="mb-2 flex items-center justify-between gap-2 flex-wrap">
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant={isInternalComment ? "outline" : "default"}
+                    size="sm"
+                    onClick={() => setIsInternalComment(false)}
+                    data-testid="button-reply-mode"
+                  >
+                    Reply
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={isInternalComment ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setIsInternalComment(true)}
+                    data-testid="button-internal-mode"
+                  >
+                    <AtSign className="mr-1 h-3 w-3" />
+                    Internal Note
+                  </Button>
+                </div>
+                {emailTemplates && emailTemplates.length > 0 && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="sm" data-testid="button-template-picker">
+                        <FileText className="mr-1 h-3 w-3" />
+                        Templates
+                        <ChevronDown className="ml-1 h-3 w-3" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-64">
+                      {emailTemplates.map((template) => (
+                        <DropdownMenuItem
+                          key={template.id}
+                          onClick={() => applyTemplate(template)}
+                          data-testid={`menu-template-${template.id}`}
+                        >
+                          <div className="flex flex-col">
+                            <span className="font-medium">{template.name}</span>
+                            <span className="text-xs text-muted-foreground truncate">
+                              {template.subject}
+                            </span>
+                          </div>
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
               </div>
               <div className="flex gap-2">
                 <Textarea

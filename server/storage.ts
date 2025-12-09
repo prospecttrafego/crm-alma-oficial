@@ -11,6 +11,7 @@ import {
   activities,
   notifications,
   savedViews,
+  emailTemplates,
   type User,
   type UpsertUser,
   type Organization,
@@ -36,6 +37,8 @@ import {
   type SavedView,
   type InsertSavedView,
   type SavedViewType,
+  type EmailTemplate,
+  type InsertEmailTemplate,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, sql, count } from "drizzle-orm";
@@ -112,6 +115,12 @@ export interface IStorage {
   createSavedView(view: InsertSavedView): Promise<SavedView>;
   updateSavedView(id: number, userId: string, view: Partial<InsertSavedView>): Promise<SavedView | undefined>;
   deleteSavedView(id: number, userId: string): Promise<void>;
+  
+  getEmailTemplates(organizationId: number): Promise<EmailTemplate[]>;
+  getEmailTemplate(id: number, organizationId: number): Promise<EmailTemplate | undefined>;
+  createEmailTemplate(template: InsertEmailTemplate): Promise<EmailTemplate>;
+  updateEmailTemplate(id: number, organizationId: number, template: Partial<InsertEmailTemplate>): Promise<EmailTemplate | undefined>;
+  deleteEmailTemplate(id: number, organizationId: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -428,6 +437,35 @@ export class DatabaseStorage implements IStorage {
 
   async deleteSavedView(id: number, userId: string): Promise<void> {
     await db.delete(savedViews).where(and(eq(savedViews.id, id), eq(savedViews.userId, userId)));
+  }
+
+  async getEmailTemplates(organizationId: number): Promise<EmailTemplate[]> {
+    return await db.select().from(emailTemplates)
+      .where(eq(emailTemplates.organizationId, organizationId))
+      .orderBy(emailTemplates.name);
+  }
+
+  async getEmailTemplate(id: number, organizationId: number): Promise<EmailTemplate | undefined> {
+    const [template] = await db.select().from(emailTemplates)
+      .where(and(eq(emailTemplates.id, id), eq(emailTemplates.organizationId, organizationId)));
+    return template;
+  }
+
+  async createEmailTemplate(template: InsertEmailTemplate): Promise<EmailTemplate> {
+    const [created] = await db.insert(emailTemplates).values(template).returning();
+    return created;
+  }
+
+  async updateEmailTemplate(id: number, organizationId: number, template: Partial<InsertEmailTemplate>): Promise<EmailTemplate | undefined> {
+    const [updated] = await db.update(emailTemplates)
+      .set({ ...template, updatedAt: new Date() })
+      .where(and(eq(emailTemplates.id, id), eq(emailTemplates.organizationId, organizationId)))
+      .returning();
+    return updated;
+  }
+
+  async deleteEmailTemplate(id: number, organizationId: number): Promise<void> {
+    await db.delete(emailTemplates).where(and(eq(emailTemplates.id, id), eq(emailTemplates.organizationId, organizationId)));
   }
 }
 

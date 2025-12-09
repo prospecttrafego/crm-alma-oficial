@@ -13,6 +13,7 @@ import {
   insertActivitySchema,
   insertNotificationSchema,
   insertSavedViewSchema,
+  insertEmailTemplateSchema,
   savedViewTypes,
 } from "@shared/schema";
 
@@ -349,7 +350,43 @@ export async function registerRoutes(
       const org = await storage.getDefaultOrganization();
       if (!org) return res.json([]);
       const allConversations = await storage.getConversations(org.id);
-      res.json(allConversations);
+      
+      // Enrich with contact (including company), deal, and assignedTo relations
+      const enrichedConversations = await Promise.all(
+        allConversations.map(async (conv) => {
+          let contact = null;
+          let company = null;
+          let deal = null;
+          let assignedTo = null;
+          
+          if (conv.contactId) {
+            contact = await storage.getContact(conv.contactId);
+            if (contact?.companyId) {
+              company = await storage.getCompany(contact.companyId);
+            }
+          }
+          if (conv.dealId) {
+            deal = await storage.getDeal(conv.dealId);
+            // If no company from contact, try to get from deal
+            if (!company && deal?.companyId) {
+              company = await storage.getCompany(deal.companyId);
+            }
+          }
+          if (conv.assignedToId) {
+            assignedTo = await storage.getUser(conv.assignedToId);
+          }
+          
+          return {
+            ...conv,
+            contact: contact ? { ...contact, company } : null,
+            deal,
+            company,
+            assignedTo,
+          };
+        })
+      );
+      
+      res.json(enrichedConversations);
     } catch (error) {
       console.error("Error fetching conversations:", error);
       res.status(500).json({ message: "Failed to fetch conversations" });
@@ -648,6 +685,88 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error fetching users:", error);
       res.status(500).json({ message: "Failed to fetch users" });
+    }
+  });
+
+  // Email Templates endpoints
+  const updateEmailTemplateSchema = insertEmailTemplateSchema.partial().omit({ organizationId: true, createdBy: true });
+
+  app.get("/api/email-templates", isAuthenticated, async (req: any, res) => {
+    try {
+      const org = await storage.getDefaultOrganization();
+      if (!org) return res.json([]);
+      const templates = await storage.getEmailTemplates(org.id);
+      res.json(templates);
+    } catch (error) {
+      console.error("Error fetching email templates:", error);
+      res.status(500).json({ message: "Failed to fetch email templates" });
+    }
+  });
+
+  app.get("/api/email-templates/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const org = await storage.getDefaultOrganization();
+      if (!org) return res.status(404).json({ message: "Organization not found" });
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+      const template = await storage.getEmailTemplate(id, org.id);
+      if (!template) return res.status(404).json({ message: "Template not found" });
+      res.json(template);
+    } catch (error) {
+      console.error("Error fetching email template:", error);
+      res.status(500).json({ message: "Failed to fetch email template" });
+    }
+  });
+
+  app.post("/api/email-templates", isAuthenticated, async (req: any, res) => {
+    try {
+      const org = await storage.getDefaultOrganization();
+      if (!org) return res.status(400).json({ message: "No organization" });
+      const userId = req.user.claims.sub;
+      
+      const parsed = insertEmailTemplateSchema.safeParse({ ...req.body, organizationId: org.id, createdBy: userId });
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Invalid data", errors: parsed.error.errors });
+      }
+      const template = await storage.createEmailTemplate(parsed.data);
+      res.status(201).json(template);
+    } catch (error) {
+      console.error("Error creating email template:", error);
+      res.status(500).json({ message: "Failed to create email template" });
+    }
+  });
+
+  app.patch("/api/email-templates/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const org = await storage.getDefaultOrganization();
+      if (!org) return res.status(404).json({ message: "Organization not found" });
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+      
+      const parsed = updateEmailTemplateSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Invalid data", errors: parsed.error.errors });
+      }
+      const template = await storage.updateEmailTemplate(id, org.id, parsed.data);
+      if (!template) return res.status(404).json({ message: "Template not found" });
+      res.json(template);
+    } catch (error) {
+      console.error("Error updating email template:", error);
+      res.status(500).json({ message: "Failed to update email template" });
+    }
+  });
+
+  app.delete("/api/email-templates/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const org = await storage.getDefaultOrganization();
+      if (!org) return res.status(404).json({ message: "Organization not found" });
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+      await storage.deleteEmailTemplate(id, org.id);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting email template:", error);
+      res.status(500).json({ message: "Failed to delete email template" });
     }
   });
 
