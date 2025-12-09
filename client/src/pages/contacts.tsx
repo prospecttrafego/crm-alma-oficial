@@ -32,7 +32,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Search, Mail, Phone, Building2, User, MoreHorizontal } from "lucide-react";
+import { Plus, Search, Mail, Phone, Building2, User, MoreHorizontal, Calendar, FileText, CheckSquare } from "lucide-react";
 import type { Contact, Company, Activity } from "@shared/schema";
 
 interface ContactWithRelations extends Contact {
@@ -361,13 +361,11 @@ export default function ContactsPage() {
                         className="flex items-start gap-3 rounded-md border p-3"
                       >
                         <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent">
-                          <span className="text-sm capitalize">
-                            {activity.type === "call" && "📞"}
-                            {activity.type === "email" && "📧"}
-                            {activity.type === "meeting" && "📅"}
-                            {activity.type === "note" && "📝"}
-                            {activity.type === "task" && "✓"}
-                          </span>
+                          {activity.type === "call" && <Phone className="h-4 w-4 text-muted-foreground" />}
+                          {activity.type === "email" && <Mail className="h-4 w-4 text-muted-foreground" />}
+                          {activity.type === "meeting" && <Calendar className="h-4 w-4 text-muted-foreground" />}
+                          {activity.type === "note" && <FileText className="h-4 w-4 text-muted-foreground" />}
+                          {activity.type === "task" && <CheckSquare className="h-4 w-4 text-muted-foreground" />}
                         </div>
                         <div className="flex-1">
                           <p className="font-medium">{activity.title}</p>

@@ -9,6 +9,11 @@ import {
   TrendingUp,
   ArrowUpRight,
   ArrowDownRight,
+  Phone,
+  Mail,
+  Calendar,
+  FileText,
+  CheckSquare,
 } from "lucide-react";
 import type { Deal, Contact, Conversation, Activity } from "@shared/schema";
 
@@ -220,13 +225,11 @@ export default function Dashboard() {
                       data-testid={`card-activity-${activity.id}`}
                     >
                       <div className="flex h-10 w-10 items-center justify-center rounded-md bg-accent">
-                        <span className="text-lg capitalize">
-                          {activity.type === "call" && "📞"}
-                          {activity.type === "email" && "📧"}
-                          {activity.type === "meeting" && "📅"}
-                          {activity.type === "note" && "📝"}
-                          {activity.type === "task" && "✓"}
-                        </span>
+                        {activity.type === "call" && <Phone className="h-5 w-5 text-muted-foreground" />}
+                        {activity.type === "email" && <Mail className="h-5 w-5 text-muted-foreground" />}
+                        {activity.type === "meeting" && <Calendar className="h-5 w-5 text-muted-foreground" />}
+                        {activity.type === "note" && <FileText className="h-5 w-5 text-muted-foreground" />}
+                        {activity.type === "task" && <CheckSquare className="h-5 w-5 text-muted-foreground" />}
                       </div>
                       <div className="flex-1 overflow-hidden">
                         <p className="truncate font-medium">{activity.title}</p>

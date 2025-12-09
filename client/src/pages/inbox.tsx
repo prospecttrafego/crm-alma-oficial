@@ -74,13 +74,41 @@ export default function InboxPage() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      const isTyping = document.activeElement?.tagName === "TEXTAREA" || document.activeElement?.tagName === "INPUT";
+      
+      if (e.key === "j" && !e.metaKey && !e.ctrlKey && !isTyping) {
+        e.preventDefault();
+        const list = filteredConversations || [];
+        if (list.length === 0) return;
+        const currentIndex = selectedConversation 
+          ? list.findIndex((c) => c.id === selectedConversation.id)
+          : -1;
+        const nextIndex = currentIndex < list.length - 1 ? currentIndex + 1 : currentIndex;
+        if (list[nextIndex]) {
+          setSelectedConversation(list[nextIndex]);
+        }
+      }
+      
+      if (e.key === "k" && !e.metaKey && !e.ctrlKey && !isTyping) {
+        e.preventDefault();
+        const list = filteredConversations || [];
+        if (list.length === 0) return;
+        const currentIndex = selectedConversation 
+          ? list.findIndex((c) => c.id === selectedConversation.id)
+          : list.length;
+        const prevIndex = currentIndex > 0 ? currentIndex - 1 : 0;
+        if (list[prevIndex]) {
+          setSelectedConversation(list[prevIndex]);
+        }
+      }
+      
       if (!selectedConversation) return;
-      if (e.key === "r" && !e.metaKey && !e.ctrlKey && document.activeElement?.tagName !== "TEXTAREA") {
+      if (e.key === "r" && !e.metaKey && !e.ctrlKey && !isTyping) {
         e.preventDefault();
         setIsInternalComment(false);
         document.getElementById("message-input")?.focus();
       }
-      if (e.key === "c" && !e.metaKey && !e.ctrlKey && document.activeElement?.tagName !== "TEXTAREA") {
+      if (e.key === "c" && !e.metaKey && !e.ctrlKey && !isTyping) {
         e.preventDefault();
         setIsInternalComment(true);
         document.getElementById("message-input")?.focus();
@@ -89,7 +117,7 @@ export default function InboxPage() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selectedConversation]);
+  }, [selectedConversation, filteredConversations]);
 
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
