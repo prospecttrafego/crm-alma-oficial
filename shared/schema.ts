@@ -270,6 +270,31 @@ export type FileEntityType = (typeof fileEntityTypes)[number];
 export const leadScoreEntityTypes = ["contact", "deal"] as const;
 export type LeadScoreEntityType = (typeof leadScoreEntityTypes)[number];
 
+// Calendar event types
+export const calendarEventTypes = ["meeting", "call", "task", "reminder", "other"] as const;
+export type CalendarEventType = (typeof calendarEventTypes)[number];
+
+// Calendar events table
+export const calendarEvents = pgTable("calendar_events", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  title: varchar("title", { length: 255 }).notNull(),
+  description: text("description"),
+  type: varchar("type", { length: 20 }).$type<CalendarEventType>().default("meeting"),
+  startTime: timestamp("start_time").notNull(),
+  endTime: timestamp("end_time").notNull(),
+  allDay: boolean("all_day").default(false),
+  location: varchar("location", { length: 500 }),
+  contactId: integer("contact_id"),
+  dealId: integer("deal_id"),
+  activityId: integer("activity_id"),
+  organizationId: integer("organization_id").notNull(),
+  userId: varchar("user_id"),
+  attendees: text("attendees").array(),
+  color: varchar("color", { length: 7 }),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Lead scores table for AI scoring history
 export const leadScores = pgTable("lead_scores", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
@@ -509,6 +534,29 @@ export const leadScoresRelations = relations(leadScores, ({ one }) => ({
   }),
 }));
 
+export const calendarEventsRelations = relations(calendarEvents, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [calendarEvents.organizationId],
+    references: [organizations.id],
+  }),
+  user: one(users, {
+    fields: [calendarEvents.userId],
+    references: [users.id],
+  }),
+  contact: one(contacts, {
+    fields: [calendarEvents.contactId],
+    references: [contacts.id],
+  }),
+  deal: one(deals, {
+    fields: [calendarEvents.dealId],
+    references: [deals.id],
+  }),
+  activity: one(activities, {
+    fields: [calendarEvents.activityId],
+    references: [activities.id],
+  }),
+}));
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({ createdAt: true, updatedAt: true });
 export const insertOrganizationSchema = createInsertSchema(organizations).omit({ id: true, createdAt: true, updatedAt: true });
@@ -526,6 +574,7 @@ export const insertEmailTemplateSchema = createInsertSchema(emailTemplates).omit
 export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({ id: true, createdAt: true });
 export const insertFileSchema = createInsertSchema(files).omit({ id: true, createdAt: true });
 export const insertLeadScoreSchema = createInsertSchema(leadScores).omit({ id: true, createdAt: true });
+export const insertCalendarEventSchema = createInsertSchema(calendarEvents).omit({ id: true, createdAt: true, updatedAt: true });
 
 // Types
 export type UpsertUser = typeof users.$inferInsert;
@@ -560,3 +609,5 @@ export type InsertFile = z.infer<typeof insertFileSchema>;
 export type File = typeof files.$inferSelect;
 export type InsertLeadScore = z.infer<typeof insertLeadScoreSchema>;
 export type LeadScore = typeof leadScores.$inferSelect;
+export type InsertCalendarEvent = z.infer<typeof insertCalendarEventSchema>;
+export type CalendarEvent = typeof calendarEvents.$inferSelect;

@@ -10,6 +10,7 @@ import {
   LogOut,
   Shield,
   BarChart3,
+  Calendar,
 } from "lucide-react";
 import {
   Sidebar,
@@ -60,6 +61,11 @@ const managementItems = [
     title: "Activities",
     url: "/activities",
     icon: Activity,
+  },
+  {
+    title: "Calendar",
+    url: "/calendar",
+    icon: Calendar,
   },
   {
     title: "Reports",
