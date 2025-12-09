@@ -19,8 +19,8 @@ import {
   Building2,
   Clock,
   AtSign,
-  Filter,
 } from "lucide-react";
+import { FilterPanel, type InboxFilters } from "@/components/filter-panel";
 import type { Conversation, Message, Contact, Deal, User as UserType } from "@shared/schema";
 
 interface ConversationWithRelations extends Conversation {
@@ -40,6 +40,7 @@ export default function InboxPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [newMessage, setNewMessage] = useState("");
   const [isInternalComment, setIsInternalComment] = useState(false);
+  const [filters, setFilters] = useState<InboxFilters>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const { data: conversations, isLoading: conversationsLoading } = useQuery<ConversationWithRelations[]>({
@@ -66,6 +67,21 @@ export default function InboxPage() {
     onError: () => {
       toast({ title: "Failed to send message", variant: "destructive" });
     },
+  });
+
+  const filteredConversations = conversations?.filter((conv) => {
+    if (filters.channel && conv.channel !== filters.channel) return false;
+    if (filters.status && conv.status !== filters.status) return false;
+    if (filters.assignedToId && conv.assignedToId !== filters.assignedToId) return false;
+    
+    if (!searchQuery) return true;
+    const contactName = conv.contact
+      ? `${conv.contact.firstName} ${conv.contact.lastName}`.toLowerCase()
+      : "";
+    return (
+      contactName.includes(searchQuery.toLowerCase()) ||
+      conv.subject?.toLowerCase().includes(searchQuery.toLowerCase())
+    );
   });
 
   useEffect(() => {
@@ -125,17 +141,6 @@ export default function InboxPage() {
     sendMessageMutation.mutate({ content: newMessage, isInternal: isInternalComment });
   };
 
-  const filteredConversations = conversations?.filter((conv) => {
-    if (!searchQuery) return true;
-    const contactName = conv.contact
-      ? `${conv.contact.firstName} ${conv.contact.lastName}`.toLowerCase()
-      : "";
-    return (
-      contactName.includes(searchQuery.toLowerCase()) ||
-      conv.subject?.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-  });
-
   const getChannelIcon = (channel: string) => {
     switch (channel) {
       case "email":
@@ -170,7 +175,14 @@ export default function InboxPage() {
     <div className="flex h-full">
       <div className="flex w-80 flex-col border-r">
         <div className="border-b p-4">
-          <h2 className="mb-3 text-lg font-semibold" data-testid="text-inbox-title">Inbox</h2>
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <h2 className="text-lg font-semibold" data-testid="text-inbox-title">Inbox</h2>
+            <FilterPanel
+              type="inbox"
+              filters={filters}
+              onFiltersChange={(f) => setFilters(f as InboxFilters)}
+            />
+          </div>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input

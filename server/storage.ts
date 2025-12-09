@@ -10,6 +10,7 @@ import {
   messages,
   activities,
   notifications,
+  savedViews,
   type User,
   type UpsertUser,
   type Organization,
@@ -32,12 +33,16 @@ import {
   type InsertActivity,
   type Notification,
   type InsertNotification,
+  type SavedView,
+  type InsertSavedView,
+  type SavedViewType,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, sql, count } from "drizzle-orm";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
+  getUsers(organizationId: number): Promise<User[]>;
   upsertUser(user: UpsertUser): Promise<User>;
   
   getOrganization(id: number): Promise<Organization | undefined>;
@@ -101,12 +106,22 @@ export interface IStorage {
   createNotification(notification: InsertNotification): Promise<Notification>;
   markNotificationRead(id: number, userId: string): Promise<Notification | undefined>;
   markAllNotificationsRead(userId: string): Promise<void>;
+  
+  getSavedViews(userId: string, type: SavedViewType): Promise<SavedView[]>;
+  getSavedView(id: number): Promise<SavedView | undefined>;
+  createSavedView(view: InsertSavedView): Promise<SavedView>;
+  updateSavedView(id: number, userId: string, view: Partial<InsertSavedView>): Promise<SavedView | undefined>;
+  deleteSavedView(id: number, userId: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
   async getUser(id: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.id, id));
     return user;
+  }
+
+  async getUsers(organizationId: number): Promise<User[]> {
+    return await db.select().from(users).where(eq(users.organizationId, organizationId));
   }
 
   async upsertUser(userData: UpsertUser): Promise<User> {
@@ -385,6 +400,34 @@ export class DatabaseStorage implements IStorage {
     await db.update(notifications)
       .set({ isRead: true })
       .where(eq(notifications.userId, userId));
+  }
+
+  async getSavedViews(userId: string, type: SavedViewType): Promise<SavedView[]> {
+    return await db.select().from(savedViews)
+      .where(and(eq(savedViews.userId, userId), eq(savedViews.type, type)))
+      .orderBy(savedViews.name);
+  }
+
+  async getSavedView(id: number): Promise<SavedView | undefined> {
+    const [view] = await db.select().from(savedViews).where(eq(savedViews.id, id));
+    return view;
+  }
+
+  async createSavedView(view: InsertSavedView): Promise<SavedView> {
+    const [created] = await db.insert(savedViews).values(view).returning();
+    return created;
+  }
+
+  async updateSavedView(id: number, userId: string, view: Partial<InsertSavedView>): Promise<SavedView | undefined> {
+    const [updated] = await db.update(savedViews)
+      .set({ ...view, updatedAt: new Date() })
+      .where(and(eq(savedViews.id, id), eq(savedViews.userId, userId)))
+      .returning();
+    return updated;
+  }
+
+  async deleteSavedView(id: number, userId: string): Promise<void> {
+    await db.delete(savedViews).where(and(eq(savedViews.id, id), eq(savedViews.userId, userId)));
   }
 }
 

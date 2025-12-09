@@ -168,6 +168,23 @@ export const messages = pgTable("messages", {
 export const activityTypes = ["call", "email", "meeting", "note", "task"] as const;
 export type ActivityType = (typeof activityTypes)[number];
 
+// Saved view types
+export const savedViewTypes = ["pipeline", "inbox"] as const;
+export type SavedViewType = (typeof savedViewTypes)[number];
+
+// Saved views table
+export const savedViews = pgTable("saved_views", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  name: varchar("name", { length: 255 }).notNull(),
+  type: varchar("type", { length: 20 }).$type<SavedViewType>().notNull(),
+  userId: varchar("user_id").notNull(),
+  organizationId: integer("organization_id").notNull(),
+  filters: jsonb("filters").$type<Record<string, unknown>>().notNull(),
+  isDefault: boolean("is_default").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Notification types
 export const notificationTypes = [
   "new_message",
@@ -366,6 +383,17 @@ export const notificationsRelations = relations(notifications, ({ one }) => ({
   }),
 }));
 
+export const savedViewsRelations = relations(savedViews, ({ one }) => ({
+  user: one(users, {
+    fields: [savedViews.userId],
+    references: [users.id],
+  }),
+  organization: one(organizations, {
+    fields: [savedViews.organizationId],
+    references: [organizations.id],
+  }),
+}));
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({ createdAt: true, updatedAt: true });
 export const insertOrganizationSchema = createInsertSchema(organizations).omit({ id: true, createdAt: true, updatedAt: true });
@@ -378,6 +406,7 @@ export const insertConversationSchema = createInsertSchema(conversations).omit({
 export const insertMessageSchema = createInsertSchema(messages).omit({ id: true, createdAt: true });
 export const insertActivitySchema = createInsertSchema(activities).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertNotificationSchema = createInsertSchema(notifications).omit({ id: true, createdAt: true });
+export const insertSavedViewSchema = createInsertSchema(savedViews).omit({ id: true, createdAt: true, updatedAt: true });
 
 // Types
 export type UpsertUser = typeof users.$inferInsert;
@@ -402,3 +431,5 @@ export type InsertActivity = z.infer<typeof insertActivitySchema>;
 export type Activity = typeof activities.$inferSelect;
 export type InsertNotification = z.infer<typeof insertNotificationSchema>;
 export type Notification = typeof notifications.$inferSelect;
+export type InsertSavedView = z.infer<typeof insertSavedViewSchema>;
+export type SavedView = typeof savedViews.$inferSelect;

@@ -1,8 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
@@ -25,7 +24,8 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { Plus, DollarSign, User, Building2, GripVertical, Calendar, X } from "lucide-react";
+import { Plus, DollarSign, User, Building2, GripVertical } from "lucide-react";
+import { FilterPanel, type PipelineFilters } from "@/components/filter-panel";
 import type { Deal, PipelineStage, Pipeline, Contact, Company } from "@shared/schema";
 
 interface DealWithRelations extends Deal {
@@ -44,6 +44,7 @@ export default function PipelinePage() {
   const [newDealOpen, setNewDealOpen] = useState(false);
   const [draggedDeal, setDraggedDeal] = useState<DealWithRelations | null>(null);
   const [dragOverStage, setDragOverStage] = useState<number | null>(null);
+  const [filters, setFilters] = useState<PipelineFilters>({});
 
   const { data: pipeline, isLoading: pipelineLoading } = useQuery<PipelineWithStages>({
     queryKey: ["/api/pipelines/default"],
@@ -124,7 +125,30 @@ export default function PipelinePage() {
   };
 
   const getDealsByStage = (stageId: number) => {
-    return deals?.filter((deal) => deal.stageId === stageId) || [];
+    return deals?.filter((deal) => {
+      if (deal.stageId !== stageId) return false;
+      
+      if (filters.stageId && deal.stageId !== filters.stageId) return false;
+      if (filters.ownerId && deal.ownerId !== filters.ownerId) return false;
+      if (filters.status && deal.status !== filters.status) return false;
+      if (filters.minValue && Number(deal.value || 0) < filters.minValue) return false;
+      if (filters.maxValue && Number(deal.value || 0) > filters.maxValue) return false;
+      
+      if (filters.dateFrom || filters.dateTo) {
+        if (!deal.expectedCloseDate) return false;
+        const dealDate = new Date(deal.expectedCloseDate);
+        if (filters.dateFrom) {
+          const fromDate = new Date(filters.dateFrom);
+          if (dealDate < fromDate) return false;
+        }
+        if (filters.dateTo) {
+          const toDate = new Date(filters.dateTo);
+          if (dealDate > toDate) return false;
+        }
+      }
+      
+      return true;
+    }) || [];
   };
 
   const getStageValue = (stageId: number) => {
@@ -145,7 +169,7 @@ export default function PipelinePage() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between border-b p-4">
+      <div className="flex items-center justify-between gap-4 border-b p-4">
         <div>
           <h1 className="text-2xl font-bold" data-testid="text-pipeline-title">
             {pipeline?.name || "Sales Pipeline"}
@@ -154,7 +178,14 @@ export default function PipelinePage() {
             Drag and drop deals between stages
           </p>
         </div>
-        <Dialog open={newDealOpen} onOpenChange={setNewDealOpen}>
+        <div className="flex items-center gap-2">
+          <FilterPanel
+            type="pipeline"
+            filters={filters}
+            onFiltersChange={(f) => setFilters(f as PipelineFilters)}
+            stages={pipeline?.stages}
+          />
+          <Dialog open={newDealOpen} onOpenChange={setNewDealOpen}>
           <DialogTrigger asChild>
             <Button data-testid="button-new-deal">
               <Plus className="mr-2 h-4 w-4" />
@@ -235,6 +266,7 @@ export default function PipelinePage() {
             </form>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       <div className="flex flex-1 gap-4 overflow-x-auto p-4">
