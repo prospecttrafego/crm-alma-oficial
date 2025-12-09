@@ -1,0 +1,232 @@
+Quero que você atue como um tech lead sênior full‑stack e crie a **arquitetura completa + código inicial** de um CRM SaaS para a minha agência digital **Alma**.
+
+### 1. Contexto do Produto
+
+- O CRM será usado internamente pela agência **Alma** (identidade visual em anexo: paleta e logo).
+- Core do produto:
+    1. **Inbox unificado de atendimento/comercial** (multi‑canal, estilo Help Desk + chat)
+    2. **Kanban de pipeline de vendas/leads** (estilo Pipedrive/Kommo)
+- Objetivo: alto foco em **usabilidade, adoção e performance**, seguindo as melhores práticas modernas de CRM que descrevo abaixo.
+
+### 2. Identidade Visual da Marca
+
+Use estes elementos em todo o front-end:
+
+- Marca: **Alma – Agência Digital**
+- Cores principais (da imagem de paleta que enviei):
+    - Background claro: `#f5f5f5`
+    - Preto: `#000000`
+    - Branco: `#ffffff`
+    - Cinza azulado: `#475467`
+    - Acento roxo/azulado: `#605be5`
+
+Diretrizes:
+
+- Tema principal: **dark cinza + acento roxo (#605be5)**, com variação light se necessário.
+- Tipografia moderna e minimalista (ex.: Inter / Manrope / SF Pro‑like).
+- Use bastante **espaço em branco**, cantos levemente arredondados e componentes limpos.
+- Aplique o logo da Alma (arquivos anexados) em:
+    - Header da aplicação (modo desktop)
+    - Splash/Login screen
+    - Favicon / ícone da aplicação (gerar variação simplificada se necessário)
+
+### 3. Stack Tecnológico Recomendado
+
+Quero que você use uma stack moderna, tipada e preparada para SaaS:
+
+**Frontend**
+
+- Framework: **Next.js 16 (App Router)** com **React** e **TypeScript**
+- Estilização: **Tailwind CSS**
+- State/data fetching: **TanStack Query** para requisições ao backend
+- Gerenciamento de estado leve: **Zustand** (para UI/panels/selections)
+- Real‑time: integração com **WebSocket** (ex.: Socket.IO client)
+- Suporte responsivo + PWA (instalável no mobile)
+
+**Backend**
+
+- Runtime: **Node.js** (LTS atual)
+- Framework: **NestJS** com TypeScript
+- API:
+    - REST para operações normais
+    - WebSocket (ex.: Socket.IO) para real‑time (inbox e kanban)
+- Banco: Supabase
+- ORM: **Prisma**
+- Cache/real‑time state: **Redis**
+- Fila de jobs: (para webhooks, notificações, jobs async)
+- Autenticação:
+    - JWT
+    - Endpoint de login + registro (single‑tenant)
+
+**Infra/Dev**
+
+- Docker + docker-compose para dev
+- Scripts de seed para dados de exemplo (users, alguns leads e deals)
+- Arquitetura organizada por módulos (ex.: `auth`, `users`, `organizations`, `contacts`, `deals`, `inbox`, `activities`, `settings`).
+
+### 4. Módulos e Domínio de Negócio
+
+Quero que você modele e gere código inicial (NestJS + Prisma schema + endpoints + skeletons de UI) para:
+
+1. **Usuários & Organizações**
+    - Usuário, papéis (admin, sales, cs, support)
+    - Organização (no mínimo 1: Alma)
+    - Membership de usuário em organização
+    - Auth (login, logout, refresh, middleware de proteção)
+1. **Contatos & Empresas**
+    - Contato (pessoa): nome, email, telefone, cargo, tags, owner, etc.
+    - Empresa: nome, domínio, site, segmento, tamanho, etc.
+    - Relacionamento contato ↔ empresa
+    - Campos customizáveis via JSONB
+1. **Pipeline & Deals (Kanban)**
+    - Entidades:
+        - `pipeline` (pode haver mais de um)
+        - `pipeline_stage` (ordenado, customizável)
+        - `deal` (valor, status, contato/empresa associado, owner, probabilidade, próxima ação)
+    - Funcionalidades:
+        - Board Kanban drag‑and‑drop em tempo real
+        - Atualização de stage ao arrastar o card
+        - Filtros: por owner, por stage, por valor, por fonte
+        - Busca rápida (Cmd+K) de deals
+    - Backend:
+        - Endpoints CRUD de pipeline, stage, deals
+        - Eventos WebSocket para:
+            - mover deal de stage
+            - criar/atualizar deals
+            - indicar presença de usuários visualizando o mesmo deal
+1. **Inbox Unificado**
+    - Entidades base:
+        - `conversation` (thread principal)
+        - `message` (mensagem individual)
+        - `channel` (email, whatsapp, sms, internal, etc. – por enquanto, mock)
+        - `participant` (contato, usuário)
+    - Começar com canais:
+        - `email` (mock: endpoints e modelos já pensados para integrar com IMAP/SMTP no futuro)
+        - `internal` (chat interno entre usuários)
+    - Funcionalidades Frontend:
+        - Layout 3 colunas:
+            1. Lista de conversas (com filtros, search)
+            2. Janela de mensagens (chat)
+            3. Painel de contexto do contato/lead/deal
+        - Suporte a:
+            - mensagens de texto
+            - anexos (model + endpoint, mesmo que stub)
+            - comentários internos (mensagens que o cliente não vê)
+            - @mentions entre usuários
+    - Backend:
+        - Endpoints CRUD de conversas e mensagens
+        - WebSocket para:
+            - nova mensagem
+            - status “digitando”
+            - lido/não lido
+            - presença (quem está na conversa agora)
+    - Preparar estrutura para plugar:
+        - WhatsApp 
+1. **Atividades & Tarefas**
+    - `activity` associada a contact/deal:
+        - tipo (call, email, meeting, note, task)
+        - data/horário
+        - descrição
+        - status (pendente, concluída)
+    - Tela/tabela simples + timeline nos detalhes do contato/deal
+1. **Relatórios Básicos**
+    - Endpoints + skeleton UI para:
+        - Pipeline value por stage
+        - Nº de deals ganhos/perdidos por período
+        - Atividades criadas/concluídas por usuário
+    - Não precisa ser avançado agora, apenas base com queries já definidas.
+
+### 5. UX e Fluxos Principais
+
+Quero que você desenhe os fluxos principais (em termos de rotas e componentes) e comece o código:
+
+1. **Onboarding de novo usuário**
+    - Login
+    - Primeira vez:
+        - Criar organização (se ainda não houver)
+        - Criar pipeline padrão:
+            - Stages exemplo: `Lead`, `Qualificado`, `Proposta`, `Negociação`, `Fechado Ganhou`, `Fechado Perdido`
+        - Criar alguns contatos e deals de seed para demo
+1. **Fluxo de trabalho diário de vendas**
+    - Usuário entra no **Kanban**:
+        - Vê todos os deals por stage
+        - Pode arrastar um deal para outro stage
+        - Ao clicar num card, abre painel lateral com:
+            - detalhes do deal
+            - contato/empresa
+            - timeline de atividades
+            - botão para abrir conversa (inbox) com esse contato
+    - Usuário entra no **Inbox**:
+        - Lista de conversas (com contatos/deals associados)
+        - Ao abrir uma conversa, vê mensagens + contexto (coluna direita)
+        - Pode responder, adicionar comentário interno, criar tarefa/atividade vinculada
+1. **Boas práticas de UX**
+    - Tudo precisa ser:
+        - rápido (pensar em otimizações básicas)
+        - 2–3 cliques no máximo para as ações mais frequentes (mover deal, registrar nota, responder mensagem)
+    - Atalhos de teclado:
+        - `j/k` ou setas para navegar na lista
+        - `r` para responder
+        - `c` para criar comentário interno
+    - Estados de loading/esqueleto bem feitos
+
+### 6. Estrutura de Projeto & Organização de Pastas
+
+Peço que você:
+
+- Gere a estrutura de monorepo ou pelo menos dois diretórios:
+    - `/apps/web` (Next.js)
+    - `/apps/api` (NestJS)
+- Defina:
+    - `package.json` raiz com scripts:
+        - `dev` (subir frontend + backend + db via docker-compose)
+        - `dev:web`
+        - `dev:api`
+        - `db:migrate`
+        - `db:seed`
+- Crie o schema inicial do **Prisma** com as entidades citadas e as respectivas migrations.
+- Crie **services, controllers, dtos e modules** em NestJS para cada domínio:
+    - `auth`, `users`, `organizations`, `contacts`, `companies`, `pipelines`, `deals`, `inbox`, `messages`, `activities`.
+- No front:
+    - Estruturar pastas `app/(authenticated)/(public)` ou equivalente no App Router.
+    - Criar páginas:
+        - `/login`
+        - `/app/inbox`
+        - `/app/pipeline`
+        - `/app/contacts`
+        - `/app/settings`
+
+### 7. Identidade Visual no Código
+
+No front, faça:
+
+- Layout base com:
+    - Sidebar escura (#000 / #111 com toques #475467)
+    - Topbar com logo Alma em branco sobre fundo escuro
+    - Acentos de ação (botões primários, links, estados ativos) em `#605be5`
+- Componentes:
+    - Botão primário (filled) com `#605be5`
+    - Botão secundário (outline) com borda `#605be5` e texto cinza `#475467`
+    - Background geral em modo dark: `#111` ou similar; cards em `#1b1b1b` com borda suave
+- Fonte:
+    - Configure fonte global Inter (ou similar) via Tailwind
+
+### 8. O que quero como saída de você (Claude Code)
+
+1. Gerar o **esqueleto completo do projeto** (pastas, configs, docker-compose, etc.).
+2. Gerar:
+    - `schema.prisma` completo com as entidades descritas.
+    - Módulos NestJS básicos com algumas rotas já implementadas (CRUD para entidades principais).
+    - Componentes React/Next básicos para:
+        - Layout principal da aplicação (sidebar + topbar com logo Alma)
+        - Tela de Kanban com mock de dados puxando da API
+        - Tela de Inbox com mock de conversas em tempo real usando WebSocket local
+1. Explicar brevemente em comentários:
+    - Onde plugar futuras integrações de email/WhatsApp.
+    - Onde plugar lógica de AI para lead scoring / next best action.
+1. Fornecer instruções claras de:
+    - Como rodar o projeto localmente (comandos)
+    - Como rodar migrations e seeds
+    - Como adicionar um novo campo no deal/contact e refletir no front.
+
+Use **código real, executável**, quero rodar esse projeto real. Se precisar tomar decisões específicas (nome de tabelas, tipos, etc.), escolha padrões de mercado limpos e consistentes.
