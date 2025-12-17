@@ -1,3 +1,4 @@
+import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Inbox, Kanban, Users, Zap } from "lucide-react";
@@ -13,9 +14,9 @@ export default function Landing() {
             </div>
             <span className="text-xl font-bold" data-testid="text-logo">Alma</span>
           </div>
-          <a href="/api/login">
-            <Button data-testid="button-login">Sign In</Button>
-          </a>
+          <Link href="/login">
+            <Button data-testid="button-login">Entrar</Button>
+          </Link>
         </div>
       </header>
 
@@ -30,11 +31,11 @@ export default function Landing() {
               Streamline your sales pipeline and customer conversations in one beautiful, 
               fast platform. Built for teams who demand excellence.
             </p>
-            <a href="/api/login">
+            <Link href="/login">
               <Button size="lg" className="text-lg" data-testid="button-get-started">
-                Get Started Free
+                Comece Agora
               </Button>
-            </a>
+            </Link>
           </div>
         </section>
 

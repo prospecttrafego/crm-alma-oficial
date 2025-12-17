@@ -13,7 +13,7 @@ import {
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-// Session storage table for Replit Auth
+// Tabela de armazenamento de sessoes
 export const sessions = pgTable(
   "sessions",
   {
@@ -28,10 +28,11 @@ export const sessions = pgTable(
 export const userRoles = ["admin", "sales", "cs", "support"] as const;
 export type UserRole = (typeof userRoles)[number];
 
-// Users table (Replit Auth compatible)
+// Tabela de usuarios (compativel com autenticacao local)
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   email: varchar("email").unique(),
+  passwordHash: varchar("password_hash"),
   firstName: varchar("first_name"),
   lastName: varchar("last_name"),
   profileImageUrl: varchar("profile_image_url"),

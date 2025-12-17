@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
 import Landing from "@/pages/landing";
+import LoginPage from "@/pages/login";
 import Dashboard from "@/pages/dashboard";
 import PipelinePage from "@/pages/pipeline";
 import InboxPage from "@/pages/inbox";
@@ -80,7 +81,8 @@ function Router() {
     return (
       <Switch>
         <Route path="/" component={Landing} />
-        <Route component={Landing} />
+        <Route path="/login" component={LoginPage} />
+        <Route component={LoginPage} />
       </Switch>
     );
   }

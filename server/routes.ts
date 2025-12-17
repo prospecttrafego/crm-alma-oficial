@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
-import { setupAuth, isAuthenticated } from "./replitAuth";
+import { setupAuth, isAuthenticated } from "./auth";
 import { z } from "zod";
 import {
   insertCompanySchema,
@@ -28,8 +28,7 @@ import {
   type FileEntityType,
   type ChannelConfigType,
 } from "@shared/schema";
-import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
-import { ObjectPermission } from "./objectAcl";
+import { ObjectStorageService, ObjectNotFoundError, ObjectPermission } from "./storage.supabase";
 
 const clients = new Set<WebSocket>();
 
@@ -59,7 +58,7 @@ export async function registerRoutes(
 
   app.get("/api/auth/user", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = (req.user as any).id;
       const user = await storage.getUser(userId);
       res.json(user);
     } catch (error) {
@@ -147,7 +146,7 @@ export async function registerRoutes(
     try {
       const org = await storage.getDefaultOrganization();
       if (!org) return res.status(400).json({ message: "No organization" });
-      const userId = req.user.claims.sub;
+      const userId = (req.user as any).id;
       
       const parsed = insertPipelineSchema.safeParse({ ...req.body, organizationId: org.id });
       if (!parsed.success) {
@@ -184,7 +183,7 @@ export async function registerRoutes(
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
-      const userId = req.user.claims.sub;
+      const userId = (req.user as any).id;
       
       const existing = await storage.getPipeline(id);
       if (!existing) return res.status(404).json({ message: "Pipeline not found" });
@@ -213,7 +212,7 @@ export async function registerRoutes(
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
-      const userId = req.user.claims.sub;
+      const userId = (req.user as any).id;
       
       const existing = await storage.getPipeline(id);
       if (!existing) return res.status(404).json({ message: "Pipeline not found" });
@@ -340,7 +339,7 @@ export async function registerRoutes(
     try {
       const org = await storage.getDefaultOrganization();
       if (!org) return res.status(400).json({ message: "No organization" });
-      const userId = req.user.claims.sub;
+      const userId = (req.user as any).id;
       
       const parsed = insertDealSchema.safeParse({ ...req.body, organizationId: org.id });
       if (!parsed.success) {
@@ -370,7 +369,7 @@ export async function registerRoutes(
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
-      const userId = req.user.claims.sub;
+      const userId = (req.user as any).id;
       
       const existingDeal = await storage.getDeal(id);
       const parsed = updateDealSchema.safeParse(req.body);
@@ -407,7 +406,7 @@ export async function registerRoutes(
   app.patch("/api/deals/:id/stage", isAuthenticated, async (req: any, res) => {
     try {
       const dealId = parseInt(req.params.id);
-      const userId = req.user.claims.sub;
+      const userId = (req.user as any).id;
       if (isNaN(dealId)) return res.status(400).json({ message: "Invalid ID" });
       
       const parsed = moveDealSchema.safeParse(req.body);
@@ -440,7 +439,7 @@ export async function registerRoutes(
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
-      const userId = req.user.claims.sub;
+      const userId = (req.user as any).id;
       
       const existingDeal = await storage.getDeal(id);
       await storage.deleteDeal(id);
@@ -495,7 +494,7 @@ export async function registerRoutes(
     try {
       const org = await storage.getDefaultOrganization();
       if (!org) return res.status(400).json({ message: "No organization" });
-      const userId = req.user.claims.sub;
+      const userId = (req.user as any).id;
       
       const parsed = insertContactSchema.safeParse({ ...req.body, organizationId: org.id });
       if (!parsed.success) {
@@ -524,7 +523,7 @@ export async function registerRoutes(
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
-      const userId = req.user.claims.sub;
+      const userId = (req.user as any).id;
       
       const existingContact = await storage.getContact(id);
       const parsed = updateContactSchema.safeParse(req.body);
@@ -561,7 +560,7 @@ export async function registerRoutes(
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
-      const userId = req.user.claims.sub;
+      const userId = (req.user as any).id;
       
       const existingContact = await storage.getContact(id);
       await storage.deleteContact(id);
@@ -615,7 +614,7 @@ export async function registerRoutes(
     try {
       const org = await storage.getDefaultOrganization();
       if (!org) return res.status(400).json({ message: "No organization" });
-      const userId = req.user.claims.sub;
+      const userId = (req.user as any).id;
       
       const parsed = insertCompanySchema.safeParse({ ...req.body, organizationId: org.id });
       if (!parsed.success) {
@@ -644,7 +643,7 @@ export async function registerRoutes(
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
-      const userId = req.user.claims.sub;
+      const userId = (req.user as any).id;
       
       const existingCompany = await storage.getCompany(id);
       const parsed = updateCompanySchema.safeParse(req.body);
@@ -681,7 +680,7 @@ export async function registerRoutes(
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
-      const userId = req.user.claims.sub;
+      const userId = (req.user as any).id;
       
       const existingCompany = await storage.getCompany(id);
       await storage.deleteCompany(id);
@@ -819,7 +818,7 @@ export async function registerRoutes(
   app.post("/api/conversations/:id/messages", isAuthenticated, async (req: any, res) => {
     try {
       const conversationId = parseInt(req.params.id);
-      const senderId = req.user.claims.sub;
+      const senderId = (req.user as any).id;
       if (isNaN(conversationId)) return res.status(400).json({ message: "Invalid ID" });
       
       const parsed = insertMessageSchema.safeParse({ ...req.body, conversationId });
@@ -925,7 +924,7 @@ export async function registerRoutes(
   // Notifications endpoints
   app.get("/api/notifications", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = (req.user as any).id;
       const notificationsList = await storage.getNotifications(userId);
       res.json(notificationsList);
     } catch (error) {
@@ -936,7 +935,7 @@ export async function registerRoutes(
 
   app.get("/api/notifications/unread-count", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = (req.user as any).id;
       const count = await storage.getUnreadNotificationCount(userId);
       res.json({ count });
     } catch (error) {
@@ -948,7 +947,7 @@ export async function registerRoutes(
   app.patch("/api/notifications/:id/read", isAuthenticated, async (req: any, res) => {
     try {
       const id = parseInt(req.params.id);
-      const userId = req.user.claims.sub;
+      const userId = (req.user as any).id;
       if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
       const notification = await storage.markNotificationRead(id, userId);
       if (!notification) return res.status(404).json({ message: "Notification not found" });
@@ -961,7 +960,7 @@ export async function registerRoutes(
 
   app.post("/api/notifications/mark-all-read", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = (req.user as any).id;
       await storage.markAllNotificationsRead(userId);
       res.json({ success: true });
     } catch (error) {
@@ -973,7 +972,7 @@ export async function registerRoutes(
   // Saved Views endpoints
   app.get("/api/saved-views", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = (req.user as any).id;
       const type = req.query.type as string;
       if (!type || !savedViewTypes.includes(type as any)) {
         return res.status(400).json({ message: "Invalid view type" });
@@ -988,7 +987,7 @@ export async function registerRoutes(
 
   app.post("/api/saved-views", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = (req.user as any).id;
       const org = await storage.getDefaultOrganization();
       if (!org) return res.status(400).json({ message: "No organization" });
       
@@ -1007,7 +1006,7 @@ export async function registerRoutes(
   app.patch("/api/saved-views/:id", isAuthenticated, async (req: any, res) => {
     try {
       const id = parseInt(req.params.id);
-      const userId = req.user.claims.sub;
+      const userId = (req.user as any).id;
       if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
       
       const parsed = updateSavedViewSchema.safeParse(req.body);
@@ -1026,7 +1025,7 @@ export async function registerRoutes(
   app.delete("/api/saved-views/:id", isAuthenticated, async (req: any, res) => {
     try {
       const id = parseInt(req.params.id);
-      const userId = req.user.claims.sub;
+      const userId = (req.user as any).id;
       if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
       await storage.deleteSavedView(id, userId);
       res.status(204).send();
@@ -1083,7 +1082,7 @@ export async function registerRoutes(
     try {
       const org = await storage.getDefaultOrganization();
       if (!org) return res.status(400).json({ message: "No organization" });
-      const userId = req.user.claims.sub;
+      const userId = (req.user as any).id;
       
       const parsed = insertEmailTemplateSchema.safeParse({ ...req.body, organizationId: org.id, createdBy: userId });
       if (!parsed.success) {
@@ -1136,7 +1135,7 @@ export async function registerRoutes(
     try {
       const org = await storage.getDefaultOrganization();
       if (!org) return res.json([]);
-      const user = await storage.getUser(req.user.claims.sub);
+      const user = await storage.getUser((req.user as any).id);
       if (!user || user.role !== "admin") {
         return res.status(403).json({ message: "Admin access required" });
       }
@@ -1231,7 +1230,7 @@ export async function registerRoutes(
         return res.status(400).json({ message: "No organization found" });
       }
 
-      const userId = req.user.claims.sub;
+      const userId = (req.user as any).id;
       const { name, mimeType, size, uploadURL, entityType, entityId } = req.body;
 
       if (!name || !uploadURL || !entityType || !entityId) {
@@ -1447,7 +1446,7 @@ export async function registerRoutes(
     try {
       const org = await storage.getDefaultOrganization();
       if (!org) return res.status(400).json({ message: "No organization" });
-      const userId = req.user.claims.sub;
+      const userId = (req.user as any).id;
       
       const body = {
         ...req.body,
@@ -1562,7 +1561,7 @@ export async function registerRoutes(
     try {
       const org = await storage.getDefaultOrganization();
       if (!org) return res.status(400).json({ message: "No organization" });
-      const userId = req.user.claims.sub;
+      const userId = (req.user as any).id;
 
       const parsed = insertChannelConfigSchema.safeParse({ 
         ...req.body, 
@@ -1641,7 +1640,7 @@ export async function registerRoutes(
 
   // Serve object files
   app.get("/objects/:objectPath(*)", isAuthenticated, async (req: any, res) => {
-    const userId = req.user?.claims?.sub;
+    const userId = (req.user as any)?.id;
     const objectStorageService = new ObjectStorageService();
     try {
       const objectFile = await objectStorageService.getObjectEntityFile(req.path);
@@ -1653,7 +1652,7 @@ export async function registerRoutes(
       if (!canAccess) {
         return res.sendStatus(401);
       }
-      objectStorageService.downloadObject(objectFile, res);
+      await objectStorageService.downloadObject(objectFile.path, res);
     } catch (error) {
       console.error("Error serving object:", error);
       if (error instanceof ObjectNotFoundError) {

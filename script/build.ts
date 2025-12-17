@@ -2,11 +2,12 @@ import { build as esbuild } from "esbuild";
 import { build as viteBuild } from "vite";
 import { rm, readFile } from "fs/promises";
 
-// server deps to bundle to reduce openat(2) syscalls
-// which helps cold start times
+// Dependencias do servidor para bundlar e reduzir chamadas openat(2)
+// o que ajuda no tempo de cold start
 const allowlist = [
-  "@google/generative-ai",
+  "@supabase/supabase-js",
   "axios",
+  "bcryptjs",
   "connect-pg-simple",
   "cors",
   "date-fns",

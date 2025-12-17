@@ -1,14 +1,20 @@
 import OpenAI from "openai";
 
-// Use user's own OpenAI API key if provided, otherwise fall back to Replit's AI Integrations
-const openai = process.env.OPENAI_API_KEY
-  ? new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
-    })
-  : new OpenAI({
-      baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-      apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-    });
+/**
+ * Cliente OpenAI para funcionalidades de AI (lead scoring, recomendacoes)
+ * Requer OPENAI_API_KEY configurada no ambiente
+ */
+function getOpenAIClient(): OpenAI | null {
+  if (!process.env.OPENAI_API_KEY) {
+    console.warn("OPENAI_API_KEY nao configurada. Funcionalidades de AI estarao desabilitadas.");
+    return null;
+  }
+  return new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+  });
+}
+
+const openai = getOpenAIClient();
 
 export interface ScoreFactors {
   engagement: number;
@@ -264,6 +270,18 @@ async function getAIRecommendation(
   entityType: "contact" | "deal",
   data: Record<string, unknown>
 ): Promise<{ recommendation: string; nextBestAction: string }> {
+  // Se OpenAI nao esta configurado, retorna recomendacao padrao
+  if (!openai) {
+    return {
+      recommendation: entityType === "contact"
+        ? "Este contato mostra engajamento moderado. Considere entrar em contato para entender melhor suas necessidades."
+        : "Este negocio esta progredindo. Foque em resolver objecoes e avancar para a proxima etapa.",
+      nextBestAction: entityType === "contact"
+        ? "Agende uma ligacao de descoberta para entender requisitos"
+        : "Faca follow-up em propostas pendentes ou agende uma demo",
+    };
+  }
+
   try {
     const prompt =
       entityType === "contact"
