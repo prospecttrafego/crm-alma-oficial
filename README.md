@@ -1,110 +1,197 @@
 # Alma CRM
 
-## Overview
+Sistema de CRM (Customer Relationship Management) desenvolvido para a agencia digital Alma. Plataforma SaaS com inbox unificado para comunicacoes multicanal e pipeline de vendas estilo Kanban.
 
-Alma CRM is a SaaS customer relationship management application built for the Alma digital agency. The platform provides two core features: a unified inbox for customer communications (multi-channel help desk style) and a Kanban-style sales pipeline for lead management. The application follows modern SaaS design patterns with a dark theme and purple accent color scheme.
+## Funcionalidades Principais
 
-## User Preferences
+### Pipeline de Vendas (Kanban)
+- Visualizacao drag-and-drop de deals
+- Multiplos pipelines customizaveis
+- Probabilidade e valor de deals
+- Filtros e views salvos
+- Historico de movimentacoes
 
-Preferred communication style: Simple, everyday language.
+### Inbox Unificado
+- Conversas multicanal (email, WhatsApp, SMS, telefone)
+- Atribuicao de responsaveis
+- Notas internas
+- Anexos de arquivos
+- Contagem de nao lidos
 
-## System Architecture
+### Gestao de Contatos e Empresas
+- Cadastro completo de contatos
+- Vinculacao com empresas
+- Campos customizados (JSON)
+- Tags e segmentacao
+- Historico de atividades
 
-### Frontend Architecture
-- **Framework**: React 19 with TypeScript, using Vite 7 as the build tool
-- **Routing**: Wouter for lightweight client-side routing
-- **State Management**: TanStack Query for server state and data fetching
-- **UI Components**: shadcn/ui component library built on Radix UI primitives
-- **Styling**: Tailwind CSS 4 with CSS variables for theming (dark/light mode support)
-- **Design System**: Custom theme following Alma brand guidelines with purple accent (#605be5)
+### Recursos Adicionais
+- Lead scoring com IA (OpenAI)
+- Calendario de eventos
+- Templates de email
+- Notificacoes em tempo real
+- Logs de auditoria
+- Multi-organizacao
 
-### Backend Architecture
-- **Runtime**: Node.js with Express
-- **Language**: TypeScript throughout
-- **API Pattern**: RESTful API endpoints under `/api/*`
-- **Real-time**: WebSocket support using the `ws` library for live updates
-- **Authentication**: Passport.js Local Strategy with email/password, session-based with PostgreSQL session store
-- **Storage**: Supabase Storage for file uploads
+## Stack Tecnologica
 
-### Data Layer
-- **Database**: PostgreSQL
-- **ORM**: Drizzle ORM with Zod 4 schema validation (drizzle-zod)
-- **Schema Location**: `shared/schema.ts` contains all database table definitions
-- **Migrations**: Managed via Drizzle Kit (`drizzle-kit push`)
+| Camada | Tecnologia | Versao |
+|--------|------------|--------|
+| Frontend | React | 19.2.0 |
+| Build Tool | Vite | 7.3.0 |
+| Styling | Tailwind CSS | 4.4.16 |
+| Componentes | shadcn/ui + Radix UI | - |
+| Estado | TanStack Query | 5.60.5 |
+| Roteamento | Wouter | 3.3.5 |
+| Backend | Express | 4.21.2 |
+| Linguagem | TypeScript | 5.9.3 |
+| Banco de Dados | PostgreSQL | - |
+| ORM | Drizzle ORM | 0.39.3 |
+| Validacao | Zod | 4.1.13 |
+| Autenticacao | Passport.js Local | 0.7.0 |
+| Storage | Supabase Storage | 2.87.3 |
+| Real-time | WebSocket (ws) | 8.18.0 |
+| AI | OpenAI | 6.10.0 |
 
-### Project Structure
+## Inicio Rapido
+
+```bash
+# Instalar dependencias
+npm install
+
+# Configurar ambiente
+cp .env.example .env
+# Editar .env com suas credenciais
+
+# Aplicar schema no banco
+npm run db:push
+
+# Desenvolvimento
+npm run dev
+
+# Producao
+npm run build
+npm start
 ```
-├── client/src/          # React frontend application
-│   ├── components/      # Reusable UI components
-│   ├── pages/           # Route page components
-│   ├── hooks/           # Custom React hooks
-│   └── lib/             # Utilities and query client
-├── server/              # Express backend
-│   ├── routes.ts        # API route definitions
-│   ├── storage.ts       # Database access layer
-│   ├── auth.ts          # Passport.js authentication setup
-│   └── storage.supabase.ts # Supabase file storage
-├── shared/              # Shared code between client and server
-│   └── schema.ts        # Drizzle database schema
-├── scripts/             # Utility scripts
-│   └── migrate-users.ts # User migration helper
-└── migrations/          # Database migrations
+
+## Estrutura do Projeto
+
+```
+├── client/                  # Frontend React
+│   └── src/
+│       ├── components/      # Componentes reutilizaveis
+│       │   └── ui/          # shadcn/ui components
+│       ├── pages/           # Paginas da aplicacao
+│       ├── hooks/           # React hooks customizados
+│       └── lib/             # Utilitarios e configuracoes
+├── server/                  # Backend Express
+│   ├── index.ts             # Entry point
+│   ├── routes.ts            # Endpoints da API
+│   ├── storage.ts           # Camada de acesso ao banco
+│   ├── auth.ts              # Autenticacao Passport.js
+│   ├── storage.supabase.ts  # Upload de arquivos
+│   └── aiScoring.ts         # Lead scoring com IA
+├── shared/                  # Codigo compartilhado
+│   └── schema.ts            # Schema Drizzle + tipos
+├── scripts/                 # Scripts utilitarios
+│   └── migrate-users.ts     # Migracao de usuarios
+└── script/
+    └── build.ts             # Script de build
 ```
 
-### Key Design Decisions
+## Variaveis de Ambiente
 
-**Monorepo Structure**: Client and server share a single repository with shared types via the `shared/` directory, ensuring type safety across the stack.
+| Variavel | Obrigatoria | Descricao |
+|----------|-------------|-----------|
+| `DATABASE_URL` | Sim | URL de conexao PostgreSQL |
+| `SESSION_SECRET` | Sim | Chave para criptografia de sessoes |
+| `SUPABASE_URL` | Sim | URL do projeto Supabase |
+| `SUPABASE_SERVICE_ROLE_KEY` | Sim | Service role key do Supabase |
+| `OPENAI_API_KEY` | Nao | API key OpenAI (para lead scoring) |
+| `ALLOW_REGISTRATION` | Nao | Permitir registro publico (default: false) |
+| `APP_URL` | Nao | URL da aplicacao em producao |
+| `PORT` | Nao | Porta do servidor (default: 3000) |
 
-**Component Library**: Uses shadcn/ui (New York style) which provides unstyled, accessible components that are copied into the project for full customization control.
+## Comandos Disponiveis
 
-**Authentication**: Uses Passport.js Local Strategy with bcrypt password hashing. Sessions are persisted in PostgreSQL via connect-pg-simple.
+```bash
+npm run dev       # Servidor de desenvolvimento
+npm run build     # Build de producao
+npm start         # Inicia servidor de producao
+npm run check     # Verifica tipos TypeScript
+npm run db:push   # Aplica schema no banco
+```
 
-**File Storage**: Uses Supabase Storage for file uploads with signed URLs for secure access.
+## Deploy em VPS (Ubuntu)
 
-**Real-time Updates**: WebSocket connections broadcast changes to all connected clients, enabling live updates for pipeline changes and inbox messages.
+### Pre-requisitos
+- Node.js 20+
+- PostgreSQL (ou usar Supabase)
+- Projeto Supabase com bucket "uploads"
 
-## External Dependencies
+### Passo a Passo
 
-### Database
-- **PostgreSQL**: Primary data store, connection via `DATABASE_URL` environment variable
-- **connect-pg-simple**: Session storage in PostgreSQL
+```bash
+# 1. Clonar repositorio
+git clone https://github.com/prospecttrafego/crm-alma-oficial.git
+cd crm-alma-oficial
 
-### Storage
-- **Supabase**: Object storage for file uploads (SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+# 2. Instalar dependencias
+npm install
 
-### Authentication
-- **Passport.js**: Authentication middleware with Local Strategy
-- **bcryptjs**: Password hashing
+# 3. Configurar ambiente
+cp .env.example .env
+nano .env  # Preencher credenciais
 
-### Third-Party Libraries
-- **Radix UI**: Headless UI primitives for accessible components
-- **TanStack Query**: Server state management and caching
-- **Drizzle ORM**: Type-safe database queries and schema management
-- **Zod 4**: Runtime schema validation for API inputs
-- **Lucide React**: Icon library
-- **OpenAI**: AI-powered lead scoring and recommendations (optional)
+# 4. Aplicar schema no banco
+npm run db:push
 
-### Development Tools
-- **Vite 7**: Frontend build tool with HMR
-- **esbuild**: Server bundling for production
-- **TypeScript 5.9**: Type checking across the entire codebase
-- **Tailwind CSS 4**: Utility-first CSS framework
+# 5. Build de producao
+npm run build
 
-## Environment Variables
+# 6. Instalar PM2 globalmente
+npm install -g pm2
 
-See `.env.example` for required environment variables:
-- `DATABASE_URL` - PostgreSQL connection string
-- `SESSION_SECRET` - Secret for session encryption
-- `SUPABASE_URL` - Supabase project URL
-- `SUPABASE_SERVICE_ROLE_KEY` - Supabase service role key
-- `OPENAI_API_KEY` - OpenAI API key (optional, for AI features)
-- `ALLOW_REGISTRATION` - Enable/disable user registration
+# 7. Iniciar aplicacao
+pm2 start dist/index.cjs --name "crm-alma"
 
-## Getting Started
+# 8. Configurar auto-start
+pm2 save
+pm2 startup
+```
 
-1. Install dependencies: `npm install`
-2. Copy `.env.example` to `.env` and fill in values
-3. Push database schema: `npm run db:push`
-4. Start development server: `npm run dev`
-5. Build for production: `npm run build`
-6. Start production server: `npm start`
+### Nginx (Proxy Reverso)
+
+```nginx
+server {
+    listen 80;
+    server_name seu-dominio.com;
+
+    location / {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_cache_bypass $http_upgrade;
+    }
+}
+```
+
+## Configuracao do Supabase
+
+1. Criar projeto em [supabase.com](https://supabase.com)
+2. Criar bucket "uploads" em Storage
+3. Configurar politica de acesso (RLS) se necessario
+4. Copiar credenciais para `.env`:
+   - `SUPABASE_URL`: Settings > API > Project URL
+   - `SUPABASE_SERVICE_ROLE_KEY`: Settings > API > service_role key
+
+## Licenca
+
+MIT
+
+## Contato
+
+Desenvolvido para Alma Digital Agency
