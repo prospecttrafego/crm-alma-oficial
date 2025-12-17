@@ -56,7 +56,6 @@ interface PipelineWithStages extends Pipeline {
 
 const pipelineFormSchema = z.object({
   name: z.string().min(1, "Name is required"),
-  description: z.string().optional(),
 });
 
 type PipelineFormData = z.infer<typeof pipelineFormSchema>;
@@ -90,7 +89,6 @@ function PipelineDialog({
     resolver: zodResolver(pipelineFormSchema),
     defaultValues: {
       name: "",
-      description: "",
     },
   });
 
@@ -98,7 +96,6 @@ function PipelineDialog({
     if (open) {
       form.reset({
         name: pipeline?.name || "",
-        description: pipeline?.description || "",
       });
     }
   }, [open, pipeline, form]);
@@ -169,23 +166,6 @@ function PipelineDialog({
                       placeholder="e.g., Enterprise Sales, SMB Pipeline" 
                       {...field} 
                       data-testid="input-pipeline-name"
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="description"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Description (Optional)</FormLabel>
-                  <FormControl>
-                    <Textarea 
-                      placeholder="Describe the purpose of this pipeline..."
-                      {...field} 
-                      data-testid="input-pipeline-description"
                     />
                   </FormControl>
                   <FormMessage />
@@ -1290,7 +1270,7 @@ function ChannelConfigsSection() {
                     </div>
                     <p className="text-sm text-muted-foreground">
                       {config.type === "email"
-                        ? (config.emailConfig as Record<string, unknown>)?.email || "No email configured"
+                        ? String((config.emailConfig as Record<string, unknown>)?.email || "No email configured")
                         : "WhatsApp Business API"}
                     </p>
                   </div>

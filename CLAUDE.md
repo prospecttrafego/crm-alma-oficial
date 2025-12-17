@@ -74,7 +74,7 @@ Este documento contem todas as informacoes necessarias para entender, desenvolve
 | react-dom | 19.2.3 | Renderizacao DOM |
 | vite | 7.3.0 | Build tool / Dev server |
 | typescript | 5.9.3 | Tipagem estatica |
-| tailwindcss | 4.4.16 | Estilizacao utility-first |
+| tailwindcss | 4.1.18 | Estilizacao utility-first |
 | @tanstack/react-query | 5.60.5 | Gerenciamento de estado servidor |
 | wouter | 3.3.5 | Roteamento client-side |
 | framer-motion | 12.23.26 | Animacoes |

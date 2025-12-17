@@ -604,6 +604,7 @@ export const channelConfigsRelations = relations(channelConfigs, ({ one }) => ({
 }));
 
 // Insert schemas
+// Nota: Para schemas com campos enum, usamos .extend() para garantir tipos corretos
 export const insertUserSchema = createInsertSchema(users).omit({ createdAt: true, updatedAt: true });
 export const insertOrganizationSchema = createInsertSchema(organizations).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertCompanySchema = createInsertSchema(companies).omit({ id: true, createdAt: true, updatedAt: true });
@@ -611,19 +612,40 @@ export const insertContactSchema = createInsertSchema(contacts).omit({ id: true,
 export const insertPipelineSchema = createInsertSchema(pipelines).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertPipelineStageSchema = createInsertSchema(pipelineStages).omit({ id: true, createdAt: true });
 export const insertDealSchema = createInsertSchema(deals).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertConversationSchema = createInsertSchema(conversations).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertConversationSchema = createInsertSchema(conversations)
+  .omit({ id: true, createdAt: true, updatedAt: true })
+  .extend({ channel: z.enum(channelTypes) });
 export const insertMessageSchema = createInsertSchema(messages).omit({ id: true, createdAt: true });
-export const insertActivitySchema = createInsertSchema(activities).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertNotificationSchema = createInsertSchema(notifications).omit({ id: true, createdAt: true });
-export const insertSavedViewSchema = createInsertSchema(savedViews).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertActivitySchema = createInsertSchema(activities)
+  .omit({ id: true, createdAt: true, updatedAt: true })
+  .extend({ type: z.enum(activityTypes) });
+export const insertNotificationSchema = createInsertSchema(notifications)
+  .omit({ id: true, createdAt: true })
+  .extend({ type: z.enum(notificationTypes) });
+export const insertSavedViewSchema = createInsertSchema(savedViews)
+  .omit({ id: true, createdAt: true, updatedAt: true })
+  .extend({ type: z.enum(savedViewTypes) });
 export const insertEmailTemplateSchema = createInsertSchema(emailTemplates).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({ id: true, createdAt: true });
-export const insertFileSchema = createInsertSchema(files).omit({ id: true, createdAt: true });
-export const insertLeadScoreSchema = createInsertSchema(leadScores).omit({ id: true, createdAt: true });
-export const insertCalendarEventSchema = createInsertSchema(calendarEvents).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertChannelConfigSchema = createInsertSchema(channelConfigs).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertAuditLogSchema = createInsertSchema(auditLogs)
+  .omit({ id: true, createdAt: true })
+  .extend({
+    action: z.enum(auditLogActions),
+    entityType: z.enum(auditLogEntityTypes),
+  });
+export const insertFileSchema = createInsertSchema(files)
+  .omit({ id: true, createdAt: true })
+  .extend({ entityType: z.enum(fileEntityTypes) });
+export const insertLeadScoreSchema = createInsertSchema(leadScores)
+  .omit({ id: true, createdAt: true })
+  .extend({ entityType: z.enum(leadScoreEntityTypes) });
+export const insertCalendarEventSchema = createInsertSchema(calendarEvents)
+  .omit({ id: true, createdAt: true, updatedAt: true })
+  .extend({ type: z.enum(calendarEventTypes).nullable().optional() });
+export const insertChannelConfigSchema = createInsertSchema(channelConfigs)
+  .omit({ id: true, createdAt: true, updatedAt: true })
+  .extend({ type: z.enum(channelConfigTypes) });
 
-// Types
+// Types - usamos z.infer para schemas com enum estendidos e $inferSelect para select types
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
 export type InsertOrganization = z.infer<typeof insertOrganizationSchema>;

@@ -39,7 +39,7 @@ Sistema de CRM (Customer Relationship Management) desenvolvido para a agencia di
 |--------|------------|--------|
 | Frontend | React | 19.2.3 |
 | Build Tool | Vite | 7.3.0 |
-| Styling | Tailwind CSS | 4.4.16 |
+| Styling | Tailwind CSS | 4.1.18 |
 | Componentes | shadcn/ui + Radix UI | - |
 | Estado | TanStack Query | 5.60.5 |
 | Roteamento | Wouter | 3.3.5 |

@@ -150,7 +150,7 @@ export async function registerRoutes(
       
       const parsed = insertPipelineSchema.safeParse({ ...req.body, organizationId: org.id });
       if (!parsed.success) {
-        return res.status(400).json({ message: "Invalid data", errors: parsed.error.errors });
+        return res.status(400).json({ message: "Invalid data", errors: parsed.error.issues });
       }
       const pipeline = await storage.createPipeline(parsed.data);
       
@@ -270,7 +270,7 @@ export async function registerRoutes(
       
       const parsed = insertPipelineStageSchema.safeParse({ ...req.body, pipelineId });
       if (!parsed.success) {
-        return res.status(400).json({ message: "Invalid data", errors: parsed.error.errors });
+        return res.status(400).json({ message: "Invalid data", errors: parsed.error.issues });
       }
       
       const stage = await storage.createPipelineStage(parsed.data);
@@ -343,7 +343,7 @@ export async function registerRoutes(
       
       const parsed = insertDealSchema.safeParse({ ...req.body, organizationId: org.id });
       if (!parsed.success) {
-        return res.status(400).json({ message: "Invalid data", errors: parsed.error.errors });
+        return res.status(400).json({ message: "Invalid data", errors: parsed.error.issues });
       }
       const deal = await storage.createDeal(parsed.data);
       
@@ -374,7 +374,7 @@ export async function registerRoutes(
       const existingDeal = await storage.getDeal(id);
       const parsed = updateDealSchema.safeParse(req.body);
       if (!parsed.success) {
-        return res.status(400).json({ message: "Invalid data", errors: parsed.error.errors });
+        return res.status(400).json({ message: "Invalid data", errors: parsed.error.issues });
       }
       const deal = await storage.updateDeal(id, parsed.data);
       if (!deal) return res.status(404).json({ message: "Deal not found" });
@@ -411,7 +411,7 @@ export async function registerRoutes(
       
       const parsed = moveDealSchema.safeParse(req.body);
       if (!parsed.success) {
-        return res.status(400).json({ message: "Invalid data", errors: parsed.error.errors });
+        return res.status(400).json({ message: "Invalid data", errors: parsed.error.issues });
       }
       const deal = await storage.moveDealToStage(dealId, parsed.data.stageId);
       if (!deal) return res.status(404).json({ message: "Deal not found" });
@@ -498,7 +498,7 @@ export async function registerRoutes(
       
       const parsed = insertContactSchema.safeParse({ ...req.body, organizationId: org.id });
       if (!parsed.success) {
-        return res.status(400).json({ message: "Invalid data", errors: parsed.error.errors });
+        return res.status(400).json({ message: "Invalid data", errors: parsed.error.issues });
       }
       const contact = await storage.createContact(parsed.data);
       
@@ -528,7 +528,7 @@ export async function registerRoutes(
       const existingContact = await storage.getContact(id);
       const parsed = updateContactSchema.safeParse(req.body);
       if (!parsed.success) {
-        return res.status(400).json({ message: "Invalid data", errors: parsed.error.errors });
+        return res.status(400).json({ message: "Invalid data", errors: parsed.error.issues });
       }
       const contact = await storage.updateContact(id, parsed.data);
       if (!contact) return res.status(404).json({ message: "Contact not found" });
@@ -618,7 +618,7 @@ export async function registerRoutes(
       
       const parsed = insertCompanySchema.safeParse({ ...req.body, organizationId: org.id });
       if (!parsed.success) {
-        return res.status(400).json({ message: "Invalid data", errors: parsed.error.errors });
+        return res.status(400).json({ message: "Invalid data", errors: parsed.error.issues });
       }
       const company = await storage.createCompany(parsed.data);
       
@@ -648,7 +648,7 @@ export async function registerRoutes(
       const existingCompany = await storage.getCompany(id);
       const parsed = updateCompanySchema.safeParse(req.body);
       if (!parsed.success) {
-        return res.status(400).json({ message: "Invalid data", errors: parsed.error.errors });
+        return res.status(400).json({ message: "Invalid data", errors: parsed.error.issues });
       }
       const company = await storage.updateCompany(id, parsed.data);
       if (!company) return res.status(404).json({ message: "Company not found" });
@@ -774,7 +774,7 @@ export async function registerRoutes(
       
       const parsed = insertConversationSchema.safeParse({ ...req.body, organizationId: org.id });
       if (!parsed.success) {
-        return res.status(400).json({ message: "Invalid data", errors: parsed.error.errors });
+        return res.status(400).json({ message: "Invalid data", errors: parsed.error.issues });
       }
       const conversation = await storage.createConversation(parsed.data);
       broadcast("conversation:created", conversation);
@@ -792,7 +792,7 @@ export async function registerRoutes(
       
       const parsed = updateConversationSchema.safeParse(req.body);
       if (!parsed.success) {
-        return res.status(400).json({ message: "Invalid data", errors: parsed.error.errors });
+        return res.status(400).json({ message: "Invalid data", errors: parsed.error.issues });
       }
       const conversation = await storage.updateConversation(id, parsed.data);
       if (!conversation) return res.status(404).json({ message: "Conversation not found" });
@@ -823,7 +823,7 @@ export async function registerRoutes(
       
       const parsed = insertMessageSchema.safeParse({ ...req.body, conversationId });
       if (!parsed.success) {
-        return res.status(400).json({ message: "Invalid data", errors: parsed.error.errors });
+        return res.status(400).json({ message: "Invalid data", errors: parsed.error.issues });
       }
       const message = await storage.createMessage(parsed.data);
       broadcast("message:created", message);
@@ -881,7 +881,7 @@ export async function registerRoutes(
       
       const parsed = insertActivitySchema.safeParse({ ...req.body, organizationId: org.id });
       if (!parsed.success) {
-        return res.status(400).json({ message: "Invalid data", errors: parsed.error.errors });
+        return res.status(400).json({ message: "Invalid data", errors: parsed.error.issues });
       }
       const activity = await storage.createActivity(parsed.data);
       res.status(201).json(activity);
@@ -898,7 +898,7 @@ export async function registerRoutes(
       
       const parsed = updateActivitySchema.safeParse(req.body);
       if (!parsed.success) {
-        return res.status(400).json({ message: "Invalid data", errors: parsed.error.errors });
+        return res.status(400).json({ message: "Invalid data", errors: parsed.error.issues });
       }
       const activity = await storage.updateActivity(id, parsed.data);
       if (!activity) return res.status(404).json({ message: "Activity not found" });
@@ -993,7 +993,7 @@ export async function registerRoutes(
       
       const parsed = insertSavedViewSchema.safeParse({ ...req.body, userId, organizationId: org.id });
       if (!parsed.success) {
-        return res.status(400).json({ message: "Invalid data", errors: parsed.error.errors });
+        return res.status(400).json({ message: "Invalid data", errors: parsed.error.issues });
       }
       const view = await storage.createSavedView(parsed.data);
       res.status(201).json(view);
@@ -1011,7 +1011,7 @@ export async function registerRoutes(
       
       const parsed = updateSavedViewSchema.safeParse(req.body);
       if (!parsed.success) {
-        return res.status(400).json({ message: "Invalid data", errors: parsed.error.errors });
+        return res.status(400).json({ message: "Invalid data", errors: parsed.error.issues });
       }
       const view = await storage.updateSavedView(id, userId, parsed.data);
       if (!view) return res.status(404).json({ message: "Saved view not found" });
@@ -1086,7 +1086,7 @@ export async function registerRoutes(
       
       const parsed = insertEmailTemplateSchema.safeParse({ ...req.body, organizationId: org.id, createdBy: userId });
       if (!parsed.success) {
-        return res.status(400).json({ message: "Invalid data", errors: parsed.error.errors });
+        return res.status(400).json({ message: "Invalid data", errors: parsed.error.issues });
       }
       const template = await storage.createEmailTemplate(parsed.data);
       res.status(201).json(template);
@@ -1105,7 +1105,7 @@ export async function registerRoutes(
       
       const parsed = updateEmailTemplateSchema.safeParse(req.body);
       if (!parsed.success) {
-        return res.status(400).json({ message: "Invalid data", errors: parsed.error.errors });
+        return res.status(400).json({ message: "Invalid data", errors: parsed.error.issues });
       }
       const template = await storage.updateEmailTemplate(id, org.id, parsed.data);
       if (!template) return res.status(404).json({ message: "Template not found" });
@@ -1458,7 +1458,7 @@ export async function registerRoutes(
       
       const parsed = insertCalendarEventSchema.safeParse(body);
       if (!parsed.success) {
-        return res.status(400).json({ message: "Invalid data", errors: parsed.error.errors });
+        return res.status(400).json({ message: "Invalid data", errors: parsed.error.issues });
       }
       const event = await storage.createCalendarEvent(parsed.data);
       broadcast("calendar:event:created", event);
@@ -1482,7 +1482,7 @@ export async function registerRoutes(
       
       const parsed = updateCalendarEventSchema.safeParse(body);
       if (!parsed.success) {
-        return res.status(400).json({ message: "Invalid data", errors: parsed.error.errors });
+        return res.status(400).json({ message: "Invalid data", errors: parsed.error.issues });
       }
       const event = await storage.updateCalendarEvent(id, parsed.data);
       if (!event) return res.status(404).json({ message: "Event not found" });
@@ -1569,7 +1569,7 @@ export async function registerRoutes(
         createdBy: userId 
       });
       if (!parsed.success) {
-        return res.status(400).json({ message: "Invalid data", errors: parsed.error.errors });
+        return res.status(400).json({ message: "Invalid data", errors: parsed.error.issues });
       }
       const config = await storage.createChannelConfig(parsed.data);
       const redactedConfig = redactChannelConfigSecrets(config);
@@ -1588,7 +1588,7 @@ export async function registerRoutes(
 
       const parsed = updateChannelConfigSchema.safeParse(req.body);
       if (!parsed.success) {
-        return res.status(400).json({ message: "Invalid data", errors: parsed.error.errors });
+        return res.status(400).json({ message: "Invalid data", errors: parsed.error.issues });
       }
 
       // Storage layer handles merging secrets - preserves password/accessToken if not provided

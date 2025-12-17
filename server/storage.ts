@@ -962,7 +962,7 @@ export class DatabaseStorage implements IStorage {
       if ((newPassword === undefined || newPassword === null || newPassword === "") && existingEmailConfig.password) {
         const mergedConfig = { ...newEmailConfig };
         delete mergedConfig.password; // Remove empty password field
-        updateData.emailConfig = { ...mergedConfig, password: existingEmailConfig.password };
+        updateData.emailConfig = { ...mergedConfig, password: existingEmailConfig.password } as typeof config.emailConfig;
       }
     }
 
@@ -975,7 +975,7 @@ export class DatabaseStorage implements IStorage {
       if ((newToken === undefined || newToken === null || newToken === "") && existingWhatsappConfig.accessToken) {
         const mergedConfig = { ...newWhatsappConfig };
         delete mergedConfig.accessToken; // Remove empty token field
-        updateData.whatsappConfig = { ...mergedConfig, accessToken: existingWhatsappConfig.accessToken };
+        updateData.whatsappConfig = { ...mergedConfig, accessToken: existingWhatsappConfig.accessToken } as typeof config.whatsappConfig;
       }
     }
 
