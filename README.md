@@ -37,7 +37,7 @@ Sistema de CRM (Customer Relationship Management) desenvolvido para a agencia di
 
 | Camada | Tecnologia | Versao |
 |--------|------------|--------|
-| Frontend | React | 19.2.0 |
+| Frontend | React | 19.2.3 |
 | Build Tool | Vite | 7.3.0 |
 | Styling | Tailwind CSS | 4.4.16 |
 | Componentes | shadcn/ui + Radix UI | - |

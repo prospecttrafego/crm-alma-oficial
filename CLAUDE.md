@@ -70,8 +70,8 @@ Este documento contem todas as informacoes necessarias para entender, desenvolve
 
 | Pacote | Versao | Funcao |
 |--------|--------|--------|
-| react | 19.2.0 | Framework UI |
-| react-dom | 19.2.0 | Renderizacao DOM |
+| react | 19.2.3 | Framework UI |
+| react-dom | 19.2.3 | Renderizacao DOM |
 | vite | 7.3.0 | Build tool / Dev server |
 | typescript | 5.9.3 | Tipagem estatica |
 | tailwindcss | 4.4.16 | Estilizacao utility-first |
