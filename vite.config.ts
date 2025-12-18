@@ -25,5 +25,14 @@ export default defineConfig({
       strict: true,
       deny: ["**/.*"],
     },
+    // Proxy para conectar ao backend remoto durante desenvolvimento
+    // Altere a URL abaixo para a URL do seu servidor na Hostinger
+    proxy: {
+      '/api': {
+        target: process.env.VITE_API_URL || 'https://SEU-DOMINIO.com',
+        changeOrigin: true,
+        secure: true,
+      },
+    },
   },
 });
