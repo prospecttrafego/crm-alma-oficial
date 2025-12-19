@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "@/contexts/LanguageContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,15 +19,11 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
 } from "recharts";
 import {
   CalendarIcon,
   Download,
   FileSpreadsheet,
-  FileText,
   BarChart3,
   LineChartIcon,
   PieChartIcon,
@@ -38,6 +34,14 @@ import {
 } from "lucide-react";
 import { format, subDays, startOfMonth, endOfMonth, subMonths } from "date-fns";
 import { cn } from "@/lib/utils";
+import {
+  ChartContainer,
+  ChartLegend,
+  ChartLegendContent,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from "@/components/ui/chart";
 
 interface ReportData {
   dealsByStage: { stage: string; count: number; value: string }[];
@@ -51,7 +55,7 @@ interface ReportData {
 type ChartType = "bar" | "line" | "pie";
 
 const CHART_COLORS = [
-  "hsl(var(--primary))",
+  "hsl(var(--chart-1))",
   "hsl(var(--chart-2))",
   "hsl(var(--chart-3))",
   "hsl(var(--chart-4))",
@@ -67,7 +71,17 @@ const PRESET_RANGES = [
 ];
 
 export default function ReportsPage() {
-  const { t } = useTranslation();
+  const { t, language } = useTranslation();
+  const locale = language === "pt-BR" ? "pt-BR" : "en-US";
+  const numberFormatter = useMemo(() => new Intl.NumberFormat(locale), [locale]);
+  const currencyFormatter = useMemo(
+    () => new Intl.NumberFormat(locale, { style: "currency", currency: "BRL", maximumFractionDigits: 0 }),
+    [locale]
+  );
+  const shortDateFormatter = useMemo(
+    () => new Intl.DateTimeFormat(locale, { month: "short", day: "2-digit" }),
+    [locale]
+  );
   const [dateRange, setDateRange] = useState<{ from: Date; to: Date }>({
     from: subDays(new Date(), 30),
     to: new Date(),
@@ -147,98 +161,168 @@ export default function ReportsPage() {
     link.click();
   };
 
+  const formatCount = (value: number) => numberFormatter.format(value);
+  const formatCurrency = (value: number) => currencyFormatter.format(value);
+  const formatShortDate = (value: string | number | Date) => shortDateFormatter.format(new Date(value));
+
+  const hasNonZeroData = (data: Array<Record<string, unknown>>, keys: string[]) =>
+    data.length > 0 && data.some((item) => keys.some((key) => Number(item[key] ?? 0) > 0));
+
+  const EmptyChart = ({ label }: { label: string }) => (
+    <div className="flex h-64 flex-col items-center justify-center gap-2 text-muted-foreground">
+      <BarChart3 className="h-8 w-8 opacity-50" />
+      <p className="text-sm">{label}</p>
+    </div>
+  );
+
   const renderDealsByStageChart = () => {
     if (!reportData?.dealsByStage.length) {
-      return <div className="flex h-64 items-center justify-center text-muted-foreground">{t("reports.noData.deals")}</div>;
+      return <EmptyChart label={t("reports.noData.deals")} />;
     }
 
     const data = reportData.dealsByStage.map(d => ({
-      name: d.stage,
+      stage: d.stage,
       count: d.count,
       value: Number(d.value),
     }));
 
+    if (!hasNonZeroData(data, ["count"])) {
+      return <EmptyChart label={t("reports.noData.deals")} />;
+    }
+
+    const chartConfig = {
+      count: {
+        label: t("reports.deals"),
+        color: "hsl(var(--chart-1))",
+      },
+    } satisfies ChartConfig;
+
     if (chartType === "pie") {
+      const pieData = data.map((item, index) => ({
+        ...item,
+        key: `stage-${index}`,
+      }));
+      const pieConfig = pieData.reduce((acc, item, index) => {
+        acc[item.key] = {
+          label: item.stage,
+          color: CHART_COLORS[index % CHART_COLORS.length],
+        };
+        return acc;
+      }, {} as ChartConfig);
+
       return (
-        <ResponsiveContainer width="100%" height={300}>
+        <ChartContainer config={pieConfig} className="min-h-[260px] w-full">
           <PieChart>
+            <ChartTooltip content={<ChartTooltipContent hideLabel nameKey="key" />} />
             <Pie
-              data={data}
+              data={pieData}
               dataKey="count"
-              nameKey="name"
+              nameKey="stage"
               cx="50%"
               cy="50%"
               outerRadius={100}
               label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
             >
-              {data.map((_, index) => (
-                <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+              {pieData.map((item) => (
+                <Cell key={item.key} fill={`var(--color-${item.key})`} />
               ))}
             </Pie>
-            <Tooltip formatter={(value: number) => [value, "Deals"]} />
-            <Legend />
+            <ChartLegend content={<ChartLegendContent nameKey="key" />} />
           </PieChart>
-        </ResponsiveContainer>
+        </ChartContainer>
       );
     }
 
     if (chartType === "line") {
       return (
-        <ResponsiveContainer width="100%" height={300}>
+        <ChartContainer config={chartConfig} className="min-h-[260px] w-full">
           <LineChart data={data}>
             <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-            <XAxis dataKey="name" className="text-xs" />
-            <YAxis className="text-xs" />
-            <Tooltip />
-            <Legend />
-            <Line type="monotone" dataKey="count" stroke="hsl(var(--primary))" name="Deals" strokeWidth={2} />
+            <XAxis dataKey="stage" className="text-xs" />
+            <YAxis className="text-xs" tickFormatter={formatCount} />
+            <ChartTooltip content={<ChartTooltipContent />} />
+            <ChartLegend content={<ChartLegendContent />} />
+            <Line
+              type="monotone"
+              dataKey="count"
+              stroke="var(--color-count)"
+              name={t("reports.deals")}
+              strokeWidth={2}
+            />
           </LineChart>
-        </ResponsiveContainer>
+        </ChartContainer>
       );
     }
 
     return (
-      <ResponsiveContainer width="100%" height={300}>
+      <ChartContainer config={chartConfig} className="min-h-[260px] w-full">
         <BarChart data={data}>
           <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-          <XAxis dataKey="name" className="text-xs" />
-          <YAxis className="text-xs" />
-          <Tooltip />
-          <Legend />
-          <Bar dataKey="count" fill="hsl(var(--primary))" name="Deals" radius={[4, 4, 0, 0]} />
+          <XAxis dataKey="stage" className="text-xs" />
+          <YAxis className="text-xs" tickFormatter={formatCount} />
+          <ChartTooltip content={<ChartTooltipContent />} />
+          <ChartLegend content={<ChartLegendContent />} />
+          <Bar dataKey="count" fill="var(--color-count)" name={t("reports.deals")} radius={[4, 4, 0, 0]} />
         </BarChart>
-      </ResponsiveContainer>
+      </ChartContainer>
     );
   };
 
   const renderDealsOverTimeChart = () => {
     if (!reportData?.dealsOverTime.length) {
-      return <div className="flex h-64 items-center justify-center text-muted-foreground">{t("reports.noData.timeline")}</div>;
+      return <EmptyChart label={t("reports.noData.timeline")} />;
     }
 
     const data = reportData.dealsOverTime.map(d => ({
-      date: format(new Date(d.date), "MMM dd"),
+      date: d.date,
       count: d.count,
       value: Number(d.value),
     }));
 
+    if (!hasNonZeroData(data, ["count"])) {
+      return <EmptyChart label={t("reports.noData.timeline")} />;
+    }
+
+    const chartConfig = {
+      count: {
+        label: t("reports.deals"),
+        color: "hsl(var(--chart-1))",
+      },
+    } satisfies ChartConfig;
+
     return (
-      <ResponsiveContainer width="100%" height={300}>
+      <ChartContainer config={chartConfig} className="min-h-[260px] w-full">
         <LineChart data={data}>
           <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-          <XAxis dataKey="date" className="text-xs" />
-          <YAxis className="text-xs" />
-          <Tooltip />
-          <Legend />
-          <Line type="monotone" dataKey="count" stroke="hsl(var(--primary))" name="New Deals" strokeWidth={2} />
+          <XAxis
+            dataKey="date"
+            className="text-xs"
+            tickFormatter={(value) => formatShortDate(value)}
+          />
+          <YAxis className="text-xs" tickFormatter={formatCount} />
+          <ChartTooltip
+            content={
+              <ChartTooltipContent
+                labelFormatter={(label) => formatShortDate(label as string)}
+              />
+            }
+          />
+          <ChartLegend content={<ChartLegendContent />} />
+          <Line
+            type="monotone"
+            dataKey="count"
+            stroke="var(--color-count)"
+            name={t("reports.deals")}
+            strokeWidth={2}
+          />
         </LineChart>
-      </ResponsiveContainer>
+      </ChartContainer>
     );
   };
 
   const renderWonLostChart = () => {
     if (!reportData?.wonLostByMonth.length) {
-      return <div className="flex h-64 items-center justify-center text-muted-foreground">{t("reports.noData.winLoss")}</div>;
+      return <EmptyChart label={t("reports.noData.winLoss")} />;
     }
 
     const data = reportData.wonLostByMonth.map(d => ({
@@ -247,24 +331,39 @@ export default function ReportsPage() {
       lost: d.lost,
     }));
 
+    if (!hasNonZeroData(data, ["won", "lost"])) {
+      return <EmptyChart label={t("reports.noData.winLoss")} />;
+    }
+
+    const chartConfig = {
+      won: {
+        label: t("dashboard.won"),
+        color: "hsl(var(--chart-1))",
+      },
+      lost: {
+        label: t("dashboard.lost"),
+        color: "hsl(var(--chart-2))",
+      },
+    } satisfies ChartConfig;
+
     return (
-      <ResponsiveContainer width="100%" height={300}>
+      <ChartContainer config={chartConfig} className="min-h-[260px] w-full">
         <BarChart data={data}>
           <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
           <XAxis dataKey="month" className="text-xs" />
-          <YAxis className="text-xs" />
-          <Tooltip />
-          <Legend />
-          <Bar dataKey="won" fill="hsl(142.1 76.2% 36.3%)" name="Won" radius={[4, 4, 0, 0]} />
-          <Bar dataKey="lost" fill="hsl(0 84.2% 60.2%)" name="Lost" radius={[4, 4, 0, 0]} />
+          <YAxis className="text-xs" tickFormatter={formatCount} />
+          <ChartTooltip content={<ChartTooltipContent />} />
+          <ChartLegend content={<ChartLegendContent />} />
+          <Bar dataKey="won" fill="var(--color-won)" name={t("dashboard.won")} radius={[4, 4, 0, 0]} />
+          <Bar dataKey="lost" fill="var(--color-lost)" name={t("dashboard.lost")} radius={[4, 4, 0, 0]} />
         </BarChart>
-      </ResponsiveContainer>
+      </ChartContainer>
     );
   };
 
   const renderTeamPerformanceChart = () => {
     if (!reportData?.teamPerformance.length) {
-      return <div className="flex h-64 items-center justify-center text-muted-foreground">{t("reports.noData.team")}</div>;
+      return <EmptyChart label={t("reports.noData.team")} />;
     }
 
     const data = reportData.teamPerformance.map(p => ({
@@ -274,24 +373,39 @@ export default function ReportsPage() {
       wonDeals: p.wonDeals,
     }));
 
+    if (!hasNonZeroData(data, ["deals", "wonDeals"])) {
+      return <EmptyChart label={t("reports.noData.team")} />;
+    }
+
+    const chartConfig = {
+      deals: {
+        label: t("reports.deals"),
+        color: "hsl(var(--chart-1))",
+      },
+      wonDeals: {
+        label: t("dashboard.stats.wonDeals"),
+        color: "hsl(var(--chart-2))",
+      },
+    } satisfies ChartConfig;
+
     return (
-      <ResponsiveContainer width="100%" height={300}>
+      <ChartContainer config={chartConfig} className="min-h-[260px] w-full">
         <BarChart data={data} layout="vertical">
           <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-          <XAxis type="number" className="text-xs" />
-          <YAxis dataKey="name" type="category" width={100} className="text-xs" />
-          <Tooltip />
-          <Legend />
-          <Bar dataKey="deals" fill="hsl(var(--primary))" name="Total Deals" radius={[0, 4, 4, 0]} />
-          <Bar dataKey="wonDeals" fill="hsl(142.1 76.2% 36.3%)" name="Won Deals" radius={[0, 4, 4, 0]} />
+          <XAxis type="number" className="text-xs" tickFormatter={formatCount} />
+          <YAxis dataKey="name" type="category" width={120} className="text-xs" />
+          <ChartTooltip content={<ChartTooltipContent />} />
+          <ChartLegend content={<ChartLegendContent />} />
+          <Bar dataKey="deals" fill="var(--color-deals)" name={t("reports.deals")} radius={[0, 4, 4, 0]} />
+          <Bar dataKey="wonDeals" fill="var(--color-wonDeals)" name={t("dashboard.stats.wonDeals")} radius={[0, 4, 4, 0]} />
         </BarChart>
-      </ResponsiveContainer>
+      </ChartContainer>
     );
   };
 
   const renderActivitySummaryChart = () => {
     if (!reportData?.activitySummary.length) {
-      return <div className="flex h-64 items-center justify-center text-muted-foreground">{t("reports.noData.activities")}</div>;
+      return <EmptyChart label={t("reports.noData.activities")} />;
     }
 
     const data = reportData.activitySummary.map(a => ({
@@ -299,11 +413,28 @@ export default function ReportsPage() {
       count: a.count,
     }));
 
+    if (!hasNonZeroData(data, ["count"])) {
+      return <EmptyChart label={t("reports.noData.activities")} />;
+    }
+
+    const pieData = data.map((item, index) => ({
+      ...item,
+      key: `activity-${index}`,
+    }));
+    const pieConfig = pieData.reduce((acc, item, index) => {
+      acc[item.key] = {
+        label: item.name,
+        color: CHART_COLORS[index % CHART_COLORS.length],
+      };
+      return acc;
+    }, {} as ChartConfig);
+
     return (
-      <ResponsiveContainer width="100%" height={300}>
+      <ChartContainer config={pieConfig} className="min-h-[260px] w-full">
         <PieChart>
+          <ChartTooltip content={<ChartTooltipContent hideLabel nameKey="key" />} />
           <Pie
-            data={data}
+            data={pieData}
             dataKey="count"
             nameKey="name"
             cx="50%"
@@ -311,14 +442,13 @@ export default function ReportsPage() {
             outerRadius={100}
             label={({ name, value }) => `${name}: ${value}`}
           >
-            {data.map((_, index) => (
-              <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+            {pieData.map((item) => (
+              <Cell key={item.key} fill={`var(--color-${item.key})`} />
             ))}
           </Pie>
-          <Tooltip />
-          <Legend />
+          <ChartLegend content={<ChartLegendContent nameKey="key" />} />
         </PieChart>
-      </ResponsiveContainer>
+      </ChartContainer>
     );
   };
 
@@ -329,7 +459,7 @@ export default function ReportsPage() {
   const winRate = wonDeals + lostDeals > 0 ? Math.round((wonDeals / (wonDeals + lostDeals)) * 100) : 0;
 
   return (
-    <div className="flex flex-col gap-6 overflow-auto p-6">
+    <div className="flex h-full flex-col gap-6 overflow-y-auto p-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold" data-testid="text-reports-title">{t("reports.title")}</h1>
@@ -426,7 +556,7 @@ export default function ReportsPage() {
             {isLoading ? (
               <Skeleton className="h-8 w-16" />
             ) : (
-              <div className="text-2xl font-bold" data-testid="text-total-deals">{totalDeals}</div>
+              <div className="text-2xl font-bold" data-testid="text-total-deals">{formatCount(totalDeals)}</div>
             )}
           </CardContent>
         </Card>
@@ -441,7 +571,7 @@ export default function ReportsPage() {
               <Skeleton className="h-8 w-24" />
             ) : (
               <div className="text-2xl font-bold" data-testid="text-total-value">
-                R$ {totalValue.toLocaleString("pt-BR")}
+                {formatCurrency(totalValue)}
               </div>
             )}
           </CardContent>
@@ -474,7 +604,7 @@ export default function ReportsPage() {
               <Skeleton className="h-8 w-16" />
             ) : (
               <div className="text-2xl font-bold" data-testid="text-total-activities">
-                {reportData?.activitySummary.reduce((sum, a) => sum + a.count, 0) || 0}
+                {formatCount(reportData?.activitySummary.reduce((sum, a) => sum + a.count, 0) || 0)}
               </div>
             )}
           </CardContent>
@@ -602,7 +732,7 @@ export default function ReportsPage() {
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className="font-medium">R$ {Number(member.value).toLocaleString("pt-BR")}</p>
+                        <p className="font-medium">{formatCurrency(Number(member.value))}</p>
                         <p className="text-sm text-muted-foreground">
                           {member.deals > 0 ? Math.round((member.wonDeals / member.deals) * 100) : 0}% {t("dashboard.winRate").toLowerCase()}
                         </p>

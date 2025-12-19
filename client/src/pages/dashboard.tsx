@@ -44,7 +44,7 @@ export default function Dashboard() {
   });
 
   return (
-    <div className="flex flex-col gap-6 p-6">
+    <div className="flex h-full flex-col gap-6 overflow-y-auto p-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold" data-testid="text-dashboard-title">{t("dashboard.title")}</h1>

@@ -1862,6 +1862,17 @@ export default function SettingsPage() {
     return "U";
   };
 
+  const handleLogout = async () => {
+    try {
+      await apiRequest("POST", "/api/logout");
+    } catch (error) {
+      console.error("Logout failed:", error);
+    } finally {
+      queryClient.clear();
+      window.location.href = "/login";
+    }
+  };
+
   return (
     <div className="flex h-full flex-col p-6 overflow-y-auto">
       <div className="mb-6">
@@ -2042,12 +2053,14 @@ export default function SettingsPage() {
                   {t("settings.account.sessionDescription")}
                 </p>
               </div>
-              <a href="/api/logout">
-                <Button variant="outline" data-testid="button-settings-logout">
-                  <LogOut className="mr-2 h-4 w-4" />
-                  {t("settings.account.signOut")}
-                </Button>
-              </a>
+              <Button
+                variant="outline"
+                onClick={handleLogout}
+                data-testid="button-settings-logout"
+              >
+                <LogOut className="mr-2 h-4 w-4" />
+                {t("settings.account.signOut")}
+              </Button>
             </div>
           </CardContent>
         </Card>

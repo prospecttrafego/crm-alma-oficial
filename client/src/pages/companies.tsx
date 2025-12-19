@@ -190,87 +190,89 @@ export default function CompaniesPage() {
         </div>
       </div>
 
-      {isLoading ? (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {[...Array(6)].map((_, i) => (
-            <Card key={i}>
-              <CardHeader>
-                <Skeleton className="h-6 w-40" />
-                <Skeleton className="h-4 w-24" />
-              </CardHeader>
-              <CardContent>
-                <Skeleton className="h-4 w-full" />
-                <Skeleton className="mt-2 h-4 w-32" />
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      ) : filteredCompanies && filteredCompanies.length > 0 ? (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {filteredCompanies.map((company) => (
-            <Card
-              key={company.id}
-              className="cursor-pointer transition-shadow hover:shadow-md"
-              onClick={() => setSelectedCompany(company)}
-              data-testid={`card-company-${company.id}`}
-            >
-              <CardHeader>
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary/10">
-                    <Building2 className="h-5 w-5 text-primary" />
-                  </div>
-                  {company.industry && (
-                    <Badge variant="secondary">{company.industry}</Badge>
-                  )}
-                </div>
-                <CardTitle className="mt-2">{company.name}</CardTitle>
-                {company.domain && (
-                  <CardDescription>{company.domain}</CardDescription>
-                )}
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2 text-sm">
-                  {company.website && (
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <Globe className="h-4 w-4" />
-                      <a
-                        href={company.website}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-1 hover:text-foreground"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        {t("companies.website")}
-                        <ExternalLink className="h-3 w-3" />
-                      </a>
-                    </div>
-                  )}
-                  {company.size && (
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <Users className="h-4 w-4" />
-                      {company.size} {t("companies.employees")}
-                    </div>
-                  )}
-                  {company.contacts && company.contacts.length > 0 && (
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <Users className="h-4 w-4" />
-                      {company.contacts.length} {t("contacts.title").toLowerCase()}
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      ) : (
-        <div className="flex h-64 items-center justify-center rounded-md border">
-          <div className="text-center text-muted-foreground">
-            <Building2 className="mx-auto mb-4 h-12 w-12 opacity-50" />
-            <p>{t("companies.noCompanies")}</p>
-            <p className="text-sm">{t("companies.noCompaniesDescription")}</p>
+      <div className="flex-1 overflow-auto">
+        {isLoading ? (
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {[...Array(6)].map((_, i) => (
+              <Card key={i}>
+                <CardHeader>
+                  <Skeleton className="h-6 w-40" />
+                  <Skeleton className="h-4 w-24" />
+                </CardHeader>
+                <CardContent>
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="mt-2 h-4 w-32" />
+                </CardContent>
+              </Card>
+            ))}
           </div>
-        </div>
-      )}
+        ) : filteredCompanies && filteredCompanies.length > 0 ? (
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {filteredCompanies.map((company) => (
+              <Card
+                key={company.id}
+                className="cursor-pointer transition-shadow hover:shadow-md"
+                onClick={() => setSelectedCompany(company)}
+                data-testid={`card-company-${company.id}`}
+              >
+                <CardHeader>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary/10">
+                      <Building2 className="h-5 w-5 text-primary" />
+                    </div>
+                    {company.industry && (
+                      <Badge variant="secondary">{company.industry}</Badge>
+                    )}
+                  </div>
+                  <CardTitle className="mt-2">{company.name}</CardTitle>
+                  {company.domain && (
+                    <CardDescription>{company.domain}</CardDescription>
+                  )}
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2 text-sm">
+                    {company.website && (
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <Globe className="h-4 w-4" />
+                        <a
+                          href={company.website}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1 hover:text-foreground"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {t("companies.website")}
+                          <ExternalLink className="h-3 w-3" />
+                        </a>
+                      </div>
+                    )}
+                    {company.size && (
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <Users className="h-4 w-4" />
+                        {company.size} {t("companies.employees")}
+                      </div>
+                    )}
+                    {company.contacts && company.contacts.length > 0 && (
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <Users className="h-4 w-4" />
+                        {company.contacts.length} {t("contacts.title").toLowerCase()}
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : (
+          <div className="flex h-64 items-center justify-center rounded-md border">
+            <div className="text-center text-muted-foreground">
+              <Building2 className="mx-auto mb-4 h-12 w-12 opacity-50" />
+              <p>{t("companies.noCompanies")}</p>
+              <p className="text-sm">{t("companies.noCompaniesDescription")}</p>
+            </div>
+          </div>
+        )}
+      </div>
 
       <Sheet open={!!selectedCompany} onOpenChange={() => setSelectedCompany(null)}>
         <SheetContent className="w-[400px] sm:w-[540px]">

@@ -28,6 +28,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/hooks/useAuth";
 import { useTranslation } from "@/contexts/LanguageContext";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 
 export function AppSidebar() {
   const [location] = useLocation();
@@ -96,6 +97,17 @@ export function AppSidebar() {
       return user.email[0].toUpperCase();
     }
     return "U";
+  };
+
+  const handleLogout = async () => {
+    try {
+      await apiRequest("POST", "/api/logout");
+    } catch (error) {
+      console.error("Logout failed:", error);
+    } finally {
+      queryClient.clear();
+      window.location.href = "/login";
+    }
   };
 
   return (
@@ -206,9 +218,15 @@ export function AppSidebar() {
                 {user?.email || ""}
               </span>
             </div>
-            <a href="/api/logout" data-testid="button-logout">
-              <LogOut className="h-4 w-4 text-muted-foreground hover:text-foreground" />
-            </a>
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground"
+              aria-label={t("settings.account.signOut")}
+              data-testid="button-logout"
+            >
+              <LogOut className="h-4 w-4" />
+            </button>
           </div>
         </div>
       </SidebarFooter>

@@ -201,8 +201,8 @@ export default function PipelinePage() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between gap-4 border-b p-4">
-        <div className="flex items-center gap-4">
+      <div className="flex flex-col gap-4 border-b p-4 md:flex-row md:items-center md:justify-between">
+        <div className="flex flex-wrap items-center gap-4">
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-bold" data-testid="text-pipeline-title">
@@ -245,7 +245,7 @@ export default function PipelinePage() {
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <FilterPanel
             type="pipeline"
             filters={filters}
@@ -254,7 +254,7 @@ export default function PipelinePage() {
           />
           <Dialog open={newDealOpen} onOpenChange={setNewDealOpen}>
           <DialogTrigger asChild>
-            <Button data-testid="button-new-deal">
+            <Button className="w-full sm:w-auto" data-testid="button-new-deal">
               <Plus className="mr-2 h-4 w-4" />
               {t("pipeline.newDeal")}
             </Button>
