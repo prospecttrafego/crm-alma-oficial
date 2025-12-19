@@ -68,7 +68,13 @@ export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUsers(organizationId: number): Promise<User[]>;
   upsertUser(user: UpsertUser): Promise<User>;
-  
+  updateUserProfile(id: string, updates: {
+    firstName?: string;
+    lastName?: string;
+    profileImageUrl?: string;
+    preferences?: { language?: 'pt-BR' | 'en' };
+  }): Promise<User | undefined>;
+
   getOrganization(id: number): Promise<Organization | undefined>;
   createOrganization(org: InsertOrganization): Promise<Organization>;
   getDefaultOrganization(): Promise<Organization | undefined>;
@@ -225,6 +231,35 @@ export class DatabaseStorage implements IStorage {
       })
       .returning();
     return user;
+  }
+
+  async updateUserProfile(id: string, updates: {
+    firstName?: string;
+    lastName?: string;
+    profileImageUrl?: string;
+    preferences?: { language?: 'pt-BR' | 'en' };
+  }): Promise<User | undefined> {
+    // Get existing user to merge preferences
+    const [existing] = await db.select().from(users).where(eq(users.id, id));
+    if (!existing) return undefined;
+
+    const updateData: Record<string, unknown> = { updatedAt: new Date() };
+
+    if (updates.firstName !== undefined) updateData.firstName = updates.firstName;
+    if (updates.lastName !== undefined) updateData.lastName = updates.lastName;
+    if (updates.profileImageUrl !== undefined) updateData.profileImageUrl = updates.profileImageUrl;
+
+    // Merge preferences with existing
+    if (updates.preferences !== undefined) {
+      const existingPrefs = (existing.preferences as Record<string, unknown>) || {};
+      updateData.preferences = { ...existingPrefs, ...updates.preferences };
+    }
+
+    const [updated] = await db.update(users)
+      .set(updateData)
+      .where(eq(users.id, id))
+      .returning();
+    return updated;
   }
 
   async getOrganization(id: number): Promise<Organization | undefined> {
@@ -459,7 +494,7 @@ export class DatabaseStorage implements IStorage {
       .where(
         and(
           eq(messages.conversationId, conversationId),
-          not(sql`${messages.readBy} @> ARRAY[${userId}]::text[]`)
+          not(sql`coalesce(${messages.readBy}, '{}'::text[]) @> ARRAY[${userId}]::text[]`)
         )
       );
 

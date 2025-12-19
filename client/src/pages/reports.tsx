@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "@/contexts/LanguageContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -66,6 +67,7 @@ const PRESET_RANGES = [
 ];
 
 export default function ReportsPage() {
+  const { t } = useTranslation();
   const [dateRange, setDateRange] = useState<{ from: Date; to: Date }>({
     from: subDays(new Date(), 30),
     to: new Date(),
@@ -147,7 +149,7 @@ export default function ReportsPage() {
 
   const renderDealsByStageChart = () => {
     if (!reportData?.dealsByStage.length) {
-      return <div className="flex h-64 items-center justify-center text-muted-foreground">No deal data available</div>;
+      return <div className="flex h-64 items-center justify-center text-muted-foreground">{t("reports.noData.deals")}</div>;
     }
 
     const data = reportData.dealsByStage.map(d => ({
@@ -211,7 +213,7 @@ export default function ReportsPage() {
 
   const renderDealsOverTimeChart = () => {
     if (!reportData?.dealsOverTime.length) {
-      return <div className="flex h-64 items-center justify-center text-muted-foreground">No timeline data available</div>;
+      return <div className="flex h-64 items-center justify-center text-muted-foreground">{t("reports.noData.timeline")}</div>;
     }
 
     const data = reportData.dealsOverTime.map(d => ({
@@ -236,7 +238,7 @@ export default function ReportsPage() {
 
   const renderWonLostChart = () => {
     if (!reportData?.wonLostByMonth.length) {
-      return <div className="flex h-64 items-center justify-center text-muted-foreground">No win/loss data available</div>;
+      return <div className="flex h-64 items-center justify-center text-muted-foreground">{t("reports.noData.winLoss")}</div>;
     }
 
     const data = reportData.wonLostByMonth.map(d => ({
@@ -262,7 +264,7 @@ export default function ReportsPage() {
 
   const renderTeamPerformanceChart = () => {
     if (!reportData?.teamPerformance.length) {
-      return <div className="flex h-64 items-center justify-center text-muted-foreground">No team data available</div>;
+      return <div className="flex h-64 items-center justify-center text-muted-foreground">{t("reports.noData.team")}</div>;
     }
 
     const data = reportData.teamPerformance.map(p => ({
@@ -289,7 +291,7 @@ export default function ReportsPage() {
 
   const renderActivitySummaryChart = () => {
     if (!reportData?.activitySummary.length) {
-      return <div className="flex h-64 items-center justify-center text-muted-foreground">No activity data available</div>;
+      return <div className="flex h-64 items-center justify-center text-muted-foreground">{t("reports.noData.activities")}</div>;
     }
 
     const data = reportData.activitySummary.map(a => ({
@@ -330,8 +332,8 @@ export default function ReportsPage() {
     <div className="flex flex-col gap-6 overflow-auto p-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold" data-testid="text-reports-title">Reports</h1>
-          <p className="text-muted-foreground">Analytics and insights for your business</p>
+          <h1 className="text-2xl font-bold" data-testid="text-reports-title">{t("reports.title")}</h1>
+          <p className="text-muted-foreground">{t("reports.subtitle")}</p>
         </div>
         
         <div className="flex flex-wrap items-center gap-2">
@@ -345,7 +347,7 @@ export default function ReportsPage() {
             }}
           >
             <SelectTrigger className="w-[150px]" data-testid="select-date-preset">
-              <SelectValue placeholder="Quick select" />
+              <SelectValue placeholder={t("reports.quickSelect")} />
             </SelectTrigger>
             <SelectContent>
               {PRESET_RANGES.map((preset) => (
@@ -409,7 +411,7 @@ export default function ReportsPage() {
 
           <Button variant="outline" onClick={exportAllToCSV} data-testid="button-export-csv">
             <FileSpreadsheet className="mr-2 h-4 w-4" />
-            Export CSV
+            {t("reports.exportCsv")}
           </Button>
         </div>
       </div>
@@ -417,7 +419,7 @@ export default function ReportsPage() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
-            <CardTitle className="text-sm font-medium">Total Deals</CardTitle>
+            <CardTitle className="text-sm font-medium">{t("dashboard.stats.totalDeals")}</CardTitle>
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -431,7 +433,7 @@ export default function ReportsPage() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
-            <CardTitle className="text-sm font-medium">Total Value</CardTitle>
+            <CardTitle className="text-sm font-medium">{t("dashboard.stats.totalValue")}</CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -447,7 +449,7 @@ export default function ReportsPage() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
-            <CardTitle className="text-sm font-medium">Win Rate</CardTitle>
+            <CardTitle className="text-sm font-medium">{t("dashboard.winRate")}</CardTitle>
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -456,7 +458,7 @@ export default function ReportsPage() {
             ) : (
               <>
                 <div className="text-2xl font-bold" data-testid="text-win-rate">{winRate}%</div>
-                <p className="text-xs text-muted-foreground">{wonDeals} won / {lostDeals} lost</p>
+                <p className="text-xs text-muted-foreground">{wonDeals} {t("dashboard.won")} / {lostDeals} {t("dashboard.lost")}</p>
               </>
             )}
           </CardContent>
@@ -464,7 +466,7 @@ export default function ReportsPage() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
-            <CardTitle className="text-sm font-medium">Activities</CardTitle>
+            <CardTitle className="text-sm font-medium">{t("nav.activities")}</CardTitle>
             <Activity className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -481,18 +483,18 @@ export default function ReportsPage() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
-          <TabsTrigger value="overview" data-testid="tab-overview">Overview</TabsTrigger>
-          <TabsTrigger value="sales" data-testid="tab-sales">Sales</TabsTrigger>
-          <TabsTrigger value="team" data-testid="tab-team">Team</TabsTrigger>
-          <TabsTrigger value="activities" data-testid="tab-activities">Activities</TabsTrigger>
+          <TabsTrigger value="overview" data-testid="tab-overview">{t("reports.tabs.overview")}</TabsTrigger>
+          <TabsTrigger value="sales" data-testid="tab-sales">{t("reports.tabs.sales")}</TabsTrigger>
+          <TabsTrigger value="team" data-testid="tab-team">{t("reports.tabs.team")}</TabsTrigger>
+          <TabsTrigger value="activities" data-testid="tab-activities">{t("reports.tabs.activities")}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4">
           <div className="grid gap-4 lg:grid-cols-2">
             <Card>
               <CardHeader>
-                <CardTitle>Deals by Stage</CardTitle>
-                <CardDescription>Distribution of deals across pipeline stages</CardDescription>
+                <CardTitle>{t("reports.charts.dealsByStage")}</CardTitle>
+                <CardDescription>{t("reports.charts.dealsByStageDesc")}</CardDescription>
               </CardHeader>
               <CardContent>
                 {isLoading ? (
@@ -505,8 +507,8 @@ export default function ReportsPage() {
 
             <Card>
               <CardHeader>
-                <CardTitle>Deals Over Time</CardTitle>
-                <CardDescription>New deals created during the period</CardDescription>
+                <CardTitle>{t("reports.charts.dealsOverTime")}</CardTitle>
+                <CardDescription>{t("reports.charts.dealsOverTimeDesc")}</CardDescription>
               </CardHeader>
               <CardContent>
                 {isLoading ? (
@@ -523,8 +525,8 @@ export default function ReportsPage() {
           <div className="grid gap-4 lg:grid-cols-2">
             <Card>
               <CardHeader>
-                <CardTitle>Won vs Lost Deals</CardTitle>
-                <CardDescription>Monthly comparison of won and lost deals</CardDescription>
+                <CardTitle>{t("reports.charts.wonVsLost")}</CardTitle>
+                <CardDescription>{t("reports.charts.wonVsLostDesc")}</CardDescription>
               </CardHeader>
               <CardContent>
                 {isLoading ? (
@@ -537,8 +539,8 @@ export default function ReportsPage() {
 
             <Card>
               <CardHeader>
-                <CardTitle>Deals by Stage</CardTitle>
-                <CardDescription>Current pipeline distribution</CardDescription>
+                <CardTitle>{t("reports.charts.dealsByStage")}</CardTitle>
+                <CardDescription>{t("reports.charts.pipelineDistribution")}</CardDescription>
               </CardHeader>
               <CardContent>
                 {isLoading ? (
@@ -555,8 +557,8 @@ export default function ReportsPage() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between gap-4">
               <div>
-                <CardTitle>Team Performance</CardTitle>
-                <CardDescription>Sales performance by team member</CardDescription>
+                <CardTitle>{t("reports.charts.teamPerformance")}</CardTitle>
+                <CardDescription>{t("reports.charts.teamPerformanceDesc")}</CardDescription>
               </div>
               <Button
                 variant="outline"
@@ -565,7 +567,7 @@ export default function ReportsPage() {
                 data-testid="button-export-team"
               >
                 <Download className="mr-2 h-4 w-4" />
-                Export
+                {t("reports.export")}
               </Button>
             </CardHeader>
             <CardContent>
@@ -580,7 +582,7 @@ export default function ReportsPage() {
           {reportData?.teamPerformance && reportData.teamPerformance.length > 0 && (
             <Card>
               <CardHeader>
-                <CardTitle>Team Details</CardTitle>
+                <CardTitle>{t("reports.charts.teamDetails")}</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
@@ -595,14 +597,14 @@ export default function ReportsPage() {
                         <div>
                           <p className="font-medium">{member.name}</p>
                           <p className="text-sm text-muted-foreground">
-                            {member.deals} deals | {member.wonDeals} won
+                            {member.deals} {t("reports.deals")} | {member.wonDeals} {t("dashboard.won")}
                           </p>
                         </div>
                       </div>
                       <div className="text-right">
                         <p className="font-medium">R$ {Number(member.value).toLocaleString("pt-BR")}</p>
                         <p className="text-sm text-muted-foreground">
-                          {member.deals > 0 ? Math.round((member.wonDeals / member.deals) * 100) : 0}% win rate
+                          {member.deals > 0 ? Math.round((member.wonDeals / member.deals) * 100) : 0}% {t("dashboard.winRate").toLowerCase()}
                         </p>
                       </div>
                     </div>
@@ -617,8 +619,8 @@ export default function ReportsPage() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between gap-4">
               <div>
-                <CardTitle>Activity Summary</CardTitle>
-                <CardDescription>Breakdown of activities by type</CardDescription>
+                <CardTitle>{t("reports.charts.activitySummary")}</CardTitle>
+                <CardDescription>{t("reports.charts.activitySummaryDesc")}</CardDescription>
               </div>
               <Button
                 variant="outline"
@@ -627,7 +629,7 @@ export default function ReportsPage() {
                 data-testid="button-export-activities"
               >
                 <Download className="mr-2 h-4 w-4" />
-                Export
+                {t("reports.export")}
               </Button>
             </CardHeader>
             <CardContent>
@@ -642,7 +644,7 @@ export default function ReportsPage() {
           {reportData?.activitySummary && reportData.activitySummary.length > 0 && (
             <Card>
               <CardHeader>
-                <CardTitle>Activity Breakdown</CardTitle>
+                <CardTitle>{t("reports.charts.activityBreakdown")}</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">

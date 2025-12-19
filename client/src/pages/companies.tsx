@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { useTranslation } from "@/contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -33,6 +34,7 @@ interface CompanyWithContacts extends Company {
 }
 
 export default function CompaniesPage() {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [newCompanyOpen, setNewCompanyOpen] = useState(false);
@@ -49,10 +51,10 @@ export default function CompaniesPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/companies"] });
       setNewCompanyOpen(false);
-      toast({ title: "Company created successfully" });
+      toast({ title: t("toast.created") });
     },
     onError: () => {
-      toast({ title: "Failed to create company", variant: "destructive" });
+      toast({ title: t("toast.error"), variant: "destructive" });
     },
   });
 
@@ -81,29 +83,29 @@ export default function CompaniesPage() {
     <div className="flex h-full flex-col p-6">
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold" data-testid="text-companies-title">Companies</h1>
+          <h1 className="text-2xl font-bold" data-testid="text-companies-title">{t("companies.title")}</h1>
           <p className="text-muted-foreground">
-            Manage your company accounts
+            {t("companies.subtitle")}
           </p>
         </div>
         <Dialog open={newCompanyOpen} onOpenChange={setNewCompanyOpen}>
           <DialogTrigger asChild>
             <Button data-testid="button-new-company">
               <Plus className="mr-2 h-4 w-4" />
-              Add Company
+              {t("companies.newCompany")}
             </Button>
           </DialogTrigger>
           <DialogContent>
             <form onSubmit={handleCreateCompany}>
               <DialogHeader>
-                <DialogTitle>Add New Company</DialogTitle>
+                <DialogTitle>{t("companies.newCompany")}</DialogTitle>
                 <DialogDescription>
-                  Create a new company in your CRM
+                  {t("companies.newCompanyDescription")}
                 </DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 py-4">
                 <div className="grid gap-2">
-                  <Label htmlFor="name">Company Name</Label>
+                  <Label htmlFor="name">{t("companies.name")}</Label>
                   <Input
                     id="name"
                     name="name"
@@ -112,7 +114,7 @@ export default function CompaniesPage() {
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="domain">Domain</Label>
+                  <Label htmlFor="domain">{t("companies.domain")}</Label>
                   <Input
                     id="domain"
                     name="domain"
@@ -121,7 +123,7 @@ export default function CompaniesPage() {
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="website">Website</Label>
+                  <Label htmlFor="website">{t("companies.website")}</Label>
                   <Input
                     id="website"
                     name="website"
@@ -130,28 +132,27 @@ export default function CompaniesPage() {
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="industry">Industry</Label>
+                  <Label htmlFor="industry">{t("companies.industry")}</Label>
                   <Input
                     id="industry"
                     name="industry"
-                    placeholder="Technology"
                     data-testid="input-company-industry"
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="size">Company Size</Label>
+                  <Label htmlFor="size">{t("companies.size")}</Label>
                   <select
                     id="size"
                     name="size"
                     className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                     data-testid="select-company-size"
                   >
-                    <option value="">Select size...</option>
-                    <option value="1-10">1-10 employees</option>
-                    <option value="11-50">11-50 employees</option>
-                    <option value="51-200">51-200 employees</option>
-                    <option value="201-500">201-500 employees</option>
-                    <option value="500+">500+ employees</option>
+                    <option value="">{t("companies.selectSize")}</option>
+                    <option value="1-10">{t("companies.sizes.1-10")}</option>
+                    <option value="11-50">{t("companies.sizes.11-50")}</option>
+                    <option value="51-200">{t("companies.sizes.51-200")}</option>
+                    <option value="201-500">{t("companies.sizes.201-500")}</option>
+                    <option value="500+">{t("companies.sizes.500+")}</option>
                   </select>
                 </div>
               </div>
@@ -161,14 +162,14 @@ export default function CompaniesPage() {
                   variant="outline"
                   onClick={() => setNewCompanyOpen(false)}
                 >
-                  Cancel
+                  {t("common.cancel")}
                 </Button>
                 <Button
                   type="submit"
                   disabled={createCompanyMutation.isPending}
                   data-testid="button-create-company-submit"
                 >
-                  {createCompanyMutation.isPending ? "Creating..." : "Create Company"}
+                  {createCompanyMutation.isPending ? t("common.saving") : t("common.create")}
                 </Button>
               </DialogFooter>
             </form>
@@ -180,7 +181,7 @@ export default function CompaniesPage() {
         <div className="relative max-w-sm">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Search companies..."
+            placeholder={t("common.search")}
             className="pl-9"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -239,7 +240,7 @@ export default function CompaniesPage() {
                         className="flex items-center gap-1 hover:text-foreground"
                         onClick={(e) => e.stopPropagation()}
                       >
-                        Website
+                        {t("companies.website")}
                         <ExternalLink className="h-3 w-3" />
                       </a>
                     </div>
@@ -247,13 +248,13 @@ export default function CompaniesPage() {
                   {company.size && (
                     <div className="flex items-center gap-2 text-muted-foreground">
                       <Users className="h-4 w-4" />
-                      {company.size} employees
+                      {company.size} {t("companies.employees")}
                     </div>
                   )}
                   {company.contacts && company.contacts.length > 0 && (
                     <div className="flex items-center gap-2 text-muted-foreground">
                       <Users className="h-4 w-4" />
-                      {company.contacts.length} contacts
+                      {company.contacts.length} {t("contacts.title").toLowerCase()}
                     </div>
                   )}
                 </div>
@@ -265,8 +266,8 @@ export default function CompaniesPage() {
         <div className="flex h-64 items-center justify-center rounded-md border">
           <div className="text-center text-muted-foreground">
             <Building2 className="mx-auto mb-4 h-12 w-12 opacity-50" />
-            <p>No companies found</p>
-            <p className="text-sm">Add your first company to get started</p>
+            <p>{t("companies.noCompanies")}</p>
+            <p className="text-sm">{t("companies.noCompaniesDescription")}</p>
           </div>
         </div>
       )}
@@ -280,7 +281,7 @@ export default function CompaniesPage() {
               </div>
               <span>{selectedCompany?.name}</span>
             </SheetTitle>
-            <SheetDescription>Company details and history</SheetDescription>
+            <SheetDescription>{t("companies.detailsAndHistory")}</SheetDescription>
           </SheetHeader>
 
           {selectedCompany && (
@@ -315,14 +316,14 @@ export default function CompaniesPage() {
                 {selectedCompany.size && (
                   <div className="flex items-center gap-3">
                     <Users className="h-4 w-4 text-muted-foreground" />
-                    <span>{selectedCompany.size} employees</span>
+                    <span>{selectedCompany.size} {t("companies.employees")}</span>
                   </div>
                 )}
               </div>
 
               {selectedCompany.contacts && selectedCompany.contacts.length > 0 && (
                 <div className="rounded-md border p-4">
-                  <h4 className="mb-3 text-sm font-medium">Contacts</h4>
+                  <h4 className="mb-3 text-sm font-medium">{t("contacts.title")}</h4>
                   <div className="space-y-2">
                     {selectedCompany.contacts.map((contact) => (
                       <div

@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { AvatarUpload } from "@/components/avatar-upload";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -45,9 +46,11 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { User, Bell, Palette, Shield, LogOut, Mail, Plus, Pencil, Trash2, FileText, Copy, GitBranch, Star, GripVertical, MessageSquare, CheckCircle, XCircle, Loader2, BellRing, BellOff } from "lucide-react";
+import { User, Bell, Palette, Shield, LogOut, Mail, Plus, Pencil, Trash2, FileText, Copy, GitBranch, Star, GripVertical, MessageSquare, CheckCircle, XCircle, Loader2, BellRing, BellOff, Languages, Smartphone, Wifi, WifiOff, QrCode } from "lucide-react";
+import { WhatsAppQRModal } from "@/components/whatsapp-qr-modal";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { useNotificationSound } from "@/hooks/useNotificationSound";
+import { useTranslation, languageLabels, languages, type Language } from "@/contexts/LanguageContext";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { EmailTemplate, Pipeline, PipelineStage, ChannelConfig } from "@shared/schema";
@@ -395,6 +398,7 @@ function StageDialog({
 }
 
 function PipelineManagementSection() {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const [pipelineDialogOpen, setPipelineDialogOpen] = useState(false);
   const [stageDialogOpen, setStageDialogOpen] = useState(false);
@@ -474,14 +478,14 @@ function PipelineManagementSection() {
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <div className="flex items-center gap-2">
             <GitBranch className="h-5 w-5 text-primary" />
-            <CardTitle>Sales Pipelines</CardTitle>
+            <CardTitle>{t("settings.pipelines.title")}</CardTitle>
           </div>
           <Button onClick={handleCreatePipeline} data-testid="button-create-pipeline">
             <Plus className="h-4 w-4 mr-2" />
-            New Pipeline
+            {t("settings.pipelines.newPipeline")}
           </Button>
         </div>
-        <CardDescription>Create and manage multiple sales pipelines with custom stages</CardDescription>
+        <CardDescription>{t("settings.pipelines.subtitle")}</CardDescription>
       </CardHeader>
       <CardContent>
         {isLoading ? (
@@ -493,13 +497,13 @@ function PipelineManagementSection() {
         ) : pipelines && pipelines.length > 0 ? (
           <div className="space-y-4">
             {pipelines.map((pipeline) => (
-              <div 
-                key={pipeline.id} 
+              <div
+                key={pipeline.id}
                 className="rounded-md border"
                 data-testid={`pipeline-item-${pipeline.id}`}
               >
                 <div className="flex items-center justify-between gap-4 p-4">
-                  <div 
+                  <div
                     className="flex-1 cursor-pointer"
                     onClick={() => setExpandedPipeline(expandedPipeline === pipeline.id ? null : pipeline.id)}
                   >
@@ -510,12 +514,12 @@ function PipelineManagementSection() {
                       {pipeline.isDefault && (
                         <Badge variant="secondary" className="text-xs">
                           <Star className="h-3 w-3 mr-1" />
-                          Default
+                          {t("settings.pipelines.default")}
                         </Badge>
                       )}
                     </div>
                     <p className="text-sm text-muted-foreground mt-1">
-                      {pipeline.stages?.length || 0} stages
+                      {pipeline.stages?.length || 0} {t("settings.pipelines.stages").toLowerCase()}
                     </p>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
@@ -551,17 +555,17 @@ function PipelineManagementSection() {
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                           <AlertDialogHeader>
-                            <AlertDialogTitle>Delete Pipeline?</AlertDialogTitle>
+                            <AlertDialogTitle>{t("settings.pipelines.deletePipeline")}</AlertDialogTitle>
                             <AlertDialogDescription>
-                              Are you sure you want to delete "{pipeline.name}"? This will also delete all stages. Deals must be moved to another pipeline first.
+                              {t("settings.pipelines.deletePipelineDescription", { name: pipeline.name })}
                             </AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
                             <AlertDialogAction
                               onClick={() => deletePipelineMutation.mutate(pipeline.id)}
                             >
-                              Delete
+                              {t("common.delete")}
                             </AlertDialogAction>
                           </AlertDialogFooter>
                         </AlertDialogContent>
@@ -569,11 +573,11 @@ function PipelineManagementSection() {
                     )}
                   </div>
                 </div>
-                
+
                 {expandedPipeline === pipeline.id && (
                   <div className="border-t p-4 bg-muted/30">
                     <div className="flex items-center justify-between mb-3">
-                      <p className="text-sm font-medium">Stages</p>
+                      <p className="text-sm font-medium">{t("settings.pipelines.stages")}</p>
                       <Button
                         size="sm"
                         variant="outline"
@@ -581,12 +585,12 @@ function PipelineManagementSection() {
                         data-testid={`button-add-stage-${pipeline.id}`}
                       >
                         <Plus className="h-3 w-3 mr-1" />
-                        Add Stage
+                        {t("settings.pipelines.addStage")}
                       </Button>
                     </div>
                     <div className="space-y-2">
                       {pipeline.stages?.sort((a, b) => a.order - b.order).map((stage) => (
-                        <div 
+                        <div
                           key={stage.id}
                           className="flex items-center justify-between gap-3 p-2 rounded-md bg-background border"
                           data-testid={`stage-item-${stage.id}`}
@@ -599,10 +603,10 @@ function PipelineManagementSection() {
                             />
                             <span className="text-sm font-medium">{stage.name}</span>
                             {stage.isWon && (
-                              <Badge variant="outline" className="text-xs text-green-600">Won</Badge>
+                              <Badge variant="outline" className="text-xs text-green-600">{t("settings.pipelines.isWon")}</Badge>
                             )}
                             {stage.isLost && (
-                              <Badge variant="outline" className="text-xs text-red-600">Lost</Badge>
+                              <Badge variant="outline" className="text-xs text-red-600">{t("settings.pipelines.isLost")}</Badge>
                             )}
                           </div>
                           <div className="flex items-center gap-1">
@@ -626,20 +630,20 @@ function PipelineManagementSection() {
                               </AlertDialogTrigger>
                               <AlertDialogContent>
                                 <AlertDialogHeader>
-                                  <AlertDialogTitle>Delete Stage?</AlertDialogTitle>
+                                  <AlertDialogTitle>{t("settings.pipelines.deletePipeline")}</AlertDialogTitle>
                                   <AlertDialogDescription>
-                                    Are you sure you want to delete "{stage.name}"? Deals in this stage must be moved first.
+                                    {t("settings.pipelines.deletePipelineDescription", { name: stage.name })}
                                   </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
                                   <AlertDialogAction
-                                    onClick={() => deleteStageMutation.mutate({ 
-                                      pipelineId: pipeline.id, 
-                                      stageId: stage.id 
+                                    onClick={() => deleteStageMutation.mutate({
+                                      pipelineId: pipeline.id,
+                                      stageId: stage.id
                                     })}
                                   >
-                                    Delete
+                                    {t("common.delete")}
                                   </AlertDialogAction>
                                 </AlertDialogFooter>
                               </AlertDialogContent>
@@ -656,8 +660,8 @@ function PipelineManagementSection() {
         ) : (
           <div className="text-center py-8 text-muted-foreground">
             <GitBranch className="h-12 w-12 mx-auto mb-3 opacity-50" />
-            <p>No pipelines yet</p>
-            <p className="text-sm">Create your first pipeline to organize your sales process</p>
+            <p>{t("settings.pipelines.noPipelines")}</p>
+            <p className="text-sm">{t("settings.pipelines.noPipelinesDescription")}</p>
           </div>
         )}
       </CardContent>
@@ -705,16 +709,9 @@ const emailConfigCreateSchema = emailConfigSchema.extend({
   password: z.string().min(1, "Password is required"),
 });
 
+// Evolution API WhatsApp config (simpler - just name, connection handled via QR)
 const whatsappConfigSchema = z.object({
-  name: z.string().min(1, "Name is required"),
-  phoneNumberId: z.string().min(1, "Phone Number ID is required"),
-  accessToken: z.string().optional(),
-  businessAccountId: z.string().min(1, "Business Account ID is required"),
-  webhookVerifyToken: z.string().optional(),
-});
-
-const whatsappConfigCreateSchema = whatsappConfigSchema.extend({
-  accessToken: z.string().min(1, "Access Token is required"),
+  name: z.string().min(1, "Nome é obrigatório"),
 });
 
 type EmailConfigFormData = z.infer<typeof emailConfigSchema>;
@@ -751,20 +748,21 @@ function ChannelConfigDialog({
   });
 
   const whatsappForm = useForm<WhatsappConfigFormData>({
-    resolver: zodResolver(isEditing ? whatsappConfigSchema : whatsappConfigCreateSchema),
+    resolver: zodResolver(whatsappConfigSchema),
     defaultValues: {
       name: "",
-      phoneNumberId: "",
-      accessToken: "",
-      businessAccountId: "",
-      webhookVerifyToken: "",
     },
   });
 
-  const hasExistingPassword = config?.type === "email" && 
+  const [qrModalOpen, setQrModalOpen] = useState(false);
+
+  const hasExistingPassword = config?.type === "email" &&
     (config.emailConfig as Record<string, unknown>)?.hasPassword === true;
-  const hasExistingAccessToken = config?.type === "whatsapp" && 
-    (config.whatsappConfig as Record<string, unknown>)?.hasAccessToken === true;
+
+  // Get WhatsApp connection status
+  const whatsappConfig = config?.type === "whatsapp" ? config.whatsappConfig as Record<string, unknown> : null;
+  const connectionStatus = whatsappConfig?.connectionStatus as string || "disconnected";
+  const instanceName = whatsappConfig?.instanceName as string | undefined;
 
   useEffect(() => {
     if (open && config) {
@@ -782,14 +780,9 @@ function ChannelConfigDialog({
           password: "",
           fromName: (ec.fromName as string) || "",
         });
-      } else if (config.type === "whatsapp" && config.whatsappConfig) {
-        const wc = config.whatsappConfig as Record<string, unknown>;
+      } else if (config.type === "whatsapp") {
         whatsappForm.reset({
           name: config.name,
-          phoneNumberId: (wc.phoneNumberId as string) || "",
-          accessToken: "",
-          businessAccountId: (wc.businessAccountId as string) || "",
-          webhookVerifyToken: (wc.webhookVerifyToken as string) || "",
         });
       }
     } else if (open && !config) {
@@ -807,10 +800,6 @@ function ChannelConfigDialog({
       });
       whatsappForm.reset({
         name: "",
-        phoneNumberId: "",
-        accessToken: "",
-        businessAccountId: "",
-        webhookVerifyToken: "",
       });
     }
   }, [open, config, emailForm, whatsappForm]);
@@ -872,20 +861,10 @@ function ChannelConfigDialog({
   };
 
   const onWhatsappSubmit = (data: WhatsappConfigFormData) => {
-    const whatsappConfig: Record<string, unknown> = {
-      phoneNumberId: data.phoneNumberId,
-      businessAccountId: data.businessAccountId,
-      webhookVerifyToken: data.webhookVerifyToken,
-    };
-    if (data.accessToken) {
-      whatsappConfig.accessToken = data.accessToken;
-    } else if (!isEditing) {
-      whatsappConfig.accessToken = "";
-    }
     const payload = {
       type: "whatsapp",
       name: data.name,
-      whatsappConfig,
+      whatsappConfig: {},
     };
     if (isEditing) {
       updateMutation.mutate(payload);
@@ -893,6 +872,35 @@ function ChannelConfigDialog({
       createMutation.mutate(payload);
     }
   };
+
+  // Disconnect WhatsApp mutation
+  const disconnectMutation = useMutation({
+    mutationFn: async () => {
+      if (!config?.id) throw new Error("No config ID");
+      await apiRequest("POST", `/api/channel-configs/${config.id}/whatsapp/disconnect`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/channel-configs"] });
+      toast({ title: "WhatsApp desconectado com sucesso" });
+    },
+    onError: () => {
+      toast({ title: "Falha ao desconectar WhatsApp", variant: "destructive" });
+    },
+  });
+
+  // Refresh connection status
+  const { refetch: refetchStatus, isFetching: isCheckingStatus } = useQuery({
+    queryKey: ["whatsapp-status", config?.id],
+    queryFn: async () => {
+      if (!config?.id) return null;
+      const res = await fetch(`/api/channel-configs/${config.id}/whatsapp/status`, {
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to get status");
+      return res.json();
+    },
+    enabled: false, // Manual trigger only
+  });
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -1072,86 +1080,103 @@ function ChannelConfigDialog({
                 name="name"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Configuration Name</FormLabel>
+                    <FormLabel>Nome da Configuração</FormLabel>
                     <FormControl>
-                      <Input placeholder="e.g., Main WhatsApp, Support Line" {...field} data-testid="input-whatsapp-config-name" />
+                      <Input placeholder="Ex: WhatsApp Principal, Suporte" {...field} data-testid="input-whatsapp-config-name" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              <FormField
-                control={whatsappForm.control}
-                name="phoneNumberId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Phone Number ID</FormLabel>
-                    <FormControl>
-                      <Input placeholder="From Meta Business Suite" {...field} data-testid="input-phone-number-id" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={whatsappForm.control}
-                name="accessToken"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>
-                      Access Token
-                      {isEditing && hasExistingAccessToken && (
-                        <span className="text-muted-foreground ml-2 font-normal">(leave blank to keep current)</span>
+
+              {/* Connection Status (only shown when editing) */}
+              {isEditing && (
+                <div className="space-y-4">
+                  <Separator />
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-1">
+                      <Label className="text-sm font-medium">Status da Conexão</Label>
+                      <div className="flex items-center gap-2">
+                        {connectionStatus === "connected" ? (
+                          <>
+                            <Wifi className="h-4 w-4 text-green-600" />
+                            <span className="text-sm text-green-600 font-medium">Conectado</span>
+                          </>
+                        ) : connectionStatus === "connecting" || connectionStatus === "qr_pending" ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin text-amber-600" />
+                            <span className="text-sm text-amber-600 font-medium">
+                              {connectionStatus === "qr_pending" ? "Aguardando QR Code" : "Conectando..."}
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <WifiOff className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-sm text-muted-foreground">Desconectado</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      {connectionStatus === "connected" ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => disconnectMutation.mutate()}
+                          disabled={disconnectMutation.isPending}
+                        >
+                          {disconnectMutation.isPending ? (
+                            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                          ) : (
+                            <WifiOff className="h-4 w-4 mr-2" />
+                          )}
+                          Desconectar
+                        </Button>
+                      ) : (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setQrModalOpen(true)}
+                        >
+                          <QrCode className="h-4 w-4 mr-2" />
+                          Conectar via QR Code
+                        </Button>
                       )}
-                    </FormLabel>
-                    <FormControl>
-                      <Input 
-                        type="password" 
-                        placeholder={hasExistingAccessToken ? "Enter new token to change" : "WhatsApp Business API token"} 
-                        {...field} 
-                        data-testid="input-access-token" 
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={whatsappForm.control}
-                name="businessAccountId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Business Account ID</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Your WABA ID" {...field} data-testid="input-business-account-id" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={whatsappForm.control}
-                name="webhookVerifyToken"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Webhook Verify Token (Optional)</FormLabel>
-                    <FormControl>
-                      <Input placeholder="For webhook verification" {...field} data-testid="input-webhook-token" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                    </div>
+                  </div>
+                  {instanceName && (
+                    <p className="text-xs text-muted-foreground">
+                      Instância: {instanceName}
+                    </p>
+                  )}
+                </div>
+              )}
+
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => onOpenChange(false)} data-testid="button-cancel-whatsapp">
-                  Cancel
+                  Cancelar
                 </Button>
                 <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending} data-testid="button-save-whatsapp">
-                  {createMutation.isPending || updateMutation.isPending ? "Saving..." : isEditing ? "Update" : "Add Channel"}
+                  {createMutation.isPending || updateMutation.isPending ? "Salvando..." : isEditing ? "Atualizar" : "Adicionar"}
                 </Button>
               </DialogFooter>
             </form>
           </Form>
+        )}
+
+        {/* WhatsApp QR Modal */}
+        {config?.id && (
+          <WhatsAppQRModal
+            open={qrModalOpen}
+            onOpenChange={setQrModalOpen}
+            channelConfigId={config.id}
+            onConnected={() => {
+              queryClient.invalidateQueries({ queryKey: ["/api/channel-configs"] });
+              setQrModalOpen(false);
+            }}
+          />
         )}
       </DialogContent>
     </Dialog>
@@ -1159,6 +1184,7 @@ function ChannelConfigDialog({
 }
 
 function ChannelConfigsSection() {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [channelType, setChannelType] = useState<"email" | "whatsapp">("email");
@@ -1223,20 +1249,20 @@ function ChannelConfigsSection() {
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <div className="flex items-center gap-2">
             <MessageSquare className="h-5 w-5 text-primary" />
-            <CardTitle>Channel Integrations</CardTitle>
+            <CardTitle>{t("settings.channels.title")}</CardTitle>
           </div>
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => handleCreate("email")} data-testid="button-add-email-channel">
               <Mail className="h-4 w-4 mr-2" />
-              Add Email
+              {t("settings.channels.addEmail")}
             </Button>
             <Button variant="outline" onClick={() => handleCreate("whatsapp")} data-testid="button-add-whatsapp-channel">
               <MessageSquare className="h-4 w-4 mr-2" />
-              Add WhatsApp
+              {t("settings.channels.addWhatsapp")}
             </Button>
           </div>
         </div>
-        <CardDescription>Connect email accounts and WhatsApp Business to sync messages</CardDescription>
+        <CardDescription>{t("settings.channels.subtitle")}</CardDescription>
       </CardHeader>
       <CardContent>
         {isLoading ? (
@@ -1267,13 +1293,42 @@ function ChannelConfigsSection() {
                         {config.name}
                       </h4>
                       <Badge variant={config.isActive ? "default" : "secondary"} className="capitalize text-xs">
-                        {config.isActive ? "Active" : "Inactive"}
+                        {config.isActive ? t("common.active") : t("common.inactive")}
                       </Badge>
+                      {config.type === "whatsapp" && (() => {
+                        const wc = config.whatsappConfig as Record<string, unknown> | null;
+                        const status = wc?.connectionStatus as string | undefined;
+                        if (status === "connected") {
+                          return (
+                            <Badge variant="outline" className="text-green-600 border-green-600 text-xs gap-1">
+                              <Wifi className="h-3 w-3" />
+                              {t("settings.channels.whatsapp.connected")}
+                            </Badge>
+                          );
+                        } else if (status === "connecting" || status === "qr_pending") {
+                          return (
+                            <Badge variant="outline" className="text-amber-600 border-amber-600 text-xs gap-1">
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                              {status === "qr_pending" ? t("settings.channels.whatsapp.waitingQr") : t("settings.channels.whatsapp.connecting")}
+                            </Badge>
+                          );
+                        }
+                        return null;
+                      })()}
                     </div>
                     <p className="text-sm text-muted-foreground">
                       {config.type === "email"
-                        ? String((config.emailConfig as Record<string, unknown>)?.email || "No email configured")
-                        : "WhatsApp Business API"}
+                        ? String((config.emailConfig as Record<string, unknown>)?.email || t("settings.channels.noChannels"))
+                        : (() => {
+                            const wc = config.whatsappConfig as Record<string, unknown> | null;
+                            const status = wc?.connectionStatus as string | undefined;
+                            if (status === "connected") {
+                              return t("settings.channels.whatsapp.connectedVia");
+                            } else if (status === "qr_pending") {
+                              return t("settings.channels.whatsapp.waitingQrScan");
+                            }
+                            return t("settings.channels.whatsapp.viaEvolution");
+                          })()}
                     </p>
                   </div>
                 </div>
@@ -1302,14 +1357,14 @@ function ChannelConfigsSection() {
                     </AlertDialogTrigger>
                     <AlertDialogContent>
                       <AlertDialogHeader>
-                        <AlertDialogTitle>Delete Channel Configuration?</AlertDialogTitle>
+                        <AlertDialogTitle>{t("settings.channels.deleteChannel")}</AlertDialogTitle>
                         <AlertDialogDescription>
-                          Are you sure you want to delete &quot;{config.name}&quot;? This action cannot be undone.
+                          {t("settings.channels.deleteChannelDescription", { name: config.name })}
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={() => deleteMutation.mutate(config.id)}>Delete</AlertDialogAction>
+                        <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => deleteMutation.mutate(config.id)}>{t("common.delete")}</AlertDialogAction>
                       </AlertDialogFooter>
                     </AlertDialogContent>
                   </AlertDialog>
@@ -1320,8 +1375,8 @@ function ChannelConfigsSection() {
         ) : (
           <div className="text-center py-8 text-muted-foreground">
             <MessageSquare className="h-12 w-12 mx-auto mb-3 opacity-50" />
-            <p>No channel integrations configured</p>
-            <p className="text-sm">Add email or WhatsApp channels to sync messages</p>
+            <p>{t("settings.channels.noChannels")}</p>
+            <p className="text-sm">{t("settings.channels.noChannelsDescription")}</p>
           </div>
         )}
       </CardContent>
@@ -1526,6 +1581,7 @@ function EmailTemplateDialog({
 }
 
 function EmailTemplatesSection() {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<EmailTemplate | undefined>();
@@ -1566,7 +1622,7 @@ function EmailTemplatesSection() {
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
-    toast({ title: "Copied to clipboard" });
+    toast({ title: t("toast.copied") });
   };
 
   return (
@@ -1575,14 +1631,14 @@ function EmailTemplatesSection() {
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <div className="flex items-center gap-2">
             <Mail className="h-5 w-5 text-primary" />
-            <CardTitle>Email Templates</CardTitle>
+            <CardTitle>{t("settings.templates.title")}</CardTitle>
           </div>
           <Button onClick={handleCreate} data-testid="button-create-template">
             <Plus className="h-4 w-4 mr-2" />
-            New Template
+            {t("settings.templates.newTemplate")}
           </Button>
         </div>
-        <CardDescription>Create and manage reusable email templates with variable substitution</CardDescription>
+        <CardDescription>{t("settings.templates.subtitle")}</CardDescription>
       </CardHeader>
       <CardContent>
         {isLoading ? (
@@ -1594,8 +1650,8 @@ function EmailTemplatesSection() {
         ) : templates && templates.length > 0 ? (
           <div className="space-y-3">
             {templates.map((template) => (
-              <div 
-                key={template.id} 
+              <div
+                key={template.id}
                 className="flex items-start justify-between gap-4 p-4 rounded-md border bg-card"
                 data-testid={`template-item-${template.id}`}
               >
@@ -1607,7 +1663,7 @@ function EmailTemplatesSection() {
                     </h4>
                   </div>
                   <p className="text-sm text-muted-foreground mt-1 truncate" data-testid={`text-template-subject-${template.id}`}>
-                    Subject: {template.subject}
+                    {t("settings.templates.subject")}: {template.subject}
                   </p>
                   {template.variables && template.variables.length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-2">
@@ -1648,18 +1704,18 @@ function EmailTemplatesSection() {
                     </AlertDialogTrigger>
                     <AlertDialogContent>
                       <AlertDialogHeader>
-                        <AlertDialogTitle>Delete Template?</AlertDialogTitle>
+                        <AlertDialogTitle>{t("settings.templates.deleteTemplate")}</AlertDialogTitle>
                         <AlertDialogDescription>
-                          Are you sure you want to delete "{template.name}"? This action cannot be undone.
+                          {t("settings.templates.deleteTemplateDescription", { name: template.name })}
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
-                        <AlertDialogCancel data-testid="button-cancel-delete">Cancel</AlertDialogCancel>
+                        <AlertDialogCancel data-testid="button-cancel-delete">{t("common.cancel")}</AlertDialogCancel>
                         <AlertDialogAction
                           onClick={() => deleteMutation.mutate(template.id)}
                           data-testid="button-confirm-delete"
                         >
-                          Delete
+                          {t("common.delete")}
                         </AlertDialogAction>
                       </AlertDialogFooter>
                     </AlertDialogContent>
@@ -1671,21 +1727,22 @@ function EmailTemplatesSection() {
         ) : (
           <div className="text-center py-8 text-muted-foreground">
             <Mail className="h-12 w-12 mx-auto mb-3 opacity-50" />
-            <p>No email templates yet</p>
-            <p className="text-sm">Create your first template to speed up your communications</p>
+            <p>{t("settings.templates.noTemplates")}</p>
+            <p className="text-sm">{t("settings.templates.noTemplatesDescription")}</p>
           </div>
         )}
       </CardContent>
-      <EmailTemplateDialog 
-        template={editingTemplate} 
-        open={dialogOpen} 
-        onOpenChange={handleDialogChange} 
+      <EmailTemplateDialog
+        template={editingTemplate}
+        open={dialogOpen}
+        onOpenChange={handleDialogChange}
       />
     </Card>
   );
 }
 
 function NotificationsCard() {
+  const { t } = useTranslation();
   const {
     isSupported,
     isEnabled,
@@ -1721,20 +1778,20 @@ function NotificationsCard() {
       <CardHeader>
         <div className="flex items-center gap-2">
           <Bell className="h-5 w-5 text-primary" />
-          <CardTitle>Notifications</CardTitle>
+          <CardTitle>{t("settings.notifications.title")}</CardTitle>
         </div>
-        <CardDescription>Manage your notification preferences</CardDescription>
+        <CardDescription>{t("settings.notifications.subtitle")}</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="font-medium">Email Notifications</p>
+              <p className="font-medium">{t("settings.notifications.email")}</p>
               <p className="text-sm text-muted-foreground">
-                Receive email for new messages
+                {t("settings.notifications.emailDescription")}
               </p>
             </div>
-            <Badge variant="secondary">Coming Soon</Badge>
+            <Badge variant="secondary">{t("settings.notifications.comingSoon")}</Badge>
           </div>
           <Separator />
           <div className="flex items-center justify-between">
@@ -1745,15 +1802,15 @@ function NotificationsCard() {
                 <BellOff className="h-5 w-5 text-muted-foreground" />
               )}
               <div>
-                <p className="font-medium">Push Notifications</p>
+                <p className="font-medium">{t("settings.notifications.push")}</p>
                 <p className="text-sm text-muted-foreground">
                   {!isSupported
-                    ? "Not available in your browser"
+                    ? t("settings.notifications.pushNotAvailable")
                     : permissionStatus === "denied"
-                    ? "Blocked - enable in browser settings"
+                    ? t("settings.notifications.pushNotAvailable")
                     : isEnabled
-                    ? "Notifications enabled"
-                    : "Receive alerts when offline"}
+                    ? t("settings.notifications.pushDescription")
+                    : t("settings.notifications.pushDescription")}
                 </p>
               </div>
             </div>
@@ -1773,9 +1830,9 @@ function NotificationsCard() {
           <Separator />
           <div className="flex items-center justify-between">
             <div>
-              <p className="font-medium">Notification Sounds</p>
+              <p className="font-medium">{t("settings.notifications.sounds")}</p>
               <p className="text-sm text-muted-foreground">
-                Play sounds for new messages
+                {t("settings.notifications.soundsDescription")}
               </p>
             </div>
             <Switch
@@ -1793,6 +1850,7 @@ function NotificationsCard() {
 export default function SettingsPage() {
   const { user } = useAuth();
   const { theme, setTheme } = useTheme();
+  const { language, setLanguage, t, isUpdating: isLanguageUpdating } = useTranslation();
 
   const getInitials = () => {
     if (user?.firstName && user?.lastName) {
@@ -1807,9 +1865,9 @@ export default function SettingsPage() {
   return (
     <div className="flex h-full flex-col p-6 overflow-y-auto">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold" data-testid="text-settings-title">Settings</h1>
+        <h1 className="text-2xl font-bold" data-testid="text-settings-title">{t("settings.title")}</h1>
         <p className="text-muted-foreground">
-          Manage your account and preferences
+          {t("settings.profile.subtitle")}
         </p>
       </div>
 
@@ -1818,18 +1876,17 @@ export default function SettingsPage() {
           <CardHeader>
             <div className="flex items-center gap-2">
               <User className="h-5 w-5 text-primary" />
-              <CardTitle>Profile</CardTitle>
+              <CardTitle>{t("settings.profile.title")}</CardTitle>
             </div>
-            <CardDescription>Your personal information</CardDescription>
+            <CardDescription>{t("settings.profile.subtitle")}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="flex items-center gap-4">
-              <Avatar className="h-16 w-16">
-                <AvatarImage src={user?.profileImageUrl || undefined} />
-                <AvatarFallback className="bg-primary text-primary-foreground text-xl">
-                  {getInitials()}
-                </AvatarFallback>
-              </Avatar>
+              <AvatarUpload
+                currentImageUrl={user?.profileImageUrl}
+                fallback={getInitials()}
+                size="md"
+              />
               <div>
                 <p className="font-semibold" data-testid="text-profile-name">
                   {user?.firstName} {user?.lastName}
@@ -1847,7 +1904,7 @@ export default function SettingsPage() {
 
             <div className="space-y-4">
               <div className="grid gap-2">
-                <Label htmlFor="firstName">First Name</Label>
+                <Label htmlFor="firstName">{t("settings.profile.firstName")}</Label>
                 <Input
                   id="firstName"
                   defaultValue={user?.firstName || ""}
@@ -1856,7 +1913,7 @@ export default function SettingsPage() {
                 />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="lastName">Last Name</Label>
+                <Label htmlFor="lastName">{t("settings.profile.lastName")}</Label>
                 <Input
                   id="lastName"
                   defaultValue={user?.lastName || ""}
@@ -1865,7 +1922,7 @@ export default function SettingsPage() {
                 />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email">{t("settings.profile.email")}</Label>
                 <Input
                   id="email"
                   type="email"
@@ -1882,16 +1939,16 @@ export default function SettingsPage() {
           <CardHeader>
             <div className="flex items-center gap-2">
               <Palette className="h-5 w-5 text-primary" />
-              <CardTitle>Appearance</CardTitle>
+              <CardTitle>{t("settings.appearance.title")}</CardTitle>
             </div>
-            <CardDescription>Customize how the app looks</CardDescription>
+            <CardDescription>{t("settings.appearance.subtitle")}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="font-medium">Theme</p>
+                <p className="font-medium">{t("settings.appearance.theme")}</p>
                 <p className="text-sm text-muted-foreground">
-                  Toggle between light and dark mode
+                  {t("settings.appearance.subtitle")}
                 </p>
               </div>
               <ThemeToggle />
@@ -1900,7 +1957,7 @@ export default function SettingsPage() {
             <Separator />
 
             <div className="space-y-3">
-              <p className="font-medium">Theme Options</p>
+              <p className="font-medium">{t("settings.appearance.theme")}</p>
               <div className="grid grid-cols-3 gap-3">
                 <button
                   onClick={() => setTheme("light")}
@@ -1910,7 +1967,7 @@ export default function SettingsPage() {
                   data-testid="button-theme-light"
                 >
                   <div className="h-8 w-8 rounded-full bg-white border" />
-                  <span className="text-sm">Light</span>
+                  <span className="text-sm">{t("settings.appearance.light")}</span>
                 </button>
                 <button
                   onClick={() => setTheme("dark")}
@@ -1920,7 +1977,7 @@ export default function SettingsPage() {
                   data-testid="button-theme-dark"
                 >
                   <div className="h-8 w-8 rounded-full bg-zinc-900 border" />
-                  <span className="text-sm">Dark</span>
+                  <span className="text-sm">{t("settings.appearance.dark")}</span>
                 </button>
                 <button
                   onClick={() => setTheme("system")}
@@ -1930,7 +1987,7 @@ export default function SettingsPage() {
                   data-testid="button-theme-system"
                 >
                   <div className="h-8 w-8 rounded-full bg-gradient-to-br from-white to-zinc-900 border" />
-                  <span className="text-sm">System</span>
+                  <span className="text-sm">{t("settings.appearance.system")}</span>
                 </button>
               </div>
             </div>
@@ -1943,22 +2000,52 @@ export default function SettingsPage() {
           <CardHeader>
             <div className="flex items-center gap-2">
               <Shield className="h-5 w-5 text-primary" />
-              <CardTitle>Account</CardTitle>
+              <CardTitle>{t("settings.account.title")}</CardTitle>
             </div>
-            <CardDescription>Manage your account settings</CardDescription>
+            <CardDescription>{t("settings.account.subtitle")}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Languages className="h-4 w-4 text-muted-foreground" />
+                <div>
+                  <p className="font-medium">{t("settings.account.language")}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {t("settings.account.languageDescription")}
+                  </p>
+                </div>
+              </div>
+              <Select
+                value={language}
+                onValueChange={(value) => setLanguage(value as 'pt-BR' | 'en')}
+                disabled={isLanguageUpdating}
+              >
+                <SelectTrigger className="w-[180px]" data-testid="select-language">
+                  <SelectValue placeholder="Selecionar idioma" />
+                </SelectTrigger>
+                <SelectContent>
+                  {languages.map((lang) => (
+                    <SelectItem key={lang} value={lang}>
+                      {languageLabels[lang]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <Separator />
+
+            <div className="flex items-center justify-between">
               <div>
-                <p className="font-medium">Session</p>
+                <p className="font-medium">{t("settings.account.session")}</p>
                 <p className="text-sm text-muted-foreground">
-                  Sign out of your account
+                  {t("settings.account.sessionDescription")}
                 </p>
               </div>
               <a href="/api/logout">
                 <Button variant="outline" data-testid="button-settings-logout">
                   <LogOut className="mr-2 h-4 w-4" />
-                  Sign Out
+                  {t("settings.account.signOut")}
                 </Button>
               </a>
             </div>

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { useTranslation } from "@/contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -42,6 +43,7 @@ interface ContactWithRelations extends Contact {
 }
 
 export default function ContactsPage() {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedContact, setSelectedContact] = useState<ContactWithRelations | null>(null);
@@ -67,10 +69,10 @@ export default function ContactsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
       setNewContactOpen(false);
-      toast({ title: "Contact created successfully" });
+      toast({ title: t("toast.created") });
     },
     onError: () => {
-      toast({ title: "Failed to create contact", variant: "destructive" });
+      toast({ title: t("toast.error"), variant: "destructive" });
     },
   });
 
@@ -105,30 +107,30 @@ export default function ContactsPage() {
     <div className="flex h-full flex-col p-6">
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold" data-testid="text-contacts-title">Contacts</h1>
+          <h1 className="text-2xl font-bold" data-testid="text-contacts-title">{t("contacts.title")}</h1>
           <p className="text-muted-foreground">
-            Manage your contacts and their information
+            {t("contacts.subtitle")}
           </p>
         </div>
         <Dialog open={newContactOpen} onOpenChange={setNewContactOpen}>
           <DialogTrigger asChild>
             <Button data-testid="button-new-contact">
               <Plus className="mr-2 h-4 w-4" />
-              Add Contact
+              {t("contacts.newContact")}
             </Button>
           </DialogTrigger>
           <DialogContent>
             <form onSubmit={handleCreateContact}>
               <DialogHeader>
-                <DialogTitle>Add New Contact</DialogTitle>
+                <DialogTitle>{t("contacts.newContact")}</DialogTitle>
                 <DialogDescription>
-                  Create a new contact in your CRM
+                  {t("contacts.newContactDescription")}
                 </DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 py-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="grid gap-2">
-                    <Label htmlFor="firstName">First Name</Label>
+                    <Label htmlFor="firstName">{t("contacts.firstName")}</Label>
                     <Input
                       id="firstName"
                       name="firstName"
@@ -137,7 +139,7 @@ export default function ContactsPage() {
                     />
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="lastName">Last Name</Label>
+                    <Label htmlFor="lastName">{t("contacts.lastName")}</Label>
                     <Input
                       id="lastName"
                       name="lastName"
@@ -146,7 +148,7 @@ export default function ContactsPage() {
                   </div>
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="email">Email</Label>
+                  <Label htmlFor="email">{t("contacts.email")}</Label>
                   <Input
                     id="email"
                     name="email"
@@ -155,7 +157,7 @@ export default function ContactsPage() {
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="phone">Phone</Label>
+                  <Label htmlFor="phone">{t("contacts.phone")}</Label>
                   <Input
                     id="phone"
                     name="phone"
@@ -163,7 +165,7 @@ export default function ContactsPage() {
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="jobTitle">Job Title</Label>
+                  <Label htmlFor="jobTitle">{t("contacts.jobTitle")}</Label>
                   <Input
                     id="jobTitle"
                     name="jobTitle"
@@ -171,14 +173,14 @@ export default function ContactsPage() {
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="companyId">Company</Label>
+                  <Label htmlFor="companyId">{t("contacts.company")}</Label>
                   <select
                     id="companyId"
                     name="companyId"
                     className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                     data-testid="select-contact-company"
                   >
-                    <option value="">Select a company...</option>
+                    <option value="">{t("contacts.selectCompany")}</option>
                     {companies?.map((company) => (
                       <option key={company.id} value={company.id}>
                         {company.name}
@@ -193,14 +195,14 @@ export default function ContactsPage() {
                   variant="outline"
                   onClick={() => setNewContactOpen(false)}
                 >
-                  Cancel
+                  {t("common.cancel")}
                 </Button>
                 <Button
                   type="submit"
                   disabled={createContactMutation.isPending}
                   data-testid="button-create-contact-submit"
                 >
-                  {createContactMutation.isPending ? "Creating..." : "Create Contact"}
+                  {createContactMutation.isPending ? t("common.saving") : t("common.create")}
                 </Button>
               </DialogFooter>
             </form>
@@ -212,7 +214,7 @@ export default function ContactsPage() {
         <div className="relative max-w-sm">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Search contacts..."
+            placeholder={t("common.search")}
             className="pl-9"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -225,11 +227,11 @@ export default function ContactsPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Email</TableHead>
-              <TableHead>Phone</TableHead>
-              <TableHead>Company</TableHead>
-              <TableHead>Job Title</TableHead>
+              <TableHead>{t("common.name")}</TableHead>
+              <TableHead>{t("common.email")}</TableHead>
+              <TableHead>{t("common.phone")}</TableHead>
+              <TableHead>{t("contacts.company")}</TableHead>
+              <TableHead>{t("contacts.jobTitle")}</TableHead>
               <TableHead className="w-10"></TableHead>
             </TableRow>
           </TableHeader>
@@ -298,8 +300,8 @@ export default function ContactsPage() {
                 <TableCell colSpan={6} className="h-32 text-center">
                   <div className="flex flex-col items-center justify-center text-muted-foreground">
                     <User className="mb-2 h-8 w-8 opacity-50" />
-                    <p>No contacts found</p>
-                    <p className="text-sm">Add your first contact to get started</p>
+                    <p>{t("contacts.noContacts")}</p>
+                    <p className="text-sm">{t("contacts.noContactsDescription")}</p>
                   </div>
                 </TableCell>
               </TableRow>
@@ -321,7 +323,7 @@ export default function ContactsPage() {
                 {selectedContact?.firstName} {selectedContact?.lastName}
               </span>
             </SheetTitle>
-            <SheetDescription>Contact details and activity</SheetDescription>
+            <SheetDescription>{t("contacts.detailsAndActivity")}</SheetDescription>
           </SheetHeader>
 
           {selectedContact && (
@@ -356,7 +358,7 @@ export default function ContactsPage() {
               <LeadScorePanel entityType="contact" entityId={selectedContact.id} />
 
               <div>
-                <h4 className="mb-3 font-semibold">Activity Timeline</h4>
+                <h4 className="mb-3 font-semibold">{t("contacts.activityTimeline")}</h4>
                 {activities && activities.length > 0 ? (
                   <div className="space-y-3">
                     {activities.map((activity) => (
@@ -387,7 +389,7 @@ export default function ContactsPage() {
                   </div>
                 ) : (
                   <div className="flex h-24 items-center justify-center rounded-md border text-muted-foreground">
-                    No activities yet
+                    {t("contacts.noActivities")}
                   </div>
                 )}
               </div>

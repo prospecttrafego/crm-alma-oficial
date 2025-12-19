@@ -29,6 +29,8 @@ import {
   type ChannelConfigType,
 } from "@shared/schema";
 import { ObjectStorageService, ObjectNotFoundError, ObjectPermission } from "./storage.supabase";
+import { evolutionApi } from "./evolution-api";
+import { evolutionHandler, type EvolutionWebhookEvent } from "./evolution-message-handler";
 
 const clients = new Set<WebSocket>();
 
@@ -64,6 +66,37 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error fetching user:", error);
       res.status(500).json({ message: "Failed to fetch user" });
+    }
+  });
+
+  // Update current user profile
+  app.patch("/api/users/me", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const { firstName, lastName, profileImageUrl, preferences } = req.body;
+
+      // Validate preferences if provided
+      if (preferences && preferences.language) {
+        if (!['pt-BR', 'en'].includes(preferences.language)) {
+          return res.status(400).json({ message: "Invalid language preference" });
+        }
+      }
+
+      const updated = await storage.updateUserProfile(userId, {
+        firstName,
+        lastName,
+        profileImageUrl,
+        preferences,
+      });
+
+      if (!updated) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      res.json(updated);
+    } catch (error) {
+      console.error("Error updating user profile:", error);
+      res.status(500).json({ message: "Failed to update user profile" });
     }
   });
 
@@ -1758,6 +1791,270 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error testing channel config:", error);
       res.status(500).json({ message: "Failed to test channel config" });
+    }
+  });
+
+  // ============================================
+  // Evolution API Endpoints (WhatsApp via Baileys)
+  // ============================================
+
+  // Check if Evolution API is configured
+  app.get("/api/evolution/status", isAuthenticated, async (req: any, res) => {
+    try {
+      const config = evolutionApi.getConfiguration();
+      res.json({
+        configured: config.configured,
+        url: config.configured ? config.url : null,
+      });
+    } catch (error) {
+      console.error("Error checking Evolution API status:", error);
+      res.status(500).json({ message: "Failed to check Evolution API status" });
+    }
+  });
+
+  // Connect WhatsApp instance (create and get QR code)
+  app.post("/api/channel-configs/:id/whatsapp/connect", isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+
+      const config = await storage.getChannelConfig(id);
+      if (!config) return res.status(404).json({ message: "Channel config not found" });
+      if (config.type !== "whatsapp") return res.status(400).json({ message: "Not a WhatsApp channel" });
+
+      if (!evolutionApi.isConfigured()) {
+        return res.status(503).json({ message: "Evolution API is not configured" });
+      }
+
+      const organizationId = config.organizationId;
+      const instanceName = `crm-org-${organizationId}-channel-${id}`;
+
+      // Check if instance already exists
+      const existingInstance = await evolutionApi.getInstanceInfo(instanceName);
+
+      if (!existingInstance) {
+        // Create new instance
+        await evolutionApi.createInstance(instanceName);
+
+        // Set webhook URL for this instance
+        const appUrl = process.env.APP_URL || `http://localhost:${process.env.PORT || 3000}`;
+        const webhookUrl = `${appUrl}/api/webhooks/evolution`;
+        await evolutionApi.setWebhook(instanceName, webhookUrl);
+      }
+
+      // Get QR code
+      const qrData = await evolutionApi.getQrCode(instanceName);
+
+      // Update channel config with instance name and QR code
+      const whatsappConfig = (config.whatsappConfig || {}) as Record<string, unknown>;
+      whatsappConfig.instanceName = instanceName;
+      whatsappConfig.qrCode = qrData.base64 || qrData.code;
+      whatsappConfig.connectionStatus = "qr_pending";
+
+      await storage.updateChannelConfig(id, {
+        whatsappConfig: whatsappConfig as any,
+      });
+
+      res.json({
+        instanceName,
+        qrCode: qrData.base64 || qrData.code,
+        pairingCode: qrData.pairingCode,
+        status: "qr_pending",
+      });
+    } catch (error) {
+      console.error("Error connecting WhatsApp:", error);
+      res.status(500).json({ message: "Failed to connect WhatsApp" });
+    }
+  });
+
+  // Get WhatsApp connection status
+  app.get("/api/channel-configs/:id/whatsapp/status", isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+
+      const config = await storage.getChannelConfig(id);
+      if (!config) return res.status(404).json({ message: "Channel config not found" });
+      if (config.type !== "whatsapp") return res.status(400).json({ message: "Not a WhatsApp channel" });
+
+      const whatsappConfig = (config.whatsappConfig || {}) as Record<string, unknown>;
+      const instanceName = whatsappConfig.instanceName as string | undefined;
+
+      if (!instanceName) {
+        return res.json({
+          status: "disconnected",
+          instanceName: null,
+        });
+      }
+
+      if (!evolutionApi.isConfigured()) {
+        return res.status(503).json({ message: "Evolution API is not configured" });
+      }
+
+      try {
+        const connectionState = await evolutionApi.getConnectionStatus(instanceName);
+
+        // Map Evolution API states to our states
+        const statusMap: Record<string, string> = {
+          open: "connected",
+          close: "disconnected",
+          connecting: "connecting",
+        };
+
+        const status = statusMap[connectionState.state] || "disconnected";
+
+        // Update config if status changed
+        if (whatsappConfig.connectionStatus !== status) {
+          whatsappConfig.connectionStatus = status;
+          if (status === "connected") {
+            whatsappConfig.lastConnectedAt = new Date().toISOString();
+            whatsappConfig.qrCode = undefined; // Clear QR code on connect
+          }
+          await storage.updateChannelConfig(id, {
+            whatsappConfig: whatsappConfig as any,
+          });
+        }
+
+        res.json({
+          status,
+          instanceName,
+          lastConnectedAt: whatsappConfig.lastConnectedAt,
+        });
+      } catch (error) {
+        // Instance might not exist or is disconnected
+        res.json({
+          status: "disconnected",
+          instanceName,
+        });
+      }
+    } catch (error) {
+      console.error("Error getting WhatsApp status:", error);
+      res.status(500).json({ message: "Failed to get WhatsApp status" });
+    }
+  });
+
+  // Disconnect WhatsApp instance
+  app.post("/api/channel-configs/:id/whatsapp/disconnect", isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+
+      const config = await storage.getChannelConfig(id);
+      if (!config) return res.status(404).json({ message: "Channel config not found" });
+      if (config.type !== "whatsapp") return res.status(400).json({ message: "Not a WhatsApp channel" });
+
+      const whatsappConfig = (config.whatsappConfig || {}) as Record<string, unknown>;
+      const instanceName = whatsappConfig.instanceName as string | undefined;
+
+      if (!instanceName) {
+        return res.json({ success: true, message: "No active connection" });
+      }
+
+      if (!evolutionApi.isConfigured()) {
+        return res.status(503).json({ message: "Evolution API is not configured" });
+      }
+
+      try {
+        await evolutionApi.disconnectInstance(instanceName);
+      } catch (error) {
+        // Instance might already be disconnected
+        console.log("Instance disconnect error (may already be disconnected):", error);
+      }
+
+      // Update config
+      whatsappConfig.connectionStatus = "disconnected";
+      whatsappConfig.qrCode = undefined;
+
+      await storage.updateChannelConfig(id, {
+        whatsappConfig: whatsappConfig as any,
+      });
+
+      res.json({ success: true, message: "WhatsApp disconnected" });
+    } catch (error) {
+      console.error("Error disconnecting WhatsApp:", error);
+      res.status(500).json({ message: "Failed to disconnect WhatsApp" });
+    }
+  });
+
+  // Evolution API Webhook (receives messages from WhatsApp)
+  // Note: This endpoint does NOT require authentication as it's called by Evolution API
+  app.post("/api/webhooks/evolution", async (req, res) => {
+    try {
+      const event = req.body as EvolutionWebhookEvent;
+
+      console.log(`[Evolution Webhook] Received: ${event.event} for instance: ${event.instance}`);
+
+      // Parse instance name to get channel config ID
+      // Format: crm-org-{orgId}-channel-{configId}
+      const instanceMatch = event.instance?.match(/crm-org-(\d+)-channel-(\d+)/);
+      if (!instanceMatch) {
+        console.log("[Evolution Webhook] Unknown instance format:", event.instance);
+        return res.status(200).json({ received: true });
+      }
+
+      const organizationId = parseInt(instanceMatch[1]);
+      const channelConfigId = parseInt(instanceMatch[2]);
+
+      // Set broadcast function for real-time updates
+      evolutionHandler.setBroadcast((orgId, eventType, data) => {
+        broadcast(`whatsapp:${eventType}`, { organizationId: orgId, data });
+      });
+
+      // Process the webhook event
+      await evolutionHandler.handleWebhook(event, channelConfigId, organizationId);
+
+      res.status(200).json({ received: true });
+    } catch (error) {
+      console.error("[Evolution Webhook] Error processing webhook:", error);
+      // Always return 200 to prevent retries
+      res.status(200).json({ received: true, error: "Processing failed" });
+    }
+  });
+
+  // Send WhatsApp message via Evolution API
+  app.post("/api/channel-configs/:id/whatsapp/send", isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+
+      const { to, text, mediaUrl, mediaType, caption, fileName } = req.body;
+
+      if (!to) return res.status(400).json({ message: "Recipient phone number (to) is required" });
+      if (!text && !mediaUrl) return res.status(400).json({ message: "Either text or mediaUrl is required" });
+
+      const config = await storage.getChannelConfig(id);
+      if (!config) return res.status(404).json({ message: "Channel config not found" });
+      if (config.type !== "whatsapp") return res.status(400).json({ message: "Not a WhatsApp channel" });
+
+      const whatsappConfig = (config.whatsappConfig || {}) as Record<string, unknown>;
+      const instanceName = whatsappConfig.instanceName as string | undefined;
+
+      if (!instanceName) {
+        return res.status(400).json({ message: "WhatsApp not connected" });
+      }
+
+      if (!evolutionApi.isConfigured()) {
+        return res.status(503).json({ message: "Evolution API is not configured" });
+      }
+
+      let result;
+      if (mediaUrl && mediaType) {
+        result = await evolutionApi.sendMediaMessage(
+          instanceName,
+          to,
+          mediaUrl,
+          mediaType,
+          caption,
+          fileName
+        );
+      } else {
+        result = await evolutionApi.sendTextMessage(instanceName, to, text);
+      }
+
+      res.json({ success: true, result });
+    } catch (error) {
+      console.error("Error sending WhatsApp message:", error);
+      res.status(500).json({ message: "Failed to send WhatsApp message" });
     }
   });
 

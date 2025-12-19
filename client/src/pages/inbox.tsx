@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useWebSocket } from "@/hooks/useWebSocket";
+import { useTranslation } from "@/contexts/LanguageContext";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -100,6 +101,7 @@ interface PendingFile {
 export default function InboxPage() {
   const { toast } = useToast();
   const { user } = useAuth();
+  const { t } = useTranslation();
   const [selectedConversation, setSelectedConversation] = useState<ConversationWithRelations | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [newMessage, setNewMessage] = useState("");
@@ -287,7 +289,7 @@ export default function InboxPage() {
         setRecordingTime((prev) => prev + 1);
       }, 1000);
     } catch (error) {
-      toast({ title: "Erro ao acessar microfone", description: "Verifique as permissões do navegador", variant: "destructive" });
+      toast({ title: t("toast.error"), description: t("errors.generic"), variant: "destructive" });
     }
   }, [toast]);
 
@@ -352,9 +354,9 @@ export default function InboxPage() {
       setAudioBlob(null);
       setRecordingTime(0);
       playMessageSent();
-      toast({ title: "Áudio enviado com sucesso" });
+      toast({ title: t("toast.saved") });
     } catch (error) {
-      toast({ title: "Erro ao enviar áudio", variant: "destructive" });
+      toast({ title: t("toast.error"), variant: "destructive" });
     }
   }, [audioBlob, selectedConversation, isInternalComment, toast, playMessageSent]);
 
@@ -374,7 +376,7 @@ export default function InboxPage() {
       user: user,
     });
     setNewMessage(substitutedBody);
-    toast({ title: `Template "${template.name}" applied` });
+    toast({ title: t("toast.updated") });
   };
 
   const sendMessageMutation = useMutation({
@@ -413,7 +415,7 @@ export default function InboxPage() {
       playMessageSent();
     },
     onError: () => {
-      toast({ title: "Failed to send message", variant: "destructive" });
+      toast({ title: t("toast.error"), variant: "destructive" });
     },
   });
 
@@ -581,7 +583,7 @@ export default function InboxPage() {
         {/* Header da lista */}
         <div className="bg-muted/50 px-4 py-3">
           <div className="mb-3 flex items-center justify-between gap-2">
-            <h2 className="text-base font-medium text-foreground" data-testid="text-inbox-title">Conversas</h2>
+            <h2 className="text-base font-medium text-foreground" data-testid="text-inbox-title">{t("inbox.title")}</h2>
             <FilterPanel
               type="inbox"
               filters={filters}
@@ -592,7 +594,7 @@ export default function InboxPage() {
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <input
               type="text"
-              placeholder="Pesquisar uma conversa"
+              placeholder={t("common.search")}
               className="h-9 w-full rounded-lg border border-border bg-muted pl-10 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-0"
               style={{ boxShadow: 'none' }}
               value={searchQuery}
@@ -664,7 +666,7 @@ export default function InboxPage() {
             />
           ) : (
             <div className="flex h-40 items-center justify-center text-muted-foreground">
-              Nenhuma conversa ainda
+              {t("inbox.noConversations")}
             </div>
           )}
         </div>
@@ -782,7 +784,7 @@ export default function InboxPage() {
                 />
               ) : (
                 <div className="flex h-full items-center justify-center text-muted-foreground">
-                  Nenhuma mensagem ainda. Inicie a conversa!
+                  {t("inbox.noMessages")}
                 </div>
               )}
             </div>
@@ -994,8 +996,8 @@ export default function InboxPage() {
                     type="text"
                     placeholder={
                       isInternalComment
-                        ? "Adicionar nota interna..."
-                        : "Digite uma mensagem"
+                        ? t("common.notes")
+                        : t("inbox.typeMessage")
                     }
                     value={newMessage}
                     onChange={(e) => {
@@ -1099,7 +1101,7 @@ export default function InboxPage() {
         <div className="hidden md:flex flex-1 items-center justify-center bg-background">
           <div className="text-center">
             <MessageSquare className="mx-auto mb-4 h-16 w-16 text-muted-foreground/50" />
-            <p className="text-foreground text-lg">Selecione uma conversa</p>
+            <p className="text-foreground text-lg">{t("inbox.noMessagesDescription")}</p>
             <p className="mt-1 text-sm text-muted-foreground">
               Use <kbd className="rounded bg-muted px-1.5 py-0.5 text-foreground">j</kbd>/<kbd className="rounded bg-muted px-1.5 py-0.5 text-foreground">k</kbd> para navegar
             </p>

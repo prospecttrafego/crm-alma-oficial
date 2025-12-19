@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { useTranslation } from "@/contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -42,6 +43,7 @@ const activityIcons = {
 };
 
 export default function ActivitiesPage() {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [newActivityOpen, setNewActivityOpen] = useState(false);
@@ -67,10 +69,10 @@ export default function ActivitiesPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/activities"] });
       setNewActivityOpen(false);
-      toast({ title: "Activity created successfully" });
+      toast({ title: t("toast.created") });
     },
     onError: () => {
-      toast({ title: "Failed to create activity", variant: "destructive" });
+      toast({ title: t("toast.error"), variant: "destructive" });
     },
   });
 
@@ -83,10 +85,10 @@ export default function ActivitiesPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/activities"] });
-      toast({ title: "Activity marked as complete" });
+      toast({ title: t("activities.markComplete") });
     },
     onError: () => {
-      toast({ title: "Failed to update activity", variant: "destructive" });
+      toast({ title: t("toast.error"), variant: "destructive" });
     },
   });
 
@@ -128,44 +130,44 @@ export default function ActivitiesPage() {
     <div className="flex h-full flex-col p-6">
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold" data-testid="text-activities-title">Activities</h1>
+          <h1 className="text-2xl font-bold" data-testid="text-activities-title">{t("activities.title")}</h1>
           <p className="text-muted-foreground">
-            Track your tasks, calls, and meetings
+            {t("activities.subtitle")}
           </p>
         </div>
         <Dialog open={newActivityOpen} onOpenChange={setNewActivityOpen}>
           <DialogTrigger asChild>
             <Button data-testid="button-new-activity">
               <Plus className="mr-2 h-4 w-4" />
-              New Activity
+              {t("activities.newActivity")}
             </Button>
           </DialogTrigger>
           <DialogContent>
             <form onSubmit={handleCreateActivity}>
               <DialogHeader>
-                <DialogTitle>Create Activity</DialogTitle>
+                <DialogTitle>{t("activities.newActivity")}</DialogTitle>
                 <DialogDescription>
-                  Add a new task, call, meeting, or note
+                  {t("activities.newActivityDesc")}
                 </DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 py-4">
                 <div className="grid gap-2">
-                  <Label htmlFor="type">Type</Label>
+                  <Label htmlFor="type">{t("common.type")}</Label>
                   <Select name="type" required>
                     <SelectTrigger data-testid="select-activity-type">
-                      <SelectValue placeholder="Select type..." />
+                      <SelectValue placeholder={t("activities.selectType")} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="task">Task</SelectItem>
-                      <SelectItem value="call">Call</SelectItem>
-                      <SelectItem value="email">Email</SelectItem>
-                      <SelectItem value="meeting">Meeting</SelectItem>
-                      <SelectItem value="note">Note</SelectItem>
+                      <SelectItem value="task">{t("activities.types.task")}</SelectItem>
+                      <SelectItem value="call">{t("activities.types.call")}</SelectItem>
+                      <SelectItem value="email">{t("activities.types.email")}</SelectItem>
+                      <SelectItem value="meeting">{t("activities.types.meeting")}</SelectItem>
+                      <SelectItem value="note">{t("activities.types.note")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="title">Title</Label>
+                  <Label htmlFor="title">{t("activities.activityTitle")}</Label>
                   <Input
                     id="title"
                     name="title"
@@ -174,7 +176,7 @@ export default function ActivitiesPage() {
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="description">Description</Label>
+                  <Label htmlFor="description">{t("common.description")}</Label>
                   <Textarea
                     id="description"
                     name="description"
@@ -182,7 +184,7 @@ export default function ActivitiesPage() {
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="dueDate">Due Date</Label>
+                  <Label htmlFor="dueDate">{t("activities.dueDate")}</Label>
                   <Input
                     id="dueDate"
                     name="dueDate"
@@ -191,14 +193,14 @@ export default function ActivitiesPage() {
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="contactId">Related Contact</Label>
+                  <Label htmlFor="contactId">{t("activities.contact")}</Label>
                   <select
                     id="contactId"
                     name="contactId"
                     className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                     data-testid="select-activity-contact"
                   >
-                    <option value="">Select contact...</option>
+                    <option value="">{t("activities.selectContact")}</option>
                     {contacts?.map((contact) => (
                       <option key={contact.id} value={contact.id}>
                         {contact.firstName} {contact.lastName}
@@ -207,14 +209,14 @@ export default function ActivitiesPage() {
                   </select>
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="dealId">Related Deal</Label>
+                  <Label htmlFor="dealId">{t("activities.deal")}</Label>
                   <select
                     id="dealId"
                     name="dealId"
                     className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                     data-testid="select-activity-deal"
                   >
-                    <option value="">Select deal...</option>
+                    <option value="">{t("activities.selectDeal")}</option>
                     {deals?.map((deal) => (
                       <option key={deal.id} value={deal.id}>
                         {deal.title}
@@ -229,14 +231,14 @@ export default function ActivitiesPage() {
                   variant="outline"
                   onClick={() => setNewActivityOpen(false)}
                 >
-                  Cancel
+                  {t("common.cancel")}
                 </Button>
                 <Button
                   type="submit"
                   disabled={createActivityMutation.isPending}
                   data-testid="button-create-activity-submit"
                 >
-                  {createActivityMutation.isPending ? "Creating..." : "Create Activity"}
+                  {createActivityMutation.isPending ? t("common.saving") : t("common.create")}
                 </Button>
               </DialogFooter>
             </form>
@@ -248,7 +250,7 @@ export default function ActivitiesPage() {
         <div className="relative flex-1 min-w-[200px] max-w-sm">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Search activities..."
+            placeholder={t("common.search")}
             className="pl-9"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -257,25 +259,25 @@ export default function ActivitiesPage() {
         </div>
         <Select value={filterType} onValueChange={setFilterType}>
           <SelectTrigger className="w-[150px]" data-testid="select-filter-type">
-            <SelectValue placeholder="All Types" />
+            <SelectValue placeholder={t("activities.allTypes")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Types</SelectItem>
-            <SelectItem value="task">Tasks</SelectItem>
-            <SelectItem value="call">Calls</SelectItem>
-            <SelectItem value="email">Emails</SelectItem>
-            <SelectItem value="meeting">Meetings</SelectItem>
-            <SelectItem value="note">Notes</SelectItem>
+            <SelectItem value="all">{t("activities.allTypes")}</SelectItem>
+            <SelectItem value="task">{t("activities.types.task")}</SelectItem>
+            <SelectItem value="call">{t("activities.types.call")}</SelectItem>
+            <SelectItem value="email">{t("activities.types.email")}</SelectItem>
+            <SelectItem value="meeting">{t("activities.types.meeting")}</SelectItem>
+            <SelectItem value="note">{t("activities.types.note")}</SelectItem>
           </SelectContent>
         </Select>
         <Select value={filterStatus} onValueChange={setFilterStatus}>
           <SelectTrigger className="w-[150px]" data-testid="select-filter-status">
-            <SelectValue placeholder="All Status" />
+            <SelectValue placeholder={t("activities.allStatus")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Status</SelectItem>
-            <SelectItem value="pending">Pending</SelectItem>
-            <SelectItem value="completed">Completed</SelectItem>
+            <SelectItem value="all">{t("activities.allStatus")}</SelectItem>
+            <SelectItem value="pending">{t("activities.pending")}</SelectItem>
+            <SelectItem value="completed">{t("activities.completed")}</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -373,8 +375,8 @@ export default function ActivitiesPage() {
           <div className="flex h-64 items-center justify-center rounded-md border">
             <div className="text-center text-muted-foreground">
               <CheckSquare className="mx-auto mb-4 h-12 w-12 opacity-50" />
-              <p>No activities found</p>
-              <p className="text-sm">Create your first activity to get started</p>
+              <p>{t("activities.noActivities")}</p>
+              <p className="text-sm">{t("activities.noActivitiesDescription")}</p>
             </div>
           </div>
         )}

@@ -15,6 +15,7 @@ import {
   FileText,
   CheckSquare,
 } from "lucide-react";
+import { useTranslation } from "@/contexts/LanguageContext";
 import type { Deal, Contact, Conversation, Activity } from "@shared/schema";
 
 interface DashboardStats {
@@ -28,6 +29,8 @@ interface DashboardStats {
 }
 
 export default function Dashboard() {
+  const { t } = useTranslation();
+
   const { data: stats, isLoading: statsLoading } = useQuery<DashboardStats>({
     queryKey: ["/api/dashboard/stats"],
   });
@@ -44,15 +47,15 @@ export default function Dashboard() {
     <div className="flex flex-col gap-6 p-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold" data-testid="text-dashboard-title">Dashboard</h1>
-          <p className="text-muted-foreground">Welcome back! Here&apos;s your overview.</p>
+          <h1 className="text-2xl font-bold" data-testid="text-dashboard-title">{t("dashboard.title")}</h1>
+          <p className="text-muted-foreground">{t("dashboard.welcomeSubtitle")}</p>
         </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
-            <CardTitle className="text-sm font-medium">Total Pipeline Value</CardTitle>
+            <CardTitle className="text-sm font-medium">{t("dashboard.pipelineValue")}</CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -64,7 +67,7 @@ export default function Dashboard() {
                   R$ {(stats?.totalValue || 0).toLocaleString("pt-BR")}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  {stats?.totalDeals || 0} open deals
+                  {t("dashboard.openDealsCount", { count: stats?.totalDeals || 0 })}
                 </p>
               </>
             )}
@@ -73,7 +76,7 @@ export default function Dashboard() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
-            <CardTitle className="text-sm font-medium">Open Conversations</CardTitle>
+            <CardTitle className="text-sm font-medium">{t("dashboard.openConversations")}</CardTitle>
             <Inbox className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -85,7 +88,7 @@ export default function Dashboard() {
                   {stats?.openConversations || 0}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Awaiting response
+                  {t("dashboard.awaitingResponse")}
                 </p>
               </>
             )}
@@ -94,7 +97,7 @@ export default function Dashboard() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
-            <CardTitle className="text-sm font-medium">New Contacts</CardTitle>
+            <CardTitle className="text-sm font-medium">{t("dashboard.newContacts")}</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -106,7 +109,7 @@ export default function Dashboard() {
                   {stats?.newContacts || 0}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  This month
+                  {t("dashboard.thisMonth")}
                 </p>
               </>
             )}
@@ -115,7 +118,7 @@ export default function Dashboard() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
-            <CardTitle className="text-sm font-medium">Win Rate</CardTitle>
+            <CardTitle className="text-sm font-medium">{t("dashboard.winRate")}</CardTitle>
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -131,11 +134,11 @@ export default function Dashboard() {
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <span className="flex items-center text-green-600 dark:text-green-400">
                     <ArrowUpRight className="h-3 w-3" />
-                    {stats?.wonDeals || 0} won
+                    {stats?.wonDeals || 0} {t("dashboard.won")}
                   </span>
                   <span className="flex items-center text-red-600 dark:text-red-400">
                     <ArrowDownRight className="h-3 w-3" />
-                    {stats?.lostDeals || 0} lost
+                    {stats?.lostDeals || 0} {t("dashboard.lost")}
                   </span>
                 </div>
               </>
@@ -147,8 +150,8 @@ export default function Dashboard() {
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Recent Deals</CardTitle>
-            <CardDescription>Your latest pipeline activity</CardDescription>
+            <CardTitle>{t("dashboard.recentDeals")}</CardTitle>
+            <CardDescription>{t("dashboard.latestPipeline")}</CardDescription>
           </CardHeader>
           <CardContent>
             {dealsLoading ? (
@@ -182,14 +185,14 @@ export default function Dashboard() {
                       </p>
                     </div>
                     <Badge variant="secondary" className="text-xs">
-                      {deal.status}
+                      {t(`pipeline.status.${deal.status}`)}
                     </Badge>
                   </div>
                 ))}
               </div>
             ) : (
               <div className="flex h-32 items-center justify-center text-muted-foreground">
-                No deals yet. Create your first deal!
+                {t("dashboard.noDeals")}
               </div>
             )}
           </CardContent>
@@ -197,8 +200,8 @@ export default function Dashboard() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Pending Activities</CardTitle>
-            <CardDescription>Tasks and follow-ups due soon</CardDescription>
+            <CardTitle>{t("dashboard.pendingActivities")}</CardTitle>
+            <CardDescription>{t("dashboard.tasksDueSoon")}</CardDescription>
           </CardHeader>
           <CardContent>
             {activitiesLoading ? (
@@ -233,8 +236,8 @@ export default function Dashboard() {
                       </div>
                       <div className="flex-1 overflow-hidden">
                         <p className="truncate font-medium">{activity.title}</p>
-                        <p className="text-sm text-muted-foreground capitalize">
-                          {activity.type}
+                        <p className="text-sm text-muted-foreground">
+                          {t(`activities.types.${activity.type}`)}
                         </p>
                       </div>
                     </div>
@@ -242,7 +245,7 @@ export default function Dashboard() {
               </div>
             ) : (
               <div className="flex h-32 items-center justify-center text-muted-foreground">
-                No pending activities.
+                {t("dashboard.noPendingActivities")}
               </div>
             )}
           </CardContent>

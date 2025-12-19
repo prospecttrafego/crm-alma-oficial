@@ -27,56 +27,66 @@ import {
 } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/hooks/useAuth";
-
-const mainNavItems = [
-  {
-    title: "Dashboard",
-    url: "/",
-    icon: LayoutDashboard,
-  },
-  {
-    title: "Inbox",
-    url: "/inbox",
-    icon: Inbox,
-  },
-  {
-    title: "Pipeline",
-    url: "/pipeline",
-    icon: Kanban,
-  },
-];
-
-const managementItems = [
-  {
-    title: "Contacts",
-    url: "/contacts",
-    icon: Users,
-  },
-  {
-    title: "Companies",
-    url: "/companies",
-    icon: Building2,
-  },
-  {
-    title: "Activities",
-    url: "/activities",
-    icon: Activity,
-  },
-  {
-    title: "Calendar",
-    url: "/calendar",
-    icon: Calendar,
-  },
-  {
-    title: "Reports",
-    url: "/reports",
-    icon: BarChart3,
-  },
-];
+import { useTranslation } from "@/contexts/LanguageContext";
 
 export function AppSidebar() {
   const [location] = useLocation();
   const { user } = useAuth();
+  const { t } = useTranslation();
+
+  const mainNavItems = [
+    {
+      title: t("nav.dashboard"),
+      url: "/",
+      icon: LayoutDashboard,
+      key: "dashboard",
+    },
+    {
+      title: t("nav.inbox"),
+      url: "/inbox",
+      icon: Inbox,
+      key: "inbox",
+    },
+    {
+      title: t("nav.pipeline"),
+      url: "/pipeline",
+      icon: Kanban,
+      key: "pipeline",
+    },
+  ];
+
+  const managementItems = [
+    {
+      title: t("nav.contacts"),
+      url: "/contacts",
+      icon: Users,
+      key: "contacts",
+    },
+    {
+      title: t("nav.companies"),
+      url: "/companies",
+      icon: Building2,
+      key: "companies",
+    },
+    {
+      title: t("nav.activities"),
+      url: "/activities",
+      icon: Activity,
+      key: "activities",
+    },
+    {
+      title: t("nav.calendar"),
+      url: "/calendar",
+      icon: Calendar,
+      key: "calendar",
+    },
+    {
+      title: t("nav.reports"),
+      url: "/reports",
+      icon: BarChart3,
+      key: "reports",
+    },
+  ];
 
   const getInitials = () => {
     if (user?.firstName && user?.lastName) {
@@ -107,13 +117,13 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               {mainNavItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
+                <SidebarMenuItem key={item.key}>
                   <SidebarMenuButton
                     asChild
                     isActive={location === item.url}
                     tooltip={item.title}
                   >
-                    <Link href={item.url} data-testid={`link-nav-${item.title.toLowerCase()}`}>
+                    <Link href={item.url} data-testid={`link-nav-${item.key}`}>
                       <item.icon className="h-4 w-4" />
                       <span>{item.title}</span>
                     </Link>
@@ -125,17 +135,17 @@ export function AppSidebar() {
         </SidebarGroup>
 
         <SidebarGroup>
-          <SidebarGroupLabel>Management</SidebarGroupLabel>
+          <SidebarGroupLabel>{t("nav.management")}</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {managementItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
+                <SidebarMenuItem key={item.key}>
                   <SidebarMenuButton
                     asChild
                     isActive={location === item.url}
                     tooltip={item.title}
                   >
-                    <Link href={item.url} data-testid={`link-nav-${item.title.toLowerCase()}`}>
+                    <Link href={item.url} data-testid={`link-nav-${item.key}`}>
                       <item.icon className="h-4 w-4" />
                       <span>{item.title}</span>
                     </Link>
@@ -154,11 +164,11 @@ export function AppSidebar() {
             <SidebarMenuButton
               asChild
               isActive={location === "/settings"}
-              tooltip="Settings"
+              tooltip={t("nav.settings")}
             >
               <Link href="/settings" data-testid="link-nav-settings">
                 <Settings className="h-4 w-4" />
-                <span>Settings</span>
+                <span>{t("nav.settings")}</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>

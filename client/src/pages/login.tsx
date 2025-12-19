@@ -12,6 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useToast } from "@/hooks/use-toast";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
+import { useTranslation } from "@/contexts/LanguageContext";
 
 // Flag para habilitar/desabilitar registro (configuravel via env)
 const ALLOW_REGISTRATION = import.meta.env.VITE_ALLOW_REGISTRATION === "true";
@@ -27,6 +28,7 @@ interface RegisterFormData extends LoginFormData {
 }
 
 export default function LoginPage() {
+  const { t } = useTranslation();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [isRegisterMode, setIsRegisterMode] = useState(false);
@@ -51,7 +53,7 @@ export default function LoginPage() {
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.message || "Erro ao fazer login");
+        throw new Error(error.message || t("auth.invalidCredentials"));
       }
 
       return response.json();
@@ -60,14 +62,14 @@ export default function LoginPage() {
       // Invalida cache do usuario para forcar reload
       queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
       toast({
-        title: "Login realizado!",
-        description: "Bem-vindo de volta.",
+        title: t("auth.loginSuccess"),
+        description: t("auth.welcomeBack"),
       });
       setLocation("/");
     },
     onError: (error: Error) => {
       toast({
-        title: "Erro no login",
+        title: t("auth.loginError"),
         description: error.message,
         variant: "destructive",
       });
@@ -86,7 +88,7 @@ export default function LoginPage() {
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.message || "Erro ao criar conta");
+        throw new Error(error.message || t("auth.registerError"));
       }
 
       return response.json();
@@ -94,14 +96,14 @@ export default function LoginPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
       toast({
-        title: "Conta criada!",
-        description: "Sua conta foi criada com sucesso.",
+        title: t("auth.accountCreated"),
+        description: t("auth.accountCreatedDescription"),
       });
       setLocation("/");
     },
     onError: (error: Error) => {
       toast({
-        title: "Erro no registro",
+        title: t("auth.registerError"),
         description: error.message,
         variant: "destructive",
       });
@@ -134,12 +136,12 @@ export default function LoginPage() {
         <CardHeader className="text-center">
           <img src="/logo.png" alt="Alma" className="mx-auto mb-4 h-16 w-16 rounded-md object-cover" />
           <CardTitle className="text-2xl">
-            {isRegisterMode ? "Criar conta" : "Entrar"}
+            {isRegisterMode ? t("auth.signUp") : t("auth.signIn")}
           </CardTitle>
           <CardDescription>
             {isRegisterMode
-              ? "Preencha seus dados para criar uma conta"
-              : "Entre com seu email e senha"}
+              ? t("auth.registerSubtitle")
+              : t("auth.loginSubtitle")}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -147,24 +149,22 @@ export default function LoginPage() {
             {isRegisterMode && (
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="firstName">Nome</Label>
+                  <Label htmlFor="firstName">{t("settings.profile.firstName")}</Label>
                   <Input
                     id="firstName"
                     name="firstName"
                     type="text"
-                    placeholder="Seu nome"
                     value={formData.firstName}
                     onChange={handleInputChange}
                     disabled={isLoading}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="lastName">Sobrenome</Label>
+                  <Label htmlFor="lastName">{t("settings.profile.lastName")}</Label>
                   <Input
                     id="lastName"
                     name="lastName"
                     type="text"
-                    placeholder="Seu sobrenome"
                     value={formData.lastName}
                     onChange={handleInputChange}
                     disabled={isLoading}
@@ -174,12 +174,12 @@ export default function LoginPage() {
             )}
 
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">{t("auth.email")}</Label>
               <Input
                 id="email"
                 name="email"
                 type="email"
-                placeholder="seu@email.com"
+                placeholder="email@example.com"
                 value={formData.email}
                 onChange={handleInputChange}
                 required
@@ -188,13 +188,12 @@ export default function LoginPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password">Senha</Label>
+              <Label htmlFor="password">{t("auth.password")}</Label>
               <div className="relative">
                 <Input
                   id="password"
                   name="password"
                   type={showPassword ? "text" : "password"}
-                  placeholder="Sua senha"
                   value={formData.password}
                   onChange={handleInputChange}
                   required
@@ -219,21 +218,21 @@ export default function LoginPage() {
 
             <Button type="submit" className="w-full" disabled={isLoading}>
               {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {isRegisterMode ? "Criar conta" : "Entrar"}
+              {isRegisterMode ? t("auth.signUp") : t("auth.signIn")}
             </Button>
           </form>
 
           {ALLOW_REGISTRATION && (
             <div className="mt-4 text-center text-sm">
               <span className="text-muted-foreground">
-                {isRegisterMode ? "Ja tem uma conta?" : "Nao tem uma conta?"}
+                {isRegisterMode ? t("auth.hasAccount") : t("auth.noAccount")}
               </span>{" "}
               <Button
                 variant="link"
                 className="px-0"
                 onClick={() => setIsRegisterMode(!isRegisterMode)}
               >
-                {isRegisterMode ? "Entrar" : "Criar conta"}
+                {isRegisterMode ? t("auth.signIn") : t("auth.createAccount")}
               </Button>
             </div>
           )}

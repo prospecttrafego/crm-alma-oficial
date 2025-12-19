@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { useTranslation } from "@/contexts/LanguageContext";
 import {
   Dialog,
   DialogContent,
@@ -49,6 +50,7 @@ interface PipelineWithStages extends Pipeline {
 
 export default function PipelinePage() {
   const { toast } = useToast();
+  const { t } = useTranslation();
   const [selectedDeal, setSelectedDeal] = useState<DealWithRelations | null>(null);
   const [newDealOpen, setNewDealOpen] = useState(false);
   const [draggedDeal, setDraggedDeal] = useState<DealWithRelations | null>(null);
@@ -94,10 +96,10 @@ export default function PipelinePage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/deals"] });
-      toast({ title: "Deal moved successfully" });
+      toast({ title: t("toast.updated") });
     },
     onError: () => {
-      toast({ title: "Failed to move deal", variant: "destructive" });
+      toast({ title: t("toast.error"), variant: "destructive" });
     },
   });
 
@@ -108,10 +110,10 @@ export default function PipelinePage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/deals"] });
       setNewDealOpen(false);
-      toast({ title: "Deal created successfully" });
+      toast({ title: t("toast.created") });
     },
     onError: () => {
-      toast({ title: "Failed to create deal", variant: "destructive" });
+      toast({ title: t("toast.error"), variant: "destructive" });
     },
   });
 
@@ -204,29 +206,29 @@ export default function PipelinePage() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-bold" data-testid="text-pipeline-title">
-                Pipeline
+                {t("pipeline.title")}
               </h1>
               {allPipelines && allPipelines.length > 1 && (
                 <Select
                   value={selectedPipelineId?.toString() || ""}
                   onValueChange={(val) => setSelectedPipelineId(Number(val))}
                 >
-                  <SelectTrigger 
-                    className="w-[200px]" 
+                  <SelectTrigger
+                    className="w-[200px]"
                     data-testid="select-pipeline"
                   >
-                    <SelectValue placeholder="Select pipeline">
+                    <SelectValue placeholder={t("settings.pipelines.pipelineName")}>
                       {pipeline?.name}
                     </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {allPipelines.map((p) => (
-                      <SelectItem 
-                        key={p.id} 
+                      <SelectItem
+                        key={p.id}
                         value={p.id.toString()}
                         data-testid={`select-pipeline-option-${p.id}`}
                       >
-                        {p.name} {p.isDefault && "(Default)"}
+                        {p.name} {p.isDefault && `(${t("settings.pipelines.default")})`}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -239,7 +241,7 @@ export default function PipelinePage() {
               )}
             </div>
             <p className="text-sm text-muted-foreground">
-              Drag and drop deals between stages
+              {t("pipeline.dragToMove")}
             </p>
           </div>
         </div>
@@ -254,20 +256,20 @@ export default function PipelinePage() {
           <DialogTrigger asChild>
             <Button data-testid="button-new-deal">
               <Plus className="mr-2 h-4 w-4" />
-              New Deal
+              {t("pipeline.newDeal")}
             </Button>
           </DialogTrigger>
           <DialogContent>
             <form onSubmit={handleCreateDeal}>
               <DialogHeader>
-                <DialogTitle>Create New Deal</DialogTitle>
+                <DialogTitle>{t("pipeline.newDeal")}</DialogTitle>
                 <DialogDescription>
-                  Add a new deal to your pipeline
+                  {t("pipeline.noDeals")}
                 </DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 py-4">
                 <div className="grid gap-2">
-                  <Label htmlFor="title">Deal Title</Label>
+                  <Label htmlFor="title">{t("pipeline.dealTitle")}</Label>
                   <Input
                     id="title"
                     name="title"
@@ -277,7 +279,7 @@ export default function PipelinePage() {
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="value">Value (R$)</Label>
+                  <Label htmlFor="value">{t("pipeline.dealValue")} (R$)</Label>
                   <Input
                     id="value"
                     name="value"
@@ -287,14 +289,14 @@ export default function PipelinePage() {
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="contactId">Contact (Optional)</Label>
+                  <Label htmlFor="contactId">{t("pipeline.contact")} ({t("common.optional")})</Label>
                   <select
                     id="contactId"
                     name="contactId"
                     className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                     data-testid="select-deal-contact"
                   >
-                    <option value="">Select a contact...</option>
+                    <option value="">{t("common.search")}...</option>
                     {contacts?.map((contact) => (
                       <option key={contact.id} value={contact.id}>
                         {contact.firstName} {contact.lastName}
@@ -303,11 +305,11 @@ export default function PipelinePage() {
                   </select>
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="notes">Notes</Label>
+                  <Label htmlFor="notes">{t("common.notes")}</Label>
                   <Textarea
                     id="notes"
                     name="notes"
-                    placeholder="Add any additional notes..."
+                    placeholder={t("common.description")}
                     data-testid="input-deal-notes"
                   />
                 </div>
@@ -318,14 +320,14 @@ export default function PipelinePage() {
                   variant="outline"
                   onClick={() => setNewDealOpen(false)}
                 >
-                  Cancel
+                  {t("common.cancel")}
                 </Button>
                 <Button
                   type="submit"
                   disabled={createDealMutation.isPending}
                   data-testid="button-create-deal-submit"
                 >
-                  {createDealMutation.isPending ? "Creating..." : "Create Deal"}
+                  {createDealMutation.isPending ? t("common.saving") : t("common.create")}
                 </Button>
               </DialogFooter>
             </form>
@@ -417,20 +419,20 @@ export default function PipelinePage() {
             <div className="flex items-center justify-between">
               <SheetTitle>{selectedDeal?.title}</SheetTitle>
             </div>
-            <SheetDescription>Deal details and activity</SheetDescription>
+            <SheetDescription>{t("common.details")}</SheetDescription>
           </SheetHeader>
 
           {selectedDeal && (
             <div className="mt-6 space-y-6">
               <div className="grid grid-cols-2 gap-4">
                 <div className="rounded-md border p-3">
-                  <p className="text-xs text-muted-foreground">Value</p>
+                  <p className="text-xs text-muted-foreground">{t("pipeline.dealValue")}</p>
                   <p className="text-lg font-semibold">
                     R$ {Number(selectedDeal.value || 0).toLocaleString("pt-BR")}
                   </p>
                 </div>
                 <div className="rounded-md border p-3">
-                  <p className="text-xs text-muted-foreground">Probability</p>
+                  <p className="text-xs text-muted-foreground">{t("pipeline.probability")}</p>
                   <p className="text-lg font-semibold">
                     {selectedDeal.probability || 0}%
                   </p>
@@ -439,7 +441,7 @@ export default function PipelinePage() {
 
               {selectedDeal.contact && (
                 <div className="rounded-md border p-4">
-                  <h4 className="mb-2 text-sm font-medium">Contact</h4>
+                  <h4 className="mb-2 text-sm font-medium">{t("pipeline.contact")}</h4>
                   <div className="flex items-center gap-3">
                     <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
                       <User className="h-5 w-5 text-primary" />
@@ -458,7 +460,7 @@ export default function PipelinePage() {
 
               {selectedDeal.notes && (
                 <div className="rounded-md border p-4">
-                  <h4 className="mb-2 text-sm font-medium">Notes</h4>
+                  <h4 className="mb-2 text-sm font-medium">{t("common.notes")}</h4>
                   <p className="text-sm text-muted-foreground">
                     {selectedDeal.notes}
                   </p>
@@ -466,8 +468,8 @@ export default function PipelinePage() {
               )}
 
               <div className="rounded-md border p-4">
-                <h4 className="mb-2 text-sm font-medium">Status</h4>
-                <Badge>{selectedDeal.status}</Badge>
+                <h4 className="mb-2 text-sm font-medium">{t("common.status")}</h4>
+                <Badge>{t(`pipeline.status.${selectedDeal.status}`)}</Badge>
               </div>
 
               <LeadScorePanel entityType="deal" entityId={selectedDeal.id} />

@@ -28,6 +28,11 @@ export const sessions = pgTable(
 export const userRoles = ["admin", "sales", "cs", "support"] as const;
 export type UserRole = (typeof userRoles)[number];
 
+// User preferences type
+export type UserPreferences = {
+  language?: 'pt-BR' | 'en';
+};
+
 // Tabela de usuarios (compativel com autenticacao local)
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -38,6 +43,7 @@ export const users = pgTable("users", {
   profileImageUrl: varchar("profile_image_url"),
   role: varchar("role").$type<UserRole>().default("sales"),
   organizationId: integer("organization_id"),
+  preferences: jsonb("preferences").$type<UserPreferences>(),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -295,6 +301,25 @@ export type CalendarEventType = (typeof calendarEventTypes)[number];
 export const channelConfigTypes = ["email", "whatsapp"] as const;
 export type ChannelConfigType = (typeof channelConfigTypes)[number];
 
+// WhatsApp connection status for Evolution API
+export const whatsappConnectionStatuses = ["disconnected", "connecting", "connected", "qr_pending"] as const;
+export type WhatsAppConnectionStatus = (typeof whatsappConnectionStatuses)[number];
+
+// WhatsApp configuration type (Evolution API + legacy Meta Cloud API)
+export type WhatsAppConfig = {
+  // Evolution API fields
+  instanceName?: string;
+  connectionStatus?: WhatsAppConnectionStatus;
+  qrCode?: string;
+  phoneNumber?: string;
+  lastConnectedAt?: string;
+  // Legacy Meta Cloud API fields (backward compatibility)
+  phoneNumberId?: string;
+  accessToken?: string;
+  businessAccountId?: string;
+  webhookVerifyToken?: string;
+};
+
 // Channel configurations table for IMAP/SMTP and WhatsApp settings
 export const channelConfigs = pgTable("channel_configs", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
@@ -313,12 +338,7 @@ export const channelConfigs = pgTable("channel_configs", {
     password: string;
     fromName?: string;
   }>(),
-  whatsappConfig: jsonb("whatsapp_config").$type<{
-    phoneNumberId: string;
-    accessToken: string;
-    businessAccountId?: string;
-    webhookVerifyToken?: string;
-  }>(),
+  whatsappConfig: jsonb("whatsapp_config").$type<WhatsAppConfig>(),
   lastSyncAt: timestamp("last_sync_at"),
   createdBy: varchar("created_by"),
   createdAt: timestamp("created_at").defaultNow(),
