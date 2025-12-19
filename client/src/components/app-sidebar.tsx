@@ -92,11 +92,8 @@ export function AppSidebar() {
     <Sidebar>
       <SidebarHeader className="p-4">
         <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary">
-            <span className="text-sm font-bold text-primary-foreground">A</span>
-          </div>
+          <img src="/logo.png" alt="Alma" className="h-10 w-10 rounded-md object-cover" />
           <div className="flex flex-col">
-            <span className="text-sm font-semibold" data-testid="text-brand-name">Alma</span>
             <span className="text-xs text-muted-foreground">Digital Agency CRM</span>
           </div>
         </div>

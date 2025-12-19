@@ -45,7 +45,9 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { User, Bell, Palette, Shield, LogOut, Mail, Plus, Pencil, Trash2, FileText, Copy, GitBranch, Star, GripVertical, MessageSquare, CheckCircle, XCircle, Loader2 } from "lucide-react";
+import { User, Bell, Palette, Shield, LogOut, Mail, Plus, Pencil, Trash2, FileText, Copy, GitBranch, Star, GripVertical, MessageSquare, CheckCircle, XCircle, Loader2, BellRing, BellOff } from "lucide-react";
+import { usePushNotifications } from "@/hooks/usePushNotifications";
+import { useNotificationSound } from "@/hooks/useNotificationSound";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { EmailTemplate, Pipeline, PipelineStage, ChannelConfig } from "@shared/schema";
@@ -1683,6 +1685,111 @@ function EmailTemplatesSection() {
   );
 }
 
+function NotificationsCard() {
+  const {
+    isSupported,
+    isEnabled,
+    isLoading,
+    permissionStatus,
+    enableNotifications,
+  } = usePushNotifications();
+
+  const {
+    isEnabled: soundEnabled,
+    setEnabled: setSoundEnabled,
+    playNotification,
+  } = useNotificationSound();
+
+  const [soundEnabledState, setSoundEnabledState] = useState(soundEnabled);
+
+  // Sync state with hook
+  useEffect(() => {
+    setSoundEnabledState(soundEnabled);
+  }, [soundEnabled]);
+
+  const handleSoundToggle = (checked: boolean) => {
+    setSoundEnabledState(checked);
+    setSoundEnabled(checked);
+    if (checked) {
+      // Play a test sound when enabling
+      playNotification();
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center gap-2">
+          <Bell className="h-5 w-5 text-primary" />
+          <CardTitle>Notifications</CardTitle>
+        </div>
+        <CardDescription>Manage your notification preferences</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="font-medium">Email Notifications</p>
+              <p className="text-sm text-muted-foreground">
+                Receive email for new messages
+              </p>
+            </div>
+            <Badge variant="secondary">Coming Soon</Badge>
+          </div>
+          <Separator />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              {isEnabled ? (
+                <BellRing className="h-5 w-5 text-green-500" />
+              ) : (
+                <BellOff className="h-5 w-5 text-muted-foreground" />
+              )}
+              <div>
+                <p className="font-medium">Push Notifications</p>
+                <p className="text-sm text-muted-foreground">
+                  {!isSupported
+                    ? "Not available in your browser"
+                    : permissionStatus === "denied"
+                    ? "Blocked - enable in browser settings"
+                    : isEnabled
+                    ? "Notifications enabled"
+                    : "Receive alerts when offline"}
+                </p>
+              </div>
+            </div>
+            {isSupported && permissionStatus !== "denied" && (
+              <Switch
+                checked={isEnabled}
+                onCheckedChange={(checked) => {
+                  if (checked) {
+                    enableNotifications();
+                  }
+                }}
+                disabled={isLoading || isEnabled}
+                data-testid="switch-push-notifications"
+              />
+            )}
+          </div>
+          <Separator />
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="font-medium">Notification Sounds</p>
+              <p className="text-sm text-muted-foreground">
+                Play sounds for new messages
+              </p>
+            </div>
+            <Switch
+              checked={soundEnabledState}
+              onCheckedChange={handleSoundToggle}
+              data-testid="switch-notification-sounds"
+            />
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function SettingsPage() {
   const { user } = useAuth();
   const { theme, setTheme } = useTheme();
@@ -1830,38 +1937,7 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Bell className="h-5 w-5 text-primary" />
-              <CardTitle>Notifications</CardTitle>
-            </div>
-            <CardDescription>Manage your notification preferences</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium">Email Notifications</p>
-                  <p className="text-sm text-muted-foreground">
-                    Receive email for new messages
-                  </p>
-                </div>
-                <Badge variant="secondary">Coming Soon</Badge>
-              </div>
-              <Separator />
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium">Push Notifications</p>
-                  <p className="text-sm text-muted-foreground">
-                    Browser push notifications
-                  </p>
-                </div>
-                <Badge variant="secondary">Coming Soon</Badge>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <NotificationsCard />
 
         <Card>
           <CardHeader>

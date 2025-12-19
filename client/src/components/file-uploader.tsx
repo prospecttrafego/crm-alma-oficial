@@ -4,7 +4,8 @@ import { apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Paperclip, X, File as FileIcon, Image, FileText, Download, Trash2, Loader2 } from "lucide-react";
+import { Paperclip, X, File as FileIcon, Image, FileText, Download, Trash2, Loader2, Music } from "lucide-react";
+import { AudioWaveform } from "@/components/audio-waveform";
 import type { File as FileRecord, FileEntityType } from "@shared/schema";
 
 interface FileUploaderProps {
@@ -235,36 +236,76 @@ export function FileList({ entityType, entityId, inline = false }: FileListProps
   const getFileIcon = (mimeType: string | null) => {
     if (!mimeType) return <FileIcon className="h-3 w-3" />;
     if (mimeType.startsWith("image/")) return <Image className="h-3 w-3" />;
+    if (mimeType.startsWith("audio/")) return <Music className="h-3 w-3" />;
     if (mimeType.includes("pdf") || mimeType.includes("document")) return <FileText className="h-3 w-3" />;
     return <FileIcon className="h-3 w-3" />;
   };
 
+  const isAudioFile = (mimeType: string | null) => {
+    return mimeType?.startsWith("audio/") || false;
+  };
+
   if (!files || files.length === 0) return null;
+
+  // Separate audio files from other files
+  const audioFiles = files.filter((file) => isAudioFile(file.mimeType));
+  const otherFiles = files.filter((file) => !isAudioFile(file.mimeType));
 
   if (inline) {
     return (
-      <div className="mt-2 flex flex-wrap gap-1">
-        {files.map((file) => (
-          <a
-            key={file.id}
-            href={file.objectPath}
-            download={file.name}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 rounded bg-muted/50 px-2 py-1 text-xs hover:bg-muted"
-            data-testid={`file-link-${file.id}`}
-          >
-            {getFileIcon(file.mimeType)}
-            <span className="max-w-[150px] truncate">{file.name}</span>
-          </a>
+      <div className="mt-2 space-y-2">
+        {/* Audio files with waveform */}
+        {audioFiles.map((file) => (
+          <div key={file.id} data-testid={`audio-file-${file.id}`}>
+            <AudioWaveform
+              src={file.objectPath}
+              fileId={file.id}
+              compact
+              showDownload
+              showTranscribe
+              height={36}
+            />
+          </div>
         ))}
+        {/* Other files as links */}
+        {otherFiles.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {otherFiles.map((file) => (
+              <a
+                key={file.id}
+                href={file.objectPath}
+                download={file.name}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 rounded bg-muted/50 px-2 py-1 text-xs hover:bg-muted"
+                data-testid={`file-link-${file.id}`}
+              >
+                {getFileIcon(file.mimeType)}
+                <span className="max-w-[150px] truncate">{file.name}</span>
+              </a>
+            ))}
+          </div>
+        )}
       </div>
     );
   }
 
   return (
-    <div className="mt-2 space-y-1">
-      {files.map((file) => (
+    <div className="mt-2 space-y-2">
+      {/* Audio files with waveform */}
+      {audioFiles.map((file) => (
+        <div key={file.id} data-testid={`audio-file-${file.id}`}>
+          <AudioWaveform
+            src={file.objectPath}
+            fileId={file.id}
+            showDownload
+            showTranscribe
+            height={48}
+          />
+        </div>
+      ))}
+      {/* Other files as links */}
+      {otherFiles.map((file) => (
         <a
           key={file.id}
           href={file.objectPath}

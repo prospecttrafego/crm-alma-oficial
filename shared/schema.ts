@@ -151,6 +151,10 @@ export const conversations = pgTable("conversations", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Message content types
+export const messageContentTypes = ["text", "audio", "image", "file", "video"] as const;
+export type MessageContentType = (typeof messageContentTypes)[number];
+
 // Messages table
 export const messages = pgTable("messages", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
@@ -158,8 +162,10 @@ export const messages = pgTable("messages", {
   senderId: varchar("sender_id"),
   senderType: varchar("sender_type", { length: 20 }),
   content: text("content").notNull(),
+  contentType: varchar("content_type", { length: 20 }).$type<MessageContentType>().default("text"),
   isInternal: boolean("is_internal").default(false),
   attachments: jsonb("attachments").$type<Array<{ name: string; url: string; type: string }>>(),
+  metadata: jsonb("metadata").$type<{ transcription?: string; duration?: number; waveform?: number[] }>(),
   mentions: text("mentions").array(),
   readBy: text("read_by").array(),
   createdAt: timestamp("created_at").defaultNow(),
@@ -222,6 +228,16 @@ export const notifications = pgTable("notifications", {
   entityType: varchar("entity_type", { length: 50 }),
   entityId: integer("entity_id"),
   isRead: boolean("is_read").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Push tokens table for FCM
+export const pushTokens = pgTable("push_tokens", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  userId: varchar("user_id").notNull(),
+  token: text("token").notNull(),
+  deviceInfo: text("device_info"),
+  lastUsedAt: timestamp("last_used_at").defaultNow(),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -615,7 +631,9 @@ export const insertDealSchema = createInsertSchema(deals).omit({ id: true, creat
 export const insertConversationSchema = createInsertSchema(conversations)
   .omit({ id: true, createdAt: true, updatedAt: true })
   .extend({ channel: z.enum(channelTypes) });
-export const insertMessageSchema = createInsertSchema(messages).omit({ id: true, createdAt: true });
+export const insertMessageSchema = createInsertSchema(messages)
+  .omit({ id: true, createdAt: true })
+  .extend({ contentType: z.enum(messageContentTypes).optional() });
 export const insertActivitySchema = createInsertSchema(activities)
   .omit({ id: true, createdAt: true, updatedAt: true })
   .extend({ type: z.enum(activityTypes) });
@@ -644,6 +662,8 @@ export const insertCalendarEventSchema = createInsertSchema(calendarEvents)
 export const insertChannelConfigSchema = createInsertSchema(channelConfigs)
   .omit({ id: true, createdAt: true, updatedAt: true })
   .extend({ type: z.enum(channelConfigTypes) });
+export const insertPushTokenSchema = createInsertSchema(pushTokens)
+  .omit({ id: true, createdAt: true, lastUsedAt: true });
 
 // Types - usamos z.infer para schemas com enum estendidos e $inferSelect para select types
 export type UpsertUser = typeof users.$inferInsert;
@@ -682,3 +702,5 @@ export type InsertCalendarEvent = z.infer<typeof insertCalendarEventSchema>;
 export type CalendarEvent = typeof calendarEvents.$inferSelect;
 export type InsertChannelConfig = z.infer<typeof insertChannelConfigSchema>;
 export type ChannelConfig = typeof channelConfigs.$inferSelect;
+export type InsertPushToken = z.infer<typeof insertPushTokenSchema>;
+export type PushToken = typeof pushTokens.$inferSelect;

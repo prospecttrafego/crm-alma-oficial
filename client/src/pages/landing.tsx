@@ -9,9 +9,7 @@ export default function Landing() {
       <header className="border-b">
         <div className="container mx-auto flex h-16 items-center justify-between px-4">
           <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary">
-              <span className="text-sm font-bold text-primary-foreground">A</span>
-            </div>
+            <img src="/logo.png" alt="Alma" className="h-10 w-10 rounded-md object-cover" />
             <span className="text-xl font-bold" data-testid="text-logo">Alma</span>
           </div>
           <Link href="/login">

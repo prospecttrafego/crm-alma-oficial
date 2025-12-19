@@ -9,6 +9,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { CommandPalette } from "@/components/command-palette";
 import { NotificationBell } from "@/components/notification-bell";
 import { useAuth } from "@/hooks/useAuth";
+import { useWebSocket } from "@/hooks/useWebSocket";
 import {
   SidebarProvider,
   SidebarTrigger,
@@ -30,6 +31,14 @@ import CalendarPage from "@/pages/calendar";
 import NotFound from "@/pages/not-found";
 
 function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
+
+  // Inicializar WebSocket para usuarios autenticados com info de presenca
+  const { isConnected } = useWebSocket({
+    userId: user?.id,
+    userName: user ? `${user.firstName} ${user.lastName}` : undefined,
+  });
+
   const sidebarStyle = {
     "--sidebar-width": "16rem",
     "--sidebar-width-icon": "3rem",

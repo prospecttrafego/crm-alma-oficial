@@ -132,9 +132,7 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-md bg-primary">
-            <span className="text-xl font-bold text-primary-foreground">A</span>
-          </div>
+          <img src="/logo.png" alt="Alma" className="mx-auto mb-4 h-16 w-16 rounded-md object-cover" />
           <CardTitle className="text-2xl">
             {isRegisterMode ? "Criar conta" : "Entrar"}
           </CardTitle>

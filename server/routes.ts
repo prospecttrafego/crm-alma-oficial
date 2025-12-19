@@ -807,8 +807,13 @@ export async function registerRoutes(
     try {
       const conversationId = parseInt(req.params.id);
       if (isNaN(conversationId)) return res.status(400).json({ message: "Invalid ID" });
-      const conversationMessages = await storage.getMessages(conversationId);
-      res.json(conversationMessages);
+
+      // Parse cursor and limit for pagination
+      const cursor = req.query.cursor ? parseInt(req.query.cursor as string) : undefined;
+      const limit = req.query.limit ? Math.min(parseInt(req.query.limit as string), 50) : 30;
+
+      const result = await storage.getMessages(conversationId, { cursor, limit });
+      res.json(result);
     } catch (error) {
       console.error("Error fetching messages:", error);
       res.status(500).json({ message: "Failed to fetch messages" });
@@ -840,12 +845,68 @@ export async function registerRoutes(
           entityId: conversationId,
         });
         broadcast("notification:new", { userId: conversation.assignedToId });
+
+        // Send push notification if user is offline
+        try {
+          const { isUserOnline } = await import("./redis");
+          const isOnline = await isUserOnline(conversation.assignedToId);
+
+          if (!isOnline) {
+            const {
+              sendPushNotificationBatch,
+              createNotificationPayload,
+              isFcmAvailable,
+            } = await import("./notifications");
+
+            if (isFcmAvailable()) {
+              const tokens = await storage.getPushTokensForUser(conversation.assignedToId);
+              if (tokens.length > 0) {
+                const sender = await storage.getUser(senderId);
+                const senderName = sender ? `${sender.firstName} ${sender.lastName}` : "Usuário";
+                const preview = message.content?.substring(0, 100) || "Nova mensagem";
+
+                const payload = createNotificationPayload("message:new", {
+                  senderName,
+                  preview,
+                  conversationId,
+                  senderAvatar: sender?.profileImageUrl,
+                });
+
+                await sendPushNotificationBatch(
+                  tokens.map((t) => t.token),
+                  payload
+                );
+              }
+            }
+          }
+        } catch (pushError) {
+          console.error("[FCM] Error sending push notification:", pushError);
+        }
       }
       
       res.status(201).json(message);
     } catch (error) {
       console.error("Error creating message:", error);
       res.status(500).json({ message: "Failed to create message" });
+    }
+  });
+
+  // Mark messages as read
+  app.post("/api/conversations/:id/read", isAuthenticated, async (req: any, res) => {
+    try {
+      const conversationId = parseInt(req.params.id);
+      const userId = (req.user as any).id;
+      if (isNaN(conversationId)) return res.status(400).json({ message: "Invalid ID" });
+
+      const count = await storage.markMessagesAsRead(conversationId, userId);
+
+      // Broadcast read event to other users
+      broadcast("message:read", { conversationId, userId, count });
+
+      res.json({ success: true, count });
+    } catch (error) {
+      console.error("Error marking messages as read:", error);
+      res.status(500).json({ message: "Failed to mark messages as read" });
     }
   });
 
@@ -1301,6 +1362,68 @@ export async function registerRoutes(
     }
   });
 
+  // Audio transcription endpoint
+  app.post("/api/audio/transcribe", isAuthenticated, async (req: any, res) => {
+    try {
+      const { audioUrl, language } = req.body;
+
+      if (!audioUrl) {
+        return res.status(400).json({ message: "Audio URL is required" });
+      }
+
+      const { transcribeAudio, isWhisperAvailable } = await import("./whisper");
+
+      if (!isWhisperAvailable()) {
+        return res.status(503).json({ message: "Transcription service not available" });
+      }
+
+      const result = await transcribeAudio(audioUrl, language);
+      res.json(result);
+    } catch (error) {
+      console.error("Error transcribing audio:", error);
+      res.status(500).json({ message: "Failed to transcribe audio" });
+    }
+  });
+
+  // Transcribe audio file by ID (fetches file URL and transcribes)
+  app.post("/api/files/:id/transcribe", isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid file ID" });
+      }
+
+      const file = await storage.getFile(id);
+      if (!file) {
+        return res.status(404).json({ message: "File not found" });
+      }
+
+      // Check if file is audio
+      if (!file.mimeType?.startsWith("audio/")) {
+        return res.status(400).json({ message: "File is not an audio file" });
+      }
+
+      const { transcribeAudio, isWhisperAvailable } = await import("./whisper");
+
+      if (!isWhisperAvailable()) {
+        return res.status(503).json({ message: "Transcription service not available" });
+      }
+
+      const result = await transcribeAudio(file.objectPath, req.body.language);
+
+      // Return transcription result
+      // Note: To persist transcription, add a 'metadata' jsonb field to the files table
+      res.json({
+        ...result,
+        fileId: id,
+        fileName: file.name,
+      });
+    } catch (error) {
+      console.error("Error transcribing file:", error);
+      res.status(500).json({ message: "Failed to transcribe audio" });
+    }
+  });
+
   // Lead scoring endpoints
   app.get("/api/lead-scores/:entityType/:entityId", isAuthenticated, async (req: any, res) => {
     try {
@@ -1662,16 +1785,73 @@ export async function registerRoutes(
     }
   });
 
+  // Push token endpoints for FCM
+  app.post("/api/push-tokens", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const { token, deviceInfo } = req.body;
+
+      if (!token) {
+        return res.status(400).json({ message: "Token is required" });
+      }
+
+      const pushToken = await storage.createPushToken({
+        userId,
+        token,
+        deviceInfo: deviceInfo || null,
+      });
+
+      res.status(201).json(pushToken);
+    } catch (error) {
+      console.error("Error saving push token:", error);
+      res.status(500).json({ message: "Failed to save push token" });
+    }
+  });
+
+  app.delete("/api/push-tokens", isAuthenticated, async (req: any, res) => {
+    try {
+      const { token } = req.body;
+
+      if (!token) {
+        return res.status(400).json({ message: "Token is required" });
+      }
+
+      await storage.deletePushToken(token);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting push token:", error);
+      res.status(500).json({ message: "Failed to delete push token" });
+    }
+  });
+
   const httpServer = createServer(app);
 
   const wss = new WebSocketServer({ server: httpServer, path: "/ws" });
 
+  // Map to track user IDs for each WebSocket connection
+  const clientUserMap = new Map<WebSocket, string>();
+
   wss.on("connection", (ws) => {
     clients.add(ws);
-    
-    ws.on("message", (message) => {
+
+    ws.on("message", async (message) => {
       try {
         const data = JSON.parse(message.toString());
+
+        // Handle presence - user identifies themselves
+        if (data.type === "presence" && data.payload?.userId) {
+          const { userId, userName } = data.payload;
+          clientUserMap.set(ws, userId);
+
+          // Mark user as online (uses Redis if available)
+          const { setUserOnline } = await import("./redis");
+          await setUserOnline(userId);
+
+          // Broadcast user is online
+          broadcast("user:online", { userId, userName, lastSeenAt: new Date().toISOString() });
+        }
+
+        // Handle typing indicator
         if (data.type === "typing") {
           broadcast("typing", data.payload);
         }
@@ -1680,8 +1860,26 @@ export async function registerRoutes(
       }
     });
 
-    ws.on("close", () => {
+    ws.on("close", async () => {
       clients.delete(ws);
+
+      // Get user ID for this connection
+      const userId = clientUserMap.get(ws);
+      if (userId) {
+        clientUserMap.delete(ws);
+
+        // Check if user has other active connections
+        const hasOtherConnections = Array.from(clientUserMap.values()).includes(userId);
+
+        if (!hasOtherConnections) {
+          // Mark user as offline (uses Redis if available)
+          const { setUserOffline } = await import("./redis");
+          await setUserOffline(userId);
+
+          // Broadcast user is offline
+          broadcast("user:offline", { userId, lastSeenAt: new Date().toISOString() });
+        }
+      }
     });
   });
 

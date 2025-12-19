@@ -1,5 +1,7 @@
-import { useState, useEffect, useRef } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useState, useEffect, useRef, useCallback } from "react";
+import EmojiPicker, { Theme, EmojiClickData } from "emoji-picker-react";
+import { useQuery, useMutation, useInfiniteQuery } from "@tanstack/react-query";
+import { Virtuoso, VirtuosoHandle } from "react-virtuoso";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,9 +9,9 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Textarea } from "@/components/ui/textarea";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
+import { useWebSocket } from "@/hooks/useWebSocket";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -33,9 +35,19 @@ import {
   File as FileIcon,
   Loader2,
   X,
+  Smile,
+  Mic,
+  Plus,
+  Square,
+  Trash2,
+  ArrowLeft,
+  Check,
+  CheckCheck,
 } from "lucide-react";
 import { FilterPanel, type InboxFilters } from "@/components/filter-panel";
 import { FileList } from "@/components/file-uploader";
+import { AudioWaveform, AudioRecordingPreview } from "@/components/audio-waveform";
+import { useNotificationSound } from "@/hooks/useNotificationSound";
 import type { Conversation, Message, Contact, Deal, User as UserType, EmailTemplate, Company, File as FileRecord } from "@shared/schema";
 
 interface ContactWithCompany extends Contact {
@@ -95,21 +107,262 @@ export default function InboxPage() {
   const [filters, setFilters] = useState<InboxFilters>({});
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
   const [uploading, setUploading] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Emoji Picker
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const emojiPickerRef = useRef<HTMLDivElement>(null);
+
+  // Audio Recording
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Notification sounds
+  const { playMessageReceived, playMessageSent } = useNotificationSound();
+
+  // WebSocket for real-time features with sound notifications
+  const { sendTyping, getTypingUsers } = useWebSocket({
+    onMessage: (message) => {
+      // Play sound for new messages from others
+      if (message.type === "message:created" && message.data) {
+        const messageData = message.data as { senderId?: string; senderType?: string };
+        // Only play sound if message is from contact or system (not from current user)
+        if (messageData.senderType !== "user" || messageData.senderId !== user?.id) {
+          playMessageReceived();
+        }
+      }
+    },
+  });
+
+  // Get typing users for current conversation
+  const currentTypingUsers = selectedConversation
+    ? getTypingUsers(selectedConversation.id).filter((t) => t.userId !== user?.id)
+    : [];
+
+  // Handle typing indicator - debounced
+  const handleTyping = useCallback(() => {
+    if (!selectedConversation || !user) return;
+
+    // Send typing indicator
+    sendTyping(selectedConversation.id, user.id, `${user.firstName} ${user.lastName}`);
+
+    // Reset timeout
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+  }, [selectedConversation, user, sendTyping]);
 
   const { data: conversations, isLoading: conversationsLoading } = useQuery<ConversationWithRelations[]>({
     queryKey: ["/api/conversations"],
   });
 
-  const { data: messages, isLoading: messagesLoading } = useQuery<MessageWithSender[]>({
+  // Ref for Virtuoso to control scroll
+  const virtuosoRef = useRef<VirtuosoHandle>(null);
+  const [firstItemIndex, setFirstItemIndex] = useState(10000);
+
+  // Infinite query for messages with cursor-based pagination
+  const {
+    data: messagesData,
+    isLoading: messagesLoading,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery<{
+    messages: MessageWithSender[];
+    nextCursor: number | null;
+    hasMore: boolean;
+  }>({
     queryKey: ["/api/conversations", selectedConversation?.id, "messages"],
     enabled: !!selectedConversation,
+    initialPageParam: undefined,
+    queryFn: async ({ pageParam }) => {
+      const params = new URLSearchParams();
+      if (pageParam) params.set("cursor", String(pageParam));
+      params.set("limit", "30");
+      const response = await apiRequest(
+        "GET",
+        `/api/conversations/${selectedConversation?.id}/messages?${params.toString()}`
+      );
+      return response.json();
+    },
+    getNextPageParam: (lastPage) =>
+      lastPage.hasMore ? lastPage.nextCursor : undefined,
   });
+
+  // Flatten messages from all pages (pages are in reverse order, newest first)
+  const messages = messagesData?.pages
+    ? messagesData.pages.flatMap((page) => page.messages)
+    : [];
+
+  // Handle loading more messages when scrolling to top
+  const loadMoreMessages = useCallback(() => {
+    if (hasNextPage && !isFetchingNextPage) {
+      const currentLength = messages.length;
+      fetchNextPage().then(() => {
+        // Calculate how many new messages were added
+        const newLength = messagesData?.pages
+          ? messagesData.pages.flatMap((p) => p.messages).length
+          : 0;
+        const diff = newLength - currentLength;
+        if (diff > 0) {
+          setFirstItemIndex((prev) => prev - diff);
+        }
+      });
+    }
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage, messages.length, messagesData]);
+
+  // Reset firstItemIndex when conversation changes
+  useEffect(() => {
+    setFirstItemIndex(10000);
+  }, [selectedConversation?.id]);
+
+  // Mark messages as read when viewing conversation
+  useEffect(() => {
+    if (!selectedConversation?.id) return;
+
+    // Mark as read after a short delay (ensures user actually viewed)
+    const timeout = setTimeout(async () => {
+      try {
+        await apiRequest("POST", `/api/conversations/${selectedConversation.id}/read`);
+        // Refresh conversations to update unread count
+        queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
+      } catch (error) {
+        console.error("Error marking messages as read:", error);
+      }
+    }, 1000);
+
+    return () => clearTimeout(timeout);
+  }, [selectedConversation?.id]);
 
   const { data: emailTemplates } = useQuery<EmailTemplate[]>({
     queryKey: ["/api/email-templates"],
   });
+
+  // Emoji picker handlers
+  const onEmojiClick = useCallback((emojiData: EmojiClickData) => {
+    setNewMessage((prev) => prev + emojiData.emoji);
+    setShowEmojiPicker(false);
+  }, []);
+
+  // Close emoji picker when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (emojiPickerRef.current && !emojiPickerRef.current.contains(event.target as Node)) {
+        setShowEmojiPicker(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Audio recording handlers
+  const startRecording = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      const chunks: Blob[] = [];
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          chunks.push(e.data);
+        }
+      };
+
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(chunks, { type: "audio/webm" });
+        setAudioBlob(blob);
+        stream.getTracks().forEach((track) => track.stop());
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+      setRecordingTime(0);
+
+      recordingIntervalRef.current = setInterval(() => {
+        setRecordingTime((prev) => prev + 1);
+      }, 1000);
+    } catch (error) {
+      toast({ title: "Erro ao acessar microfone", description: "Verifique as permissões do navegador", variant: "destructive" });
+    }
+  }, [toast]);
+
+  const stopRecording = useCallback(() => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+      if (recordingIntervalRef.current) {
+        clearInterval(recordingIntervalRef.current);
+      }
+    }
+  }, [isRecording]);
+
+  const cancelRecording = useCallback(() => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+    }
+    setIsRecording(false);
+    setAudioBlob(null);
+    setRecordingTime(0);
+    if (recordingIntervalRef.current) {
+      clearInterval(recordingIntervalRef.current);
+    }
+  }, [isRecording]);
+
+  const sendAudioMessage = useCallback(async () => {
+    if (!audioBlob || !selectedConversation) return;
+
+    try {
+      // Upload audio file
+      const urlResponse = await apiRequest("POST", "/api/files/upload-url", {});
+      const { uploadURL } = await urlResponse.json();
+
+      await fetch(uploadURL, {
+        method: "PUT",
+        body: audioBlob,
+        headers: { "Content-Type": "audio/webm" },
+      });
+
+      // Create message with audio
+      const response = await apiRequest("POST", `/api/conversations/${selectedConversation.id}/messages`, {
+        content: "🎤 Mensagem de áudio",
+        isInternal: isInternalComment,
+      });
+      const messageData = await response.json();
+
+      // Attach audio file to message
+      await apiRequest("POST", "/api/files", {
+        name: `audio_${Date.now()}.webm`,
+        mimeType: "audio/webm",
+        size: audioBlob.size,
+        uploadURL,
+        entityType: "message",
+        entityId: String(messageData.id),
+      });
+
+      queryClient.invalidateQueries({
+        queryKey: ["/api/conversations", selectedConversation.id, "messages"],
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
+
+      setAudioBlob(null);
+      setRecordingTime(0);
+      playMessageSent();
+      toast({ title: "Áudio enviado com sucesso" });
+    } catch (error) {
+      toast({ title: "Erro ao enviar áudio", variant: "destructive" });
+    }
+  }, [audioBlob, selectedConversation, isInternalComment, toast, playMessageSent]);
+
+  const formatRecordingTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
+  };
 
   const applyTemplate = (template: EmailTemplate) => {
     // Use top-level company from conversation (resolved from contact or deal)
@@ -156,6 +409,8 @@ export default function InboxPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
       setNewMessage("");
       setPendingFiles([]);
+      // Play sent sound
+      playMessageSent();
     },
     onError: () => {
       toast({ title: "Failed to send message", variant: "destructive" });
@@ -231,10 +486,6 @@ export default function InboxPage() {
       conv.subject?.toLowerCase().includes(searchQuery.toLowerCase())
     );
   });
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -325,10 +576,12 @@ export default function InboxPage() {
 
   return (
     <div className="flex h-full">
-      <div className="flex w-80 flex-col border-r">
-        <div className="border-b p-4">
+      {/* Lista de conversas - esconde no mobile quando conversa selecionada */}
+      <div className={`flex flex-col border-r border-border bg-background w-full md:w-[350px] ${selectedConversation ? "hidden md:flex" : "flex"}`}>
+        {/* Header da lista */}
+        <div className="bg-muted/50 px-4 py-3">
           <div className="mb-3 flex items-center justify-between gap-2">
-            <h2 className="text-lg font-semibold" data-testid="text-inbox-title">Inbox</h2>
+            <h2 className="text-base font-medium text-foreground" data-testid="text-inbox-title">Conversas</h2>
             <FilterPanel
               type="inbox"
               filters={filters}
@@ -337,9 +590,11 @@ export default function InboxPage() {
           </div>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Search conversations..."
-              className="pl-9"
+            <input
+              type="text"
+              placeholder="Pesquisar uma conversa"
+              className="h-9 w-full rounded-lg border border-border bg-muted pl-10 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-0"
+              style={{ boxShadow: 'none' }}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               data-testid="input-inbox-search"
@@ -347,12 +602,12 @@ export default function InboxPage() {
           </div>
         </div>
 
-        <ScrollArea className="flex-1">
+        <div className="flex-1 bg-background overflow-hidden">
           {conversationsLoading ? (
-            <div className="space-y-2 p-2">
+            <div className="space-y-0">
               {[...Array(5)].map((_, i) => (
-                <div key={i} className="flex gap-3 p-3">
-                  <Skeleton className="h-10 w-10 rounded-full" />
+                <div key={i} className="flex gap-3 border-b border-border px-3 py-3">
+                  <Skeleton className="h-12 w-12 rounded-full" />
                   <div className="flex-1 space-y-2">
                     <Skeleton className="h-4 w-32" />
                     <Skeleton className="h-3 w-48" />
@@ -361,162 +616,280 @@ export default function InboxPage() {
               ))}
             </div>
           ) : filteredConversations && filteredConversations.length > 0 ? (
-            <div className="space-y-1 p-2">
-              {filteredConversations.map((conversation) => (
+            <Virtuoso
+              style={{ height: "100%" }}
+              data={filteredConversations}
+              itemContent={(index, conversation) => (
                 <button
                   key={conversation.id}
                   onClick={() => setSelectedConversation(conversation)}
-                  className={`flex w-full items-start gap-3 rounded-md p-3 text-left transition-colors hover-elevate ${
+                  className={`flex w-full items-start gap-3 border-b border-border px-3 py-3 text-left transition-colors hover:bg-muted/50 ${
                     selectedConversation?.id === conversation.id
-                      ? "bg-accent"
+                      ? "bg-muted"
                       : ""
                   }`}
                   data-testid={`conversation-${conversation.id}`}
                 >
-                  <Avatar className="h-10 w-10">
-                    <AvatarFallback className="bg-primary/10 text-primary">
+                  <Avatar className="h-12 w-12 flex-shrink-0">
+                    <AvatarFallback className="bg-primary text-primary-foreground text-sm font-medium">
                       {conversation.contact
                         ? `${conversation.contact.firstName?.[0] || ""}${conversation.contact.lastName?.[0] || ""}`
                         : "?"}
                     </AvatarFallback>
                   </Avatar>
-                  <div className="flex-1 overflow-hidden">
+                  <div className="flex-1 overflow-hidden min-w-0">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="truncate font-medium">
+                      <span className="truncate text-[15px] font-normal text-foreground">
                         {conversation.contact
                           ? `${conversation.contact.firstName} ${conversation.contact.lastName}`
-                          : "Unknown"}
+                          : "Desconhecido"}
                       </span>
-                      <span className="flex-shrink-0 text-xs text-muted-foreground">
+                      <span className={`flex-shrink-0 text-xs ${(conversation.unreadCount || 0) > 0 ? "text-primary" : "text-muted-foreground"}`}>
                         {formatTime(conversation.lastMessageAt)}
                       </span>
                     </div>
-                    <p className="truncate text-sm text-muted-foreground">
-                      {conversation.subject || "No subject"}
-                    </p>
-                    <div className="mt-1 flex items-center gap-2">
-                      {getChannelIcon(conversation.channel)}
+                    <div className="flex items-center justify-between gap-2 mt-0.5">
+                      <p className="truncate text-[13px] text-muted-foreground">
+                        {conversation.subject || "Sem assunto"}
+                      </p>
                       {(conversation.unreadCount || 0) > 0 && (
-                        <Badge className="h-5 px-1.5 text-xs">
+                        <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-medium text-primary-foreground">
                           {conversation.unreadCount}
-                        </Badge>
+                        </span>
                       )}
                     </div>
                   </div>
                 </button>
-              ))}
-            </div>
+              )}
+            />
           ) : (
             <div className="flex h-40 items-center justify-center text-muted-foreground">
-              No conversations yet
+              Nenhuma conversa ainda
             </div>
           )}
-        </ScrollArea>
+        </div>
       </div>
 
       {selectedConversation ? (
         <>
-          <div className="flex flex-1 flex-col">
-            <div className="flex items-center justify-between border-b p-4">
+          {/* Area de chat - full width no mobile */}
+          <div className="flex flex-1 flex-col bg-background">
+            {/* Header do chat */}
+            <div className="flex items-center justify-between bg-muted/50 px-4 py-2.5 border-b border-border">
               <div className="flex items-center gap-3">
-                <Avatar>
-                  <AvatarFallback className="bg-primary/10 text-primary">
+                {/* Botão voltar - apenas mobile */}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setSelectedConversation(null)}
+                  className="md:hidden h-10 w-10 text-muted-foreground hover:text-foreground"
+                  data-testid="button-back"
+                >
+                  <ArrowLeft className="h-5 w-5" />
+                </Button>
+                <Avatar className="h-10 w-10">
+                  <AvatarFallback className="bg-primary text-primary-foreground text-sm font-medium">
                     {selectedConversation.contact
                       ? `${selectedConversation.contact.firstName?.[0] || ""}${selectedConversation.contact.lastName?.[0] || ""}`
                       : "?"}
                   </AvatarFallback>
                 </Avatar>
                 <div>
-                  <h3 className="font-semibold">
+                  <h3 className="text-[15px] font-medium text-foreground">
                     {selectedConversation.contact
                       ? `${selectedConversation.contact.firstName} ${selectedConversation.contact.lastName}`
-                      : "Unknown"}
+                      : "Desconhecido"}
                   </h3>
-                  <p className="text-sm text-muted-foreground">
-                    {selectedConversation.subject || "No subject"}
+                  <p className="text-xs text-muted-foreground">
+                    {selectedConversation.subject || "Clique para ver informações do contato"}
                   </p>
                 </div>
               </div>
-              <Badge variant="outline">{selectedConversation.channel}</Badge>
+              <div className="flex items-center gap-4 text-muted-foreground">
+                <Search className="h-5 w-5 cursor-pointer hover:text-foreground" />
+              </div>
             </div>
 
-            <ScrollArea className="flex-1 p-4">
+            <div className="flex-1 px-[5%] py-4 bg-muted/30 overflow-hidden">
               {messagesLoading ? (
                 <div className="space-y-4">
                   {[...Array(3)].map((_, i) => (
                     <div key={i} className={`flex ${i % 2 === 0 ? "" : "justify-end"}`}>
-                      <Skeleton className="h-20 w-64 rounded-lg" />
+                      <Skeleton className="h-16 w-64 rounded-lg" />
                     </div>
                   ))}
                 </div>
               ) : messages && messages.length > 0 ? (
-                <div className="space-y-4">
-                  {messages.map((message) => (
+                <Virtuoso
+                  ref={virtuosoRef}
+                  style={{ height: "100%" }}
+                  data={messages}
+                  firstItemIndex={firstItemIndex}
+                  initialTopMostItemIndex={messages.length - 1}
+                  followOutput="smooth"
+                  startReached={loadMoreMessages}
+                  components={{
+                    Header: () =>
+                      isFetchingNextPage ? (
+                        <div className="flex justify-center py-2">
+                          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                        </div>
+                      ) : hasNextPage ? (
+                        <div className="flex justify-center py-2">
+                          <span className="text-xs text-muted-foreground">
+                            Role para carregar mais mensagens
+                          </span>
+                        </div>
+                      ) : null,
+                  }}
+                  itemContent={(index, message) => (
                     <div
                       key={message.id}
-                      className={`flex ${message.senderType === "user" ? "justify-end" : ""}`}
+                      className={`flex mb-1 ${message.senderType === "user" ? "justify-end" : ""}`}
                       data-testid={`message-${message.id}`}
                     >
                       <div
-                        className={`max-w-[70%] rounded-lg p-3 ${
+                        className={`max-w-[65%] rounded-lg px-3 py-2 shadow-sm ${
                           message.isInternal
-                            ? "border-2 border-dashed border-yellow-500/50 bg-yellow-500/10"
+                            ? "border border-dashed border-yellow-500/50 bg-yellow-900/30"
                             : message.senderType === "user"
                             ? "bg-primary text-primary-foreground"
-                            : "bg-accent"
+                            : "bg-muted text-foreground"
                         }`}
                       >
                         {message.isInternal && (
-                          <div className="mb-1 flex items-center gap-1 text-xs text-yellow-600 dark:text-yellow-400">
+                          <div className="mb-1 flex items-center gap-1 text-xs text-yellow-400">
                             <AtSign className="h-3 w-3" />
-                            Internal note
+                            Nota interna
                           </div>
                         )}
-                        <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                        <p className="text-[14px] leading-[19px] whitespace-pre-wrap">{message.content}</p>
                         <FileList entityType="message" entityId={message.id} inline />
-                        <div className="mt-1 flex items-center justify-end gap-1 text-xs opacity-70">
-                          <Clock className="h-3 w-3" />
+                        <div className="mt-1 flex items-center justify-end gap-1 text-[11px] text-muted-foreground">
                           {formatTime(message.createdAt)}
+                          {/* Read receipt indicator for sent messages */}
+                          {message.senderType === "user" && (
+                            message.readBy && message.readBy.length > 0 ? (
+                              <CheckCheck className="h-3.5 w-3.5 text-blue-400" />
+                            ) : (
+                              <Check className="h-3.5 w-3.5" />
+                            )
+                          )}
                         </div>
                       </div>
                     </div>
-                  ))}
-                  <div ref={messagesEndRef} />
-                </div>
+                  )}
+                />
               ) : (
                 <div className="flex h-full items-center justify-center text-muted-foreground">
-                  No messages yet. Start the conversation!
+                  Nenhuma mensagem ainda. Inicie a conversa!
                 </div>
               )}
-            </ScrollArea>
+            </div>
 
-            <form onSubmit={handleSendMessage} className="border-t p-4">
-              <div className="mb-2 flex items-center justify-between gap-2 flex-wrap">
-                <div className="flex gap-2">
+            {/* Typing indicator */}
+            {currentTypingUsers.length > 0 && (
+              <div className="px-4 py-1 bg-muted/30 border-t border-border">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <div className="flex gap-1">
+                    <span className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
+                    <span className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
+                    <span className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+                  </div>
+                  <span>
+                    {currentTypingUsers.length === 1
+                      ? `${currentTypingUsers[0].userName || "Alguém"} está digitando...`
+                      : `${currentTypingUsers.length} pessoas estão digitando...`}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Area de input */}
+            <form onSubmit={handleSendMessage} className="bg-muted/50 px-4 py-3 border-t border-border">
+              {/* Recording UI */}
+              {isRecording && (
+                <div className="flex items-center gap-3 py-2">
+                  <div className="flex items-center gap-2 flex-1 bg-muted rounded-lg px-4 py-3">
+                    <div className="h-3 w-3 rounded-full bg-red-500 animate-pulse" />
+                    <span className="text-foreground font-mono text-lg">{formatRecordingTime(recordingTime)}</span>
+                    <div className="flex-1 flex items-center gap-1">
+                      {[...Array(20)].map((_, i) => (
+                        <div
+                          key={i}
+                          className="w-1 bg-primary rounded-full animate-pulse"
+                          style={{
+                            height: `${Math.random() * 20 + 8}px`,
+                            animationDelay: `${i * 0.05}s`,
+                          }}
+                        />
+                      ))}
+                    </div>
+                  </div>
                   <Button
                     type="button"
-                    variant={isInternalComment ? "outline" : "default"}
-                    size="sm"
-                    onClick={() => setIsInternalComment(false)}
-                    data-testid="button-reply-mode"
+                    size="icon"
+                    onClick={cancelRecording}
+                    className="h-10 w-10 rounded-full bg-red-500/20 hover:bg-red-500/30 text-red-400"
+                    data-testid="button-cancel-recording"
                   >
-                    Reply
+                    <Trash2 className="h-5 w-5" />
                   </Button>
                   <Button
                     type="button"
-                    variant={isInternalComment ? "default" : "outline"}
+                    size="icon"
+                    onClick={stopRecording}
+                    className="h-10 w-10 rounded-full bg-primary hover:bg-primary/90 text-primary-foreground"
+                    data-testid="button-stop-recording"
+                  >
+                    <Square className="h-5 w-5 fill-current" />
+                  </Button>
+                </div>
+              )}
+
+              {/* Audio Preview UI with Waveform */}
+              {!isRecording && audioBlob && (
+                <div className="py-2">
+                  <AudioRecordingPreview
+                    audioBlob={audioBlob}
+                    onSend={sendAudioMessage}
+                    onDiscard={cancelRecording}
+                    isSending={sendMessageMutation.isPending}
+                  />
+                </div>
+              )}
+
+              {/* Normal Input UI */}
+              {!isRecording && !audioBlob && (
+                <>
+              <div className="mb-2 flex items-center gap-2 flex-wrap">
+                <div className="flex gap-1">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setIsInternalComment(false)}
+                    className={`h-7 px-2 text-xs ${!isInternalComment ? "bg-primary text-primary-foreground hover:bg-primary/90" : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}
+                    data-testid="button-reply-mode"
+                  >
+                    Responder
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
                     size="sm"
                     onClick={() => setIsInternalComment(true)}
+                    className={`h-7 px-2 text-xs ${isInternalComment ? "bg-yellow-600 text-white hover:bg-yellow-600/90" : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}
                     data-testid="button-internal-mode"
                   >
                     <AtSign className="mr-1 h-3 w-3" />
-                    Internal Note
+                    Nota
                   </Button>
                 </div>
                 {emailTemplates && emailTemplates.length > 0 && (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="outline" size="sm" data-testid="button-template-picker">
+                      <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground hover:bg-muted" data-testid="button-template-picker">
                         <FileText className="mr-1 h-3 w-3" />
                         Templates
                         <ChevronDown className="ml-1 h-3 w-3" />
@@ -554,8 +927,8 @@ export default function InboxPage() {
                   {pendingFiles.map((pf) => (
                     <div
                       key={pf.id}
-                      className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs ${
-                        pf.status === "error" ? "border-destructive text-destructive" : ""
+                      className={`inline-flex items-center gap-1 rounded-md bg-muted px-2 py-1 text-xs text-foreground ${
+                        pf.status === "error" ? "border border-red-500 text-red-400" : ""
                       }`}
                       data-testid={`pending-file-${pf.id}`}
                     >
@@ -564,7 +937,7 @@ export default function InboxPage() {
                       <button
                         type="button"
                         onClick={() => removePendingFile(pf.id)}
-                        className="ml-1 rounded-full p-0.5 hover:bg-muted"
+                        className="ml-1 rounded-full p-0.5 hover:bg-muted-foreground/20"
                         data-testid={`button-remove-pending-${pf.id}`}
                       >
                         <X className="h-3 w-3" />
@@ -573,67 +946,117 @@ export default function InboxPage() {
                   ))}
                 </div>
               )}
-              <div className="flex gap-2">
+              <div className="flex items-end gap-2">
+                {/* Botão + para anexos */}
                 <Button
                   type="button"
                   variant="ghost"
                   size="icon"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={uploading}
+                  className="h-10 w-10 flex-shrink-0 text-muted-foreground hover:text-foreground hover:bg-transparent"
                   data-testid="button-attach-file"
                 >
                   {uploading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <Loader2 className="h-6 w-6 animate-spin" />
                   ) : (
-                    <Paperclip className="h-4 w-4" />
+                    <Plus className="h-6 w-6" />
                   )}
                 </Button>
-                <Textarea
-                  id="message-input"
-                  placeholder={
-                    isInternalComment
-                      ? "Add an internal note (press 'c' to focus)..."
-                      : "Type your message (press 'r' to focus)..."
-                  }
-                  value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
-                  className={`min-h-[80px] resize-none ${
-                    isInternalComment ? "border-yellow-500/50" : ""
-                  }`}
-                  data-testid="input-message"
-                />
-                <Button
-                  type="submit"
-                  size="icon"
-                  disabled={(!newMessage.trim() && pendingFiles.length === 0) || sendMessageMutation.isPending || uploading}
-                  data-testid="button-send-message"
-                >
-                  <Send className="h-4 w-4" />
-                </Button>
+
+                {/* Campo de input com emoji */}
+                <div className={`relative flex flex-1 items-center rounded-[8px] bg-muted pl-2 pr-3 py-[9px] ${isInternalComment ? "ring-1 ring-yellow-500/50" : ""}`}>
+                  {/* Emoji Picker Popup */}
+                  {showEmojiPicker && (
+                    <div ref={emojiPickerRef} className="absolute bottom-14 left-0 z-50">
+                      <EmojiPicker
+                        onEmojiClick={onEmojiClick}
+                        theme={Theme.DARK}
+                        width={320}
+                        height={400}
+                        searchPlaceHolder="Pesquisar emoji..."
+                        previewConfig={{ showPreview: false }}
+                      />
+                    </div>
+                  )}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                    className="h-6 w-6 flex-shrink-0 text-muted-foreground hover:text-foreground hover:bg-transparent p-0"
+                    data-testid="button-emoji"
+                  >
+                    <Smile className="h-[26px] w-[26px]" />
+                  </Button>
+                  <input
+                    id="message-input"
+                    type="text"
+                    placeholder={
+                      isInternalComment
+                        ? "Adicionar nota interna..."
+                        : "Digite uma mensagem"
+                    }
+                    value={newMessage}
+                    onChange={(e) => {
+                      setNewMessage(e.target.value);
+                      handleTyping();
+                    }}
+                    className="flex-1 bg-transparent border-0 outline-none text-foreground placeholder:text-muted-foreground text-[15px] ml-2 focus:outline-none focus:ring-0 focus:border-0"
+                    style={{ boxShadow: 'none' }}
+                    data-testid="input-message"
+                  />
+                </div>
+
+                {/* Botão de enviar ou microfone */}
+                {newMessage.trim() || pendingFiles.length > 0 ? (
+                  <Button
+                    type="submit"
+                    size="icon"
+                    disabled={sendMessageMutation.isPending || uploading}
+                    className="h-10 w-10 flex-shrink-0 rounded-full bg-primary hover:bg-primary/90 text-primary-foreground"
+                    data-testid="button-send-message"
+                  >
+                    <Send className="h-5 w-5" />
+                  </Button>
+                ) : (
+                  <Button
+                    type="button"
+                    size="icon"
+                    onClick={startRecording}
+                    className="h-10 w-10 flex-shrink-0 rounded-full bg-primary hover:bg-primary/90 text-primary-foreground"
+                    data-testid="button-mic"
+                  >
+                    <Mic className="h-5 w-5" />
+                  </Button>
+                )}
               </div>
+              </>
+              )}
             </form>
           </div>
 
-          <div className="w-72 border-l p-4">
-            <h4 className="mb-4 font-semibold">Context</h4>
+          {/* Painel de contexto - esconde no mobile */}
+          <div className="hidden lg:block w-72 border-l border-border bg-background p-4">
+            <h4 className="mb-4 text-sm font-medium text-foreground">Contexto</h4>
 
             {selectedConversation.contact && (
-              <div className="mb-4 rounded-md border p-3">
-                <div className="mb-2 flex items-center gap-2 text-sm text-muted-foreground">
+              <div className="mb-4 rounded-lg bg-muted p-3">
+                <div className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
                   <User className="h-4 w-4" />
-                  Contact
+                  Contato
                 </div>
-                <p className="font-medium">
+                <p className="text-sm font-medium text-foreground">
                   {selectedConversation.contact.firstName}{" "}
                   {selectedConversation.contact.lastName}
                 </p>
                 {selectedConversation.contact.email && (
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-xs text-muted-foreground">
                     {selectedConversation.contact.email}
                   </p>
                 )}
                 {selectedConversation.contact.phone && (
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-xs text-muted-foreground">
                     {selectedConversation.contact.phone}
                   </p>
                 )}
@@ -641,45 +1064,44 @@ export default function InboxPage() {
             )}
 
             {selectedConversation.deal && (
-              <div className="mb-4 rounded-md border p-3">
-                <div className="mb-2 flex items-center gap-2 text-sm text-muted-foreground">
+              <div className="mb-4 rounded-lg bg-muted p-3">
+                <div className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
                   <Building2 className="h-4 w-4" />
-                  Related Deal
+                  Negócio Relacionado
                 </div>
-                <p className="font-medium">{selectedConversation.deal.title}</p>
+                <p className="text-sm font-medium text-foreground">{selectedConversation.deal.title}</p>
                 {selectedConversation.deal.value && (
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-xs text-primary">
                     R$ {Number(selectedConversation.deal.value).toLocaleString("pt-BR")}
                   </p>
                 )}
               </div>
             )}
 
-            <div className="rounded-md border p-3">
-              <div className="mb-2 flex items-center gap-2 text-sm text-muted-foreground">
+            <div className="rounded-lg bg-muted p-3">
+              <div className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
                 <MessageSquare className="h-4 w-4" />
-                Conversation Info
+                Info da Conversa
               </div>
-              <div className="space-y-1 text-sm">
-                <p>
-                  <span className="text-muted-foreground">Channel:</span>{" "}
-                  {selectedConversation.channel}
+              <div className="space-y-1 text-xs">
+                <p className="text-muted-foreground">
+                  Canal: <span className="text-foreground">{selectedConversation.channel}</span>
                 </p>
-                <p>
-                  <span className="text-muted-foreground">Status:</span>{" "}
-                  <Badge variant="secondary">{selectedConversation.status}</Badge>
+                <p className="text-muted-foreground">
+                  Status: <span className="inline-flex items-center rounded-full bg-primary/20 px-2 py-0.5 text-[10px] font-medium text-primary">{selectedConversation.status}</span>
                 </p>
               </div>
             </div>
           </div>
         </>
       ) : (
-        <div className="flex flex-1 items-center justify-center text-muted-foreground">
+        /* Estado vazio - esconde no mobile (mostra só a lista) */
+        <div className="hidden md:flex flex-1 items-center justify-center bg-background">
           <div className="text-center">
-            <MessageSquare className="mx-auto mb-4 h-12 w-12 opacity-50" />
-            <p>Select a conversation to view messages</p>
-            <p className="mt-1 text-sm">
-              Use <kbd className="rounded bg-muted px-1">j</kbd>/<kbd className="rounded bg-muted px-1">k</kbd> to navigate
+            <MessageSquare className="mx-auto mb-4 h-16 w-16 text-muted-foreground/50" />
+            <p className="text-foreground text-lg">Selecione uma conversa</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Use <kbd className="rounded bg-muted px-1.5 py-0.5 text-foreground">j</kbd>/<kbd className="rounded bg-muted px-1.5 py-0.5 text-foreground">k</kbd> para navegar
             </p>
           </div>
         </div>

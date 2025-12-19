@@ -17,6 +17,7 @@ import {
   leadScores,
   calendarEvents,
   channelConfigs,
+  pushTokens,
   type User,
   type UpsertUser,
   type Organization,
@@ -57,9 +58,11 @@ import {
   type InsertCalendarEvent,
   type ChannelConfig,
   type InsertChannelConfig,
+  type PushToken,
+  type InsertPushToken,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, desc, sql, count, gte, lte } from "drizzle-orm";
+import { eq, and, desc, sql, count, gte, lte, lt, asc, not } from "drizzle-orm";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -107,8 +110,9 @@ export interface IStorage {
   createConversation(conversation: InsertConversation): Promise<Conversation>;
   updateConversation(id: number, conversation: Partial<InsertConversation>): Promise<Conversation | undefined>;
   
-  getMessages(conversationId: number): Promise<Message[]>;
+  getMessages(conversationId: number, options?: { cursor?: number; limit?: number }): Promise<{ messages: Message[]; nextCursor: number | null; hasMore: boolean }>;
   createMessage(message: InsertMessage): Promise<Message>;
+  markMessagesAsRead(conversationId: number, userId: string): Promise<number>;
   
   getActivities(organizationId: number): Promise<Activity[]>;
   getActivity(id: number): Promise<Activity | undefined>;
@@ -161,6 +165,7 @@ export interface IStorage {
   getFiles(entityType: FileEntityType, entityId: number): Promise<FileRecord[]>;
   getFile(id: number): Promise<FileRecord | undefined>;
   createFile(file: InsertFile): Promise<FileRecord>;
+  updateFile(id: number, updates: Partial<InsertFile>): Promise<FileRecord>;
   deleteFile(id: number): Promise<void>;
   
   getLeadScore(entityType: LeadScoreEntityType, entityId: number): Promise<LeadScore | undefined>;
@@ -189,6 +194,12 @@ export interface IStorage {
   updateChannelConfig(id: number, config: Partial<InsertChannelConfig>): Promise<ChannelConfig | undefined>;
   deleteChannelConfig(id: number): Promise<void>;
   updateChannelConfigLastSync(id: number): Promise<ChannelConfig | undefined>;
+
+  getPushTokensForUser(userId: string): Promise<PushToken[]>;
+  createPushToken(token: InsertPushToken): Promise<PushToken>;
+  deletePushToken(token: string): Promise<void>;
+  deletePushTokensForUser(userId: string): Promise<void>;
+  updatePushTokenLastUsed(token: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -396,10 +407,41 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
-  async getMessages(conversationId: number): Promise<Message[]> {
-    return await db.select().from(messages)
-      .where(eq(messages.conversationId, conversationId))
-      .orderBy(messages.createdAt);
+  async getMessages(
+    conversationId: number,
+    options?: { cursor?: number; limit?: number }
+  ): Promise<{ messages: Message[]; nextCursor: number | null; hasMore: boolean }> {
+    const limit = options?.limit || 30;
+    const cursor = options?.cursor;
+
+    // Buscar mensagens com limite + 1 para verificar se ha mais
+    const conditions = [eq(messages.conversationId, conversationId)];
+
+    if (cursor) {
+      // Cursor-based: buscar mensagens com ID menor que o cursor (mais antigas)
+      conditions.push(lt(messages.id, cursor));
+    }
+
+    const result = await db.select().from(messages)
+      .where(and(...conditions))
+      .orderBy(desc(messages.id))
+      .limit(limit + 1);
+
+    // Verificar se ha mais mensagens
+    const hasMore = result.length > limit;
+    const messageList = hasMore ? result.slice(0, limit) : result;
+
+    // Determinar o proximo cursor (o menor ID do lote atual)
+    const nextCursor = hasMore && messageList.length > 0
+      ? messageList[messageList.length - 1].id
+      : null;
+
+    // Retornar mensagens em ordem cronologica (mais antigas primeiro)
+    return {
+      messages: messageList.reverse(),
+      nextCursor,
+      hasMore,
+    };
   }
 
   async createMessage(message: InsertMessage): Promise<Message> {
@@ -408,6 +450,37 @@ export class DatabaseStorage implements IStorage {
       .set({ lastMessageAt: new Date(), unreadCount: sql`${conversations.unreadCount} + 1` })
       .where(eq(conversations.id, message.conversationId));
     return created;
+  }
+
+  async markMessagesAsRead(conversationId: number, userId: string): Promise<number> {
+    // Get unread messages that this user hasn't read yet
+    const unreadMessages = await db.select({ id: messages.id, readBy: messages.readBy })
+      .from(messages)
+      .where(
+        and(
+          eq(messages.conversationId, conversationId),
+          not(sql`${messages.readBy} @> ARRAY[${userId}]::text[]`)
+        )
+      );
+
+    if (unreadMessages.length === 0) return 0;
+
+    // Update each message to add user to readBy array
+    for (const msg of unreadMessages) {
+      const currentReadBy = msg.readBy || [];
+      if (!currentReadBy.includes(userId)) {
+        await db.update(messages)
+          .set({ readBy: [...currentReadBy, userId] })
+          .where(eq(messages.id, msg.id));
+      }
+    }
+
+    // Reset unread count on conversation
+    await db.update(conversations)
+      .set({ unreadCount: 0 })
+      .where(eq(conversations.id, conversationId));
+
+    return unreadMessages.length;
   }
 
   async getActivities(organizationId: number): Promise<Activity[]> {
@@ -719,6 +792,14 @@ export class DatabaseStorage implements IStorage {
     return created;
   }
 
+  async updateFile(id: number, updates: Partial<InsertFile>): Promise<FileRecord> {
+    const [updated] = await db.update(files)
+      .set(updates)
+      .where(eq(files.id, id))
+      .returning();
+    return updated;
+  }
+
   async deleteFile(id: number): Promise<void> {
     await db.delete(files).where(eq(files.id, id));
   }
@@ -996,6 +1077,48 @@ export class DatabaseStorage implements IStorage {
       .where(eq(channelConfigs.id, id))
       .returning();
     return updated;
+  }
+
+  async getPushTokensForUser(userId: string): Promise<PushToken[]> {
+    return await db.select().from(pushTokens)
+      .where(eq(pushTokens.userId, userId))
+      .orderBy(desc(pushTokens.lastUsedAt));
+  }
+
+  async createPushToken(token: InsertPushToken): Promise<PushToken> {
+    // Check if token already exists for this user
+    const existing = await db.select().from(pushTokens)
+      .where(and(
+        eq(pushTokens.userId, token.userId),
+        eq(pushTokens.token, token.token)
+      ))
+      .limit(1);
+
+    if (existing.length > 0) {
+      // Update lastUsedAt
+      const [updated] = await db.update(pushTokens)
+        .set({ lastUsedAt: new Date() })
+        .where(eq(pushTokens.id, existing[0].id))
+        .returning();
+      return updated;
+    }
+
+    const [created] = await db.insert(pushTokens).values(token).returning();
+    return created;
+  }
+
+  async deletePushToken(token: string): Promise<void> {
+    await db.delete(pushTokens).where(eq(pushTokens.token, token));
+  }
+
+  async deletePushTokensForUser(userId: string): Promise<void> {
+    await db.delete(pushTokens).where(eq(pushTokens.userId, userId));
+  }
+
+  async updatePushTokenLastUsed(token: string): Promise<void> {
+    await db.update(pushTokens)
+      .set({ lastUsedAt: new Date() })
+      .where(eq(pushTokens.token, token));
   }
 }
 
