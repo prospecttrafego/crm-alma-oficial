@@ -559,6 +559,19 @@ export default function InboxPage() {
     }
   };
 
+  const getTranslatedValue = (key: string, fallback: string) => {
+    const translated = t(key);
+    return translated === key ? fallback : translated;
+  };
+
+  const getChannelLabel = (channel: string) => {
+    return getTranslatedValue(`inbox.channels.${channel}`, channel);
+  };
+
+  const getStatusLabel = (status: string) => {
+    return getTranslatedValue(`inbox.status.${status}`, status);
+  };
+
   const formatTime = (date: Date | string | null) => {
     if (!date) return "";
     const d = new Date(date);
@@ -569,7 +582,7 @@ export default function InboxPage() {
     if (days === 0) {
       return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
     } else if (days === 1) {
-      return "Yesterday";
+      return t("common.yesterday");
     } else if (days < 7) {
       return d.toLocaleDateString("pt-BR", { weekday: "short" });
     }
@@ -893,7 +906,7 @@ export default function InboxPage() {
                     <DropdownMenuTrigger asChild>
                       <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground hover:bg-muted" data-testid="button-template-picker">
                         <FileText className="mr-1 h-3 w-3" />
-                        Templates
+                        {t("inbox.templates")}
                         <ChevronDown className="ml-1 h-3 w-3" />
                       </Button>
                     </DropdownMenuTrigger>
@@ -1087,10 +1100,10 @@ export default function InboxPage() {
               </div>
               <div className="space-y-1 text-xs">
                 <p className="text-muted-foreground">
-                  Canal: <span className="text-foreground">{selectedConversation.channel}</span>
+                  Canal: <span className="text-foreground">{getChannelLabel(selectedConversation.channel)}</span>
                 </p>
                 <p className="text-muted-foreground">
-                  Status: <span className="inline-flex items-center rounded-full bg-primary/20 px-2 py-0.5 text-[10px] font-medium text-primary">{selectedConversation.status}</span>
+                  Status: <span className="inline-flex items-center rounded-full bg-primary/20 px-2 py-0.5 text-[10px] font-medium text-primary">{getStatusLabel(selectedConversation.status)}</span>
                 </p>
               </div>
             </div>

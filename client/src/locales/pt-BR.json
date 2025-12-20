@@ -31,6 +31,7 @@
     "phone": "Telefone",
     "date": "Data",
     "time": "Hora",
+    "yesterday": "Ontem",
     "description": "Descrição",
     "notes": "Notas",
     "tags": "Tags",
@@ -42,19 +43,136 @@
     "success": "Sucesso",
     "error": "Erro",
     "warning": "Aviso",
-    "info": "Informação"
+    "info": "Informação",
+    "toggleSidebar": "Alternar barra lateral",
+    "toggleTheme": "Alternar tema",
+    "user": "Usuário",
+    "clear": "Limpar"
   },
   "nav": {
-    "dashboard": "Dashboard",
-    "inbox": "Inbox",
-    "pipeline": "Pipeline",
+    "dashboard": "Painel",
+    "inbox": "Caixa de entrada",
+    "pipeline": "Funil",
     "contacts": "Contatos",
     "companies": "Empresas",
     "activities": "Atividades",
     "calendar": "Calendário",
     "reports": "Relatórios",
     "settings": "Configurações",
-    "management": "Gestão"
+    "management": "Gestão",
+    "main": "Principal",
+    "auditLog": "Log de auditoria"
+  },
+  "app": {
+    "brandSubtitle": "CRM para agências digitais"
+  },
+  "commandPalette": {
+    "placeholder": "Digite um comando ou busque...",
+    "navigation": "Navegação",
+    "quickActions": "Ações rápidas",
+    "newDeal": "Criar novo negócio",
+    "newContact": "Adicionar novo contato"
+  },
+  "notifications": {
+    "title": "Notificações",
+    "markAllRead": "Marcar todas como lidas",
+    "empty": "Nenhuma notificação ainda",
+    "justNow": "Agora mesmo"
+  },
+  "auditLog": {
+    "title": "Log de auditoria",
+    "subtitle": "Acompanhe todas as mudanças feitas nos dados do CRM",
+    "empty": "Nenhum log de auditoria ainda. Mudanças em negócios, contatos e empresas aparecerão aqui.",
+    "system": "Sistema",
+    "unknownUser": "Usuário desconhecido",
+    "by": "por",
+    "table": {
+      "timestamp": "Data/hora",
+      "user": "Usuário",
+      "action": "Ação",
+      "entityType": "Tipo de entidade",
+      "entityName": "Nome da entidade"
+    },
+    "actions": {
+      "create": "Criado",
+      "update": "Atualizado",
+      "delete": "Excluído"
+    },
+    "entities": {
+      "deal": "Negócio",
+      "contact": "Contato",
+      "company": "Empresa",
+      "conversation": "Conversa",
+      "activity": "Atividade",
+      "pipeline": "Funil",
+      "email_template": "Modelo de e-mail"
+    }
+  },
+  "entityHistory": {
+    "title": "Histórico de atividades",
+    "empty": "Nenhum histórico disponível"
+  },
+  "leadScore": {
+    "title": "Pontuação de lead por IA",
+    "refresh": "Atualizar",
+    "calculate": "Calcular",
+    "loading": "Carregando...",
+    "empty": "Nenhuma pontuação calculada ainda. Clique em Calcular para gerar uma pontuação de lead com IA.",
+    "outOf": "de {{total}}",
+    "scoreFactors": "Fatores da pontuação",
+    "engagement": "Engajamento",
+    "progress": "Progresso",
+    "dealValue": "Valor do negócio",
+    "activity": "Atividade",
+    "recency": "Recência",
+    "completeness": "Completude",
+    "aiInsight": "Insight de IA",
+    "nextBestAction": "Próxima melhor ação"
+  },
+  "filters": {
+    "title": "Filtros",
+    "clear": "Limpar",
+    "stage": "Estágio",
+    "allStages": "Todos os estágios",
+    "owner": "Responsável",
+    "allOwners": "Todos os responsáveis",
+    "valueRange": "Faixa de valor",
+    "min": "Mín",
+    "max": "Máx",
+    "status": "Status",
+    "allStatuses": "Todos os status",
+    "expectedCloseDate": "Data prevista de fechamento",
+    "from": "De",
+    "to": "Até",
+    "channel": "Canal",
+    "allChannels": "Todos os canais",
+    "assignedTo": "Atribuído a",
+    "anyone": "Qualquer pessoa",
+    "saveAsView": "Salvar como visão",
+    "savedViews": "Visões salvas",
+    "saveView": "Salvar visão",
+    "saveViewTitle": "Salvar visão",
+    "saveViewDescription": "Dê um nome para salvar este filtro e acessar rapidamente.",
+    "viewName": "Nome da visão",
+    "viewNamePlaceholder": "ex: Negócios de alto valor",
+    "toast": {
+      "saved": "Visão salva com sucesso",
+      "saveError": "Falha ao salvar visão",
+      "deleted": "Visão excluída"
+    }
+  },
+  "notFound": {
+    "title": "404 - Página não encontrada",
+    "description": "Você esqueceu de adicionar a página ao roteador?"
+  },
+  "validation": {
+    "required": "Este campo é obrigatório",
+    "invalidEmail": "E-mail inválido"
+  },
+  "roles": {
+    "admin": "Administrador",
+    "sales": "Vendas",
+    "unknown": "Função desconhecida"
   },
   "auth": {
     "login": "Entrar",
@@ -119,11 +237,12 @@
     "account": {
       "title": "Conta",
       "subtitle": "Gerencie as configurações da sua conta",
-      "language": "Idioma / Language",
+      "language": "Idioma",
       "languageDescription": "Escolha o idioma do sistema",
       "session": "Sessão",
       "sessionDescription": "Sair da sua conta",
-      "signOut": "Sair"
+      "signOut": "Sair",
+      "languagePlaceholder": "Selecionar idioma"
     },
     "channels": {
       "title": "Integrações de Canais",
@@ -137,6 +256,24 @@
       "addChannel": "Adicionar Canal",
       "deleteChannel": "Excluir Canal?",
       "deleteChannelDescription": "Tem certeza que deseja excluir \"{{name}}\"? Esta ação não pode ser desfeita.",
+      "dialog": {
+        "addEmailTitle": "Adicionar canal de e-mail",
+        "editEmailTitle": "Editar canal de e-mail",
+        "addWhatsappTitle": "Adicionar canal de WhatsApp",
+        "editWhatsappTitle": "Editar canal de WhatsApp",
+        "emailDescription": "Configure IMAP/SMTP para sincronizar e-mails com sua caixa de entrada.",
+        "whatsappDescription": "Conecte sua conta do WhatsApp Business API."
+      },
+      "toast": {
+        "created": "Configuração de canal criada com sucesso",
+        "createError": "Falha ao criar configuração de canal",
+        "updated": "Configuração de canal atualizada com sucesso",
+        "updateError": "Falha ao atualizar configuração de canal",
+        "deleted": "Configuração de canal excluída com sucesso",
+        "deleteError": "Falha ao excluir configuração de canal",
+        "testSuccess": "Teste de conexão realizado com sucesso",
+        "testError": "Falha no teste de conexão"
+      },
       "email": {
         "title": "Configuração de E-mail",
         "subtitle": "Configure o acesso IMAP/SMTP para sincronizar e-mails",
@@ -149,7 +286,13 @@
         "emailAddress": "Endereço de E-mail",
         "password": "Senha",
         "passwordKeep": "(deixe em branco para manter a atual)",
-        "fromName": "Nome do Remetente"
+        "fromName": "Nome do Remetente",
+        "configNamePlaceholder": "ex: Suporte, Caixa de vendas",
+        "passwordLabel": "Senha / Senha de app",
+        "passwordPlaceholderNew": "Senha específica do app",
+        "passwordPlaceholderUpdate": "Digite uma nova senha para alterar",
+        "fromNameOptional": "Nome do Remetente (Opcional)",
+        "fromNamePlaceholder": "Equipe de Suporte"
       },
       "whatsapp": {
         "title": "Configuração WhatsApp",
@@ -164,50 +307,119 @@
         "instance": "Instância",
         "connectedVia": "WhatsApp conectado via Evolution API",
         "waitingQrScan": "Aguardando escaneamento do QR Code",
-        "viaEvolution": "WhatsApp via Evolution API"
+        "viaEvolution": "WhatsApp via Evolution API",
+        "configNamePlaceholder": "Ex: WhatsApp Principal, Suporte",
+        "disconnectSuccess": "WhatsApp desconectado com sucesso",
+        "disconnectError": "Falha ao desconectar WhatsApp"
       }
     },
     "pipelines": {
-      "title": "Pipelines de Vendas",
-      "subtitle": "Crie e gerencie múltiplos pipelines de vendas com estágios customizados",
-      "newPipeline": "Novo Pipeline",
-      "editPipeline": "Editar Pipeline",
-      "deletePipeline": "Excluir Pipeline?",
+      "title": "Funis de vendas",
+      "subtitle": "Crie e gerencie múltiplos funis de vendas com estágios personalizados",
+      "newPipeline": "Novo funil",
+      "editPipeline": "Editar funil",
+      "deletePipeline": "Excluir funil?",
       "deletePipelineDescription": "Tem certeza que deseja excluir \"{{name}}\"? Esta ação não pode ser desfeita.",
-      "pipelineName": "Nome do Pipeline",
+      "pipelineName": "Nome do funil",
       "stages": "Estágios",
-      "addStage": "Adicionar Estágio",
-      "stageName": "Nome do Estágio",
+      "addStage": "Adicionar estágio",
+      "stageName": "Nome do estágio",
       "stageColor": "Cor",
-      "isWon": "Estágio Ganho",
-      "isLost": "Estágio Perdido",
+      "isWon": "Estágio ganho",
+      "isLost": "Estágio perdido",
       "dragToReorder": "Arraste para reordenar",
       "default": "Padrão",
-      "noPipelines": "Nenhum pipeline configurado",
-      "noPipelinesDescription": "Crie seu primeiro pipeline de vendas"
+      "noPipelines": "Nenhum funil configurado",
+      "noPipelinesDescription": "Crie seu primeiro funil de vendas",
+      "createPipelineAction": "Criar funil",
+      "dialog": {
+        "createTitle": "Criar funil",
+        "editTitle": "Editar funil",
+        "createDescription": "Crie um novo funil de vendas com estágios padrão",
+        "editDescription": "Atualize os detalhes do funil",
+        "namePlaceholder": "ex: Vendas Enterprise, Funil SMB"
+      },
+      "stageDialog": {
+        "addTitle": "Adicionar estágio",
+        "editTitle": "Editar estágio",
+        "addDescription": "Adicione um novo estágio ao funil",
+        "editDescription": "Atualize os detalhes do estágio",
+        "namePlaceholder": "ex: Qualificado, Proposta enviada"
+      },
+      "defaultStages": {
+        "lead": "Prospect",
+        "qualified": "Qualificado",
+        "proposal": "Proposta",
+        "won": "Ganho",
+        "lost": "Perdido"
+      },
+      "toast": {
+        "created": "Funil criado com sucesso",
+        "createError": "Falha ao criar funil",
+        "updated": "Funil atualizado com sucesso",
+        "updateError": "Falha ao atualizar funil",
+        "deleted": "Funil excluído com sucesso",
+        "deleteError": "Falha ao excluir funil",
+        "defaultUpdated": "Funil padrão atualizado",
+        "defaultError": "Falha ao definir funil padrão",
+        "stageCreated": "Estágio adicionado com sucesso",
+        "stageCreateError": "Falha ao adicionar estágio",
+        "stageUpdated": "Estágio atualizado com sucesso",
+        "stageUpdateError": "Falha ao atualizar estágio",
+        "stageDeleted": "Estágio excluído com sucesso",
+        "stageDeleteError": "Falha ao excluir estágio"
+      }
     },
     "templates": {
-      "title": "Templates de E-mail",
-      "subtitle": "Crie e gerencie templates reutilizáveis de e-mail",
-      "newTemplate": "Novo Template",
-      "editTemplate": "Editar Template",
-      "deleteTemplate": "Excluir Template?",
+      "title": "Modelos de e-mail",
+      "subtitle": "Crie e gerencie modelos reutilizáveis de e-mail",
+      "newTemplate": "Novo modelo",
+      "editTemplate": "Editar modelo",
+      "deleteTemplate": "Excluir modelo?",
       "deleteTemplateDescription": "Tem certeza que deseja excluir \"{{name}}\"? Esta ação não pode ser desfeita.",
-      "templateName": "Nome do Template",
+      "templateName": "Nome do modelo",
       "subject": "Assunto",
       "body": "Corpo",
-      "noTemplates": "Nenhum template de e-mail",
-      "noTemplatesDescription": "Crie templates para agilizar suas comunicações"
+      "noTemplates": "Nenhum modelo de e-mail",
+      "noTemplatesDescription": "Crie modelos para agilizar suas comunicações",
+      "dialog": {
+        "createTitle": "Criar modelo de e-mail",
+        "editTitle": "Editar modelo",
+        "namePlaceholder": "ex: Boas-vindas, Acompanhamento",
+        "subjectPlaceholder": "ex: Bem-vindo à {{company.name}}!",
+        "bodyPlaceholder": "Escreva seu modelo de e-mail aqui...",
+        "variablesTitle": "Variáveis disponíveis (clique para inserir)"
+      },
+      "variables": {
+        "contactFirstName": "Nome do contato",
+        "contactLastName": "Sobrenome do contato",
+        "contactEmail": "E-mail do contato",
+        "contactPhone": "Telefone do contato",
+        "contactJobTitle": "Cargo do contato",
+        "dealTitle": "Título do negócio",
+        "dealValue": "Valor do negócio",
+        "companyName": "Nome da empresa",
+        "userFirstName": "Seu nome",
+        "userLastName": "Seu sobrenome"
+      },
+      "toast": {
+        "created": "Modelo criado com sucesso",
+        "createError": "Falha ao criar modelo",
+        "updated": "Modelo atualizado com sucesso",
+        "updateError": "Falha ao atualizar modelo",
+        "deleted": "Modelo excluído com sucesso",
+        "deleteError": "Falha ao excluir modelo"
+      }
     }
   },
   "dashboard": {
-    "title": "Dashboard",
+    "title": "Painel",
     "welcome": "Bem-vindo, {{name}}",
     "welcomeSubtitle": "Aqui está sua visão geral.",
     "overview": "Visão Geral",
     "recentActivity": "Atividade Recente",
     "upcomingTasks": "Tarefas Próximas",
-    "pipelineValue": "Valor Total do Pipeline",
+    "pipelineValue": "Valor Total do Funil",
     "openConversations": "Conversas Abertas",
     "awaitingResponse": "Aguardando resposta",
     "newContacts": "Novos Contatos",
@@ -216,10 +428,10 @@
     "won": "ganhos",
     "lost": "perdidos",
     "recentDeals": "Negócios Recentes",
-    "latestPipeline": "Sua atividade recente no pipeline",
+    "latestPipeline": "Sua atividade recente no funil",
     "noDeals": "Nenhum negócio ainda. Crie seu primeiro!",
     "pendingActivities": "Atividades Pendentes",
-    "tasksDueSoon": "Tarefas e follow-ups para breve",
+    "tasksDueSoon": "Tarefas e acompanhamentos próximos",
     "noPendingActivities": "Nenhuma atividade pendente.",
     "openDealsCount": "{{count}} negócios abertos",
     "stats": {
@@ -239,6 +451,13 @@
     "title": "Relatórios",
     "subtitle": "Análises e insights para seu negócio",
     "quickSelect": "Seleção rápida",
+    "datePresets": {
+      "last7Days": "Últimos 7 dias",
+      "last30Days": "Últimos 30 dias",
+      "thisMonth": "Este mês",
+      "lastMonth": "Mês passado",
+      "last90Days": "Últimos 90 dias"
+    },
     "exportCsv": "Exportar CSV",
     "export": "Exportar",
     "deals": "Negócios",
@@ -255,7 +474,7 @@
       "dealsOverTimeDesc": "Atividade de vendas nos últimos 30 dias",
       "wonVsLost": "Ganhos vs Perdidos",
       "wonVsLostDesc": "Comparação de resultados",
-      "pipelineDistribution": "Distribuição do Pipeline",
+      "pipelineDistribution": "Distribuição do Funil",
       "teamPerformance": "Desempenho da Equipe",
       "teamPerformanceDesc": "Métricas de desempenho por membro",
       "teamDetails": "Detalhes da Equipe",
@@ -272,12 +491,13 @@
     }
   },
   "pipeline": {
-    "title": "Pipeline",
+    "title": "Funil",
     "newDeal": "Novo Negócio",
     "editDeal": "Editar Negócio",
     "deleteDeal": "Excluir Negócio?",
     "deleteDealDescription": "Tem certeza que deseja excluir \"{{name}}\"? Esta ação não pode ser desfeita.",
     "dealTitle": "Título",
+    "dealTitlePlaceholder": "Ex.: Projeto de reformulação do site",
     "dealValue": "Valor",
     "probability": "Probabilidade",
     "expectedCloseDate": "Data de Fechamento Prevista",
@@ -298,7 +518,8 @@
     "dealsCount": "{{count}} negócio(s)"
   },
   "inbox": {
-    "title": "Inbox",
+    "title": "Caixa de entrada",
+    "templates": "Modelos",
     "newConversation": "Nova Conversa",
     "noConversations": "Nenhuma conversa",
     "noConversationsDescription": "Suas conversas aparecerão aqui",
@@ -315,6 +536,7 @@
       "email": "E-mail",
       "whatsapp": "WhatsApp",
       "sms": "SMS",
+      "phone": "Telefone",
       "internal": "Interno"
     },
     "status": {
@@ -359,7 +581,7 @@
     "deleteCompanyDescription": "Tem certeza que deseja excluir \"{{name}}\"? Esta ação não pode ser desfeita.",
     "name": "Nome da Empresa",
     "domain": "Domínio",
-    "website": "Website",
+    "website": "Site",
     "industry": "Indústria",
     "segment": "Segmento",
     "size": "Tamanho da Empresa",
@@ -434,7 +656,17 @@
     "selectContact": "Selecione um contato",
     "selectDeal": "Selecione um negócio",
     "reminder": "Lembrete",
-    "other": "Outro"
+    "other": "Outro",
+    "weekdaysShort": {
+      "sun": "Dom",
+      "mon": "Seg",
+      "tue": "Ter",
+      "wed": "Qua",
+      "thu": "Qui",
+      "fri": "Sex",
+      "sat": "Sáb"
+    },
+    "more": "mais"
   },
   "whatsappQr": {
     "title": "Conectar WhatsApp",

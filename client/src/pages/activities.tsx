@@ -126,6 +126,18 @@ export default function ActivitiesPage() {
     return new Date(dueDate) < new Date();
   };
 
+  const getActivityTypeLabel = (type: Activity["type"]) => {
+    const key = `activities.types.${type}`;
+    const translated = t(key);
+    return translated === key ? type : translated;
+  };
+
+  const getActivityStatusLabel = (status: Activity["status"]) => {
+    const key = `activities.${status}`;
+    const translated = t(key);
+    return translated === key ? status : translated;
+  };
+
   return (
     <div className="flex h-full flex-col p-6">
       <div className="mb-6 flex items-center justify-between">
@@ -335,7 +347,7 @@ export default function ActivitiesPage() {
                     </p>
                     <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
                       <Badge variant="outline" className="capitalize">
-                        {activity.type}
+                        {getActivityTypeLabel(activity.type)}
                       </Badge>
                       {activity.contact && (
                         <span>
@@ -364,7 +376,7 @@ export default function ActivitiesPage() {
                     <Badge
                       variant={activity.status === "completed" ? "secondary" : "default"}
                     >
-                      {activity.status}
+                      {getActivityStatusLabel(activity.status)}
                     </Badge>
                   </div>
                 </div>

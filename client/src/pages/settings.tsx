@@ -59,20 +59,24 @@ interface PipelineWithStages extends Pipeline {
   stages: PipelineStage[];
 }
 
-const pipelineFormSchema = z.object({
-  name: z.string().min(1, "Name is required"),
-});
+type Translator = (key: string, params?: Record<string, string | number>) => string;
 
-type PipelineFormData = z.infer<typeof pipelineFormSchema>;
+const createPipelineFormSchema = (t: Translator) =>
+  z.object({
+    name: z.string().min(1, t("validation.required")),
+  });
 
-const stageFormSchema = z.object({
-  name: z.string().min(1, "Name is required"),
-  color: z.string().min(1, "Color is required"),
-  isWon: z.boolean().default(false),
-  isLost: z.boolean().default(false),
-});
+type PipelineFormData = z.infer<ReturnType<typeof createPipelineFormSchema>>;
 
-type StageFormData = z.infer<typeof stageFormSchema>;
+const createStageFormSchema = (t: Translator) =>
+  z.object({
+    name: z.string().min(1, t("validation.required")),
+    color: z.string().min(1, t("validation.required")),
+    isWon: z.boolean().default(false),
+    isLost: z.boolean().default(false),
+  });
+
+type StageFormData = z.infer<ReturnType<typeof createStageFormSchema>>;
 
 const STAGE_COLORS = [
   "#605be5", "#22c55e", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#06b6d4", "#14b8a6"
@@ -87,11 +91,13 @@ function PipelineDialog({
   open: boolean; 
   onOpenChange: (open: boolean) => void;
 }) {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const isEditing = !!pipeline;
+  const formSchema = createPipelineFormSchema(t);
 
   const form = useForm<PipelineFormData>({
-    resolver: zodResolver(pipelineFormSchema),
+    resolver: zodResolver(formSchema),
     defaultValues: {
       name: "",
     },
@@ -108,22 +114,22 @@ function PipelineDialog({
   const createMutation = useMutation({
     mutationFn: async (data: PipelineFormData) => {
       const defaultStages = [
-        { name: "Lead", order: 0, color: "#605be5", isWon: false, isLost: false },
-        { name: "Qualified", order: 1, color: "#22c55e", isWon: false, isLost: false },
-        { name: "Proposal", order: 2, color: "#f59e0b", isWon: false, isLost: false },
-        { name: "Won", order: 3, color: "#22c55e", isWon: true, isLost: false },
-        { name: "Lost", order: 4, color: "#ef4444", isWon: false, isLost: true },
+        { name: t("settings.pipelines.defaultStages.lead"), order: 0, color: "#605be5", isWon: false, isLost: false },
+        { name: t("settings.pipelines.defaultStages.qualified"), order: 1, color: "#22c55e", isWon: false, isLost: false },
+        { name: t("settings.pipelines.defaultStages.proposal"), order: 2, color: "#f59e0b", isWon: false, isLost: false },
+        { name: t("settings.pipelines.defaultStages.won"), order: 3, color: "#22c55e", isWon: true, isLost: false },
+        { name: t("settings.pipelines.defaultStages.lost"), order: 4, color: "#ef4444", isWon: false, isLost: true },
       ];
       await apiRequest("POST", "/api/pipelines", { ...data, stages: defaultStages });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/pipelines"] });
-      toast({ title: "Pipeline created successfully" });
+      toast({ title: t("settings.pipelines.toast.created") });
       onOpenChange(false);
       form.reset();
     },
     onError: () => {
-      toast({ title: "Failed to create pipeline", variant: "destructive" });
+      toast({ title: t("settings.pipelines.toast.createError"), variant: "destructive" });
     },
   });
 
@@ -133,11 +139,11 @@ function PipelineDialog({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/pipelines"] });
-      toast({ title: "Pipeline updated successfully" });
+      toast({ title: t("settings.pipelines.toast.updated") });
       onOpenChange(false);
     },
     onError: () => {
-      toast({ title: "Failed to update pipeline", variant: "destructive" });
+      toast({ title: t("settings.pipelines.toast.updateError"), variant: "destructive" });
     },
   });
 
@@ -153,9 +159,11 @@ function PipelineDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{isEditing ? "Edit Pipeline" : "Create Pipeline"}</DialogTitle>
+          <DialogTitle>
+            {isEditing ? t("settings.pipelines.dialog.editTitle") : t("settings.pipelines.dialog.createTitle")}
+          </DialogTitle>
           <DialogDescription>
-            {isEditing ? "Update pipeline details" : "Create a new sales pipeline with default stages"}
+            {isEditing ? t("settings.pipelines.dialog.editDescription") : t("settings.pipelines.dialog.createDescription")}
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -165,10 +173,10 @@ function PipelineDialog({
               name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Pipeline Name</FormLabel>
+                  <FormLabel>{t("settings.pipelines.pipelineName")}</FormLabel>
                   <FormControl>
                     <Input 
-                      placeholder="e.g., Enterprise Sales, SMB Pipeline" 
+                      placeholder={t("settings.pipelines.dialog.namePlaceholder")} 
                       {...field} 
                       data-testid="input-pipeline-name"
                     />
@@ -184,14 +192,18 @@ function PipelineDialog({
                 onClick={() => onOpenChange(false)}
                 data-testid="button-cancel-pipeline"
               >
-                Cancel
+                {t("common.cancel")}
               </Button>
               <Button 
                 type="submit" 
                 disabled={createMutation.isPending || updateMutation.isPending}
                 data-testid="button-save-pipeline"
               >
-                {createMutation.isPending || updateMutation.isPending ? "Saving..." : isEditing ? "Update" : "Create Pipeline"}
+                {createMutation.isPending || updateMutation.isPending
+                  ? t("common.saving")
+                  : isEditing
+                  ? t("common.update")
+                  : t("settings.pipelines.createPipelineAction")}
               </Button>
             </DialogFooter>
           </form>
@@ -214,11 +226,13 @@ function StageDialog({
   open: boolean; 
   onOpenChange: (open: boolean) => void;
 }) {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const isEditing = !!stage;
+  const formSchema = createStageFormSchema(t);
 
   const form = useForm<StageFormData>({
-    resolver: zodResolver(stageFormSchema),
+    resolver: zodResolver(formSchema),
     defaultValues: {
       name: "",
       color: "#605be5",
@@ -248,12 +262,12 @@ function StageDialog({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/pipelines"] });
-      toast({ title: "Stage added successfully" });
+      toast({ title: t("settings.pipelines.toast.stageCreated") });
       onOpenChange(false);
       form.reset();
     },
     onError: () => {
-      toast({ title: "Failed to add stage", variant: "destructive" });
+      toast({ title: t("settings.pipelines.toast.stageCreateError"), variant: "destructive" });
     },
   });
 
@@ -263,11 +277,11 @@ function StageDialog({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/pipelines"] });
-      toast({ title: "Stage updated successfully" });
+      toast({ title: t("settings.pipelines.toast.stageUpdated") });
       onOpenChange(false);
     },
     onError: () => {
-      toast({ title: "Failed to update stage", variant: "destructive" });
+      toast({ title: t("settings.pipelines.toast.stageUpdateError"), variant: "destructive" });
     },
   });
 
@@ -283,9 +297,11 @@ function StageDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{isEditing ? "Edit Stage" : "Add Stage"}</DialogTitle>
+          <DialogTitle>
+            {isEditing ? t("settings.pipelines.stageDialog.editTitle") : t("settings.pipelines.stageDialog.addTitle")}
+          </DialogTitle>
           <DialogDescription>
-            {isEditing ? "Update stage details" : "Add a new stage to the pipeline"}
+            {isEditing ? t("settings.pipelines.stageDialog.editDescription") : t("settings.pipelines.stageDialog.addDescription")}
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -295,10 +311,10 @@ function StageDialog({
               name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Stage Name</FormLabel>
+                  <FormLabel>{t("settings.pipelines.stageName")}</FormLabel>
                   <FormControl>
                     <Input 
-                      placeholder="e.g., Qualified, Proposal Sent" 
+                      placeholder={t("settings.pipelines.stageDialog.namePlaceholder")} 
                       {...field} 
                       data-testid="input-stage-name"
                     />
@@ -312,7 +328,7 @@ function StageDialog({
               name="color"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Color</FormLabel>
+                  <FormLabel>{t("settings.pipelines.stageColor")}</FormLabel>
                   <FormControl>
                     <div className="flex flex-wrap gap-2">
                       {STAGE_COLORS.map((color) => (
@@ -349,7 +365,7 @@ function StageDialog({
                         data-testid="switch-is-won"
                       />
                     </FormControl>
-                    <FormLabel className="!mt-0">Won Stage</FormLabel>
+                    <FormLabel className="!mt-0">{t("settings.pipelines.isWon")}</FormLabel>
                   </FormItem>
                 )}
               />
@@ -368,7 +384,7 @@ function StageDialog({
                         data-testid="switch-is-lost"
                       />
                     </FormControl>
-                    <FormLabel className="!mt-0">Lost Stage</FormLabel>
+                    <FormLabel className="!mt-0">{t("settings.pipelines.isLost")}</FormLabel>
                   </FormItem>
                 )}
               />
@@ -380,14 +396,18 @@ function StageDialog({
                 onClick={() => onOpenChange(false)}
                 data-testid="button-cancel-stage"
               >
-                Cancel
+                {t("common.cancel")}
               </Button>
               <Button 
                 type="submit" 
                 disabled={createMutation.isPending || updateMutation.isPending}
                 data-testid="button-save-stage"
               >
-                {createMutation.isPending || updateMutation.isPending ? "Saving..." : isEditing ? "Update" : "Add Stage"}
+                {createMutation.isPending || updateMutation.isPending
+                  ? t("common.saving")
+                  : isEditing
+                  ? t("common.update")
+                  : t("settings.pipelines.addStage")}
               </Button>
             </DialogFooter>
           </form>
@@ -417,10 +437,10 @@ function PipelineManagementSection() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/pipelines"] });
-      toast({ title: "Pipeline deleted successfully" });
+      toast({ title: t("settings.pipelines.toast.deleted") });
     },
     onError: (error: Error) => {
-      toast({ title: error.message || "Failed to delete pipeline", variant: "destructive" });
+      toast({ title: error.message || t("settings.pipelines.toast.deleteError"), variant: "destructive" });
     },
   });
 
@@ -430,10 +450,10 @@ function PipelineManagementSection() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/pipelines"] });
-      toast({ title: "Default pipeline updated" });
+      toast({ title: t("settings.pipelines.toast.defaultUpdated") });
     },
     onError: () => {
-      toast({ title: "Failed to set default pipeline", variant: "destructive" });
+      toast({ title: t("settings.pipelines.toast.defaultError"), variant: "destructive" });
     },
   });
 
@@ -443,10 +463,10 @@ function PipelineManagementSection() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/pipelines"] });
-      toast({ title: "Stage deleted successfully" });
+      toast({ title: t("settings.pipelines.toast.stageDeleted") });
     },
     onError: () => {
-      toast({ title: "Failed to delete stage", variant: "destructive" });
+      toast({ title: t("settings.pipelines.toast.stageDeleteError"), variant: "destructive" });
     },
   });
 
@@ -692,30 +712,33 @@ function PipelineManagementSection() {
   );
 }
 
-const emailConfigSchema = z.object({
-  name: z.string().min(1, "Name is required"),
-  imapHost: z.string().min(1, "IMAP host is required"),
-  imapPort: z.coerce.number().min(1, "IMAP port is required"),
-  imapSecure: z.boolean().default(true),
-  smtpHost: z.string().min(1, "SMTP host is required"),
-  smtpPort: z.coerce.number().min(1, "SMTP port is required"),
-  smtpSecure: z.boolean().default(true),
-  email: z.string().email("Valid email is required"),
-  password: z.string().optional(),
-  fromName: z.string().optional(),
-});
+const createEmailConfigSchema = (t: Translator) =>
+  z.object({
+    name: z.string().min(1, t("validation.required")),
+    imapHost: z.string().min(1, t("validation.required")),
+    imapPort: z.coerce.number().min(1, t("validation.required")),
+    imapSecure: z.boolean().default(true),
+    smtpHost: z.string().min(1, t("validation.required")),
+    smtpPort: z.coerce.number().min(1, t("validation.required")),
+    smtpSecure: z.boolean().default(true),
+    email: z.string().email(t("validation.invalidEmail")),
+    password: z.string().optional(),
+    fromName: z.string().optional(),
+  });
 
-const emailConfigCreateSchema = emailConfigSchema.extend({
-  password: z.string().min(1, "Password is required"),
-});
+const createEmailConfigCreateSchema = (t: Translator) =>
+  createEmailConfigSchema(t).extend({
+    password: z.string().min(1, t("validation.required")),
+  });
 
 // Evolution API WhatsApp config (simpler - just name, connection handled via QR)
-const whatsappConfigSchema = z.object({
-  name: z.string().min(1, "Nome é obrigatório"),
-});
+const createWhatsappConfigSchema = (t: Translator) =>
+  z.object({
+    name: z.string().min(1, t("validation.required")),
+  });
 
-type EmailConfigFormData = z.infer<typeof emailConfigSchema>;
-type WhatsappConfigFormData = z.infer<typeof whatsappConfigSchema>;
+type EmailConfigFormData = z.infer<ReturnType<typeof createEmailConfigSchema>>;
+type WhatsappConfigFormData = z.infer<ReturnType<typeof createWhatsappConfigSchema>>;
 
 function ChannelConfigDialog({
   config,
@@ -728,11 +751,15 @@ function ChannelConfigDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const isEditing = !!config;
+  const emailSchema = createEmailConfigSchema(t);
+  const emailCreateSchema = createEmailConfigCreateSchema(t);
+  const whatsappSchema = createWhatsappConfigSchema(t);
 
   const emailForm = useForm<EmailConfigFormData>({
-    resolver: zodResolver(isEditing ? emailConfigSchema : emailConfigCreateSchema),
+    resolver: zodResolver(isEditing ? emailSchema : emailCreateSchema),
     defaultValues: {
       name: "",
       imapHost: "",
@@ -748,7 +775,7 @@ function ChannelConfigDialog({
   });
 
   const whatsappForm = useForm<WhatsappConfigFormData>({
-    resolver: zodResolver(whatsappConfigSchema),
+    resolver: zodResolver(whatsappSchema),
     defaultValues: {
       name: "",
     },
@@ -763,6 +790,12 @@ function ChannelConfigDialog({
   const whatsappConfig = config?.type === "whatsapp" ? config.whatsappConfig as Record<string, unknown> : null;
   const connectionStatus = whatsappConfig?.connectionStatus as string || "disconnected";
   const instanceName = whatsappConfig?.instanceName as string | undefined;
+  const dialogTitle = channelType === "email"
+    ? (isEditing ? t("settings.channels.dialog.editEmailTitle") : t("settings.channels.dialog.addEmailTitle"))
+    : (isEditing ? t("settings.channels.dialog.editWhatsappTitle") : t("settings.channels.dialog.addWhatsappTitle"));
+  const dialogDescription = channelType === "email"
+    ? t("settings.channels.dialog.emailDescription")
+    : t("settings.channels.dialog.whatsappDescription");
 
   useEffect(() => {
     if (open && config) {
@@ -810,11 +843,11 @@ function ChannelConfigDialog({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/channel-configs"] });
-      toast({ title: "Channel configuration created successfully" });
+      toast({ title: t("settings.channels.toast.created") });
       onOpenChange(false);
     },
     onError: () => {
-      toast({ title: "Failed to create channel configuration", variant: "destructive" });
+      toast({ title: t("settings.channels.toast.createError"), variant: "destructive" });
     },
   });
 
@@ -824,11 +857,11 @@ function ChannelConfigDialog({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/channel-configs"] });
-      toast({ title: "Channel configuration updated successfully" });
+      toast({ title: t("settings.channels.toast.updated") });
       onOpenChange(false);
     },
     onError: () => {
-      toast({ title: "Failed to update channel configuration", variant: "destructive" });
+      toast({ title: t("settings.channels.toast.updateError"), variant: "destructive" });
     },
   });
 
@@ -876,15 +909,15 @@ function ChannelConfigDialog({
   // Disconnect WhatsApp mutation
   const disconnectMutation = useMutation({
     mutationFn: async () => {
-      if (!config?.id) throw new Error("No config ID");
+      if (!config?.id) throw new Error(t("errors.generic"));
       await apiRequest("POST", `/api/channel-configs/${config.id}/whatsapp/disconnect`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/channel-configs"] });
-      toast({ title: "WhatsApp desconectado com sucesso" });
+      toast({ title: t("settings.channels.whatsapp.disconnectSuccess") });
     },
     onError: () => {
-      toast({ title: "Falha ao desconectar WhatsApp", variant: "destructive" });
+      toast({ title: t("settings.channels.whatsapp.disconnectError"), variant: "destructive" });
     },
   });
 
@@ -896,7 +929,7 @@ function ChannelConfigDialog({
       const res = await fetch(`/api/channel-configs/${config.id}/whatsapp/status`, {
         credentials: "include",
       });
-      if (!res.ok) throw new Error("Failed to get status");
+      if (!res.ok) throw new Error(t("errors.generic"));
       return res.json();
     },
     enabled: false, // Manual trigger only
@@ -906,14 +939,8 @@ function ChannelConfigDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>
-            {isEditing ? "Edit" : "Add"} {channelType === "email" ? "Email" : "WhatsApp"} Channel
-          </DialogTitle>
-          <DialogDescription>
-            {channelType === "email"
-              ? "Configure IMAP/SMTP settings to sync emails with your inbox."
-              : "Connect your WhatsApp Business API account."}
-          </DialogDescription>
+          <DialogTitle>{dialogTitle}</DialogTitle>
+          <DialogDescription>{dialogDescription}</DialogDescription>
         </DialogHeader>
 
         {channelType === "email" ? (
@@ -924,9 +951,9 @@ function ChannelConfigDialog({
                 name="name"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Configuration Name</FormLabel>
+                    <FormLabel>{t("settings.channels.configName")}</FormLabel>
                     <FormControl>
-                      <Input placeholder="e.g., Support Email, Sales Inbox" {...field} data-testid="input-email-config-name" />
+                      <Input placeholder={t("settings.channels.email.configNamePlaceholder")} {...field} data-testid="input-email-config-name" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -938,7 +965,7 @@ function ChannelConfigDialog({
                   name="imapHost"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>IMAP Host</FormLabel>
+                      <FormLabel>{t("settings.channels.email.imapHost")}</FormLabel>
                       <FormControl>
                         <Input placeholder="imap.gmail.com" {...field} data-testid="input-imap-host" />
                       </FormControl>
@@ -951,7 +978,7 @@ function ChannelConfigDialog({
                   name="imapPort"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>IMAP Port</FormLabel>
+                      <FormLabel>{t("settings.channels.email.imapPort")}</FormLabel>
                       <FormControl>
                         <Input type="number" {...field} data-testid="input-imap-port" />
                       </FormControl>
@@ -968,7 +995,7 @@ function ChannelConfigDialog({
                     <FormControl>
                       <Switch checked={field.value} onCheckedChange={field.onChange} data-testid="switch-imap-secure" />
                     </FormControl>
-                    <FormLabel className="!mt-0">Use SSL/TLS for IMAP</FormLabel>
+                    <FormLabel className="!mt-0">{t("settings.channels.email.imapSecure")}</FormLabel>
                   </FormItem>
                 )}
               />
@@ -978,7 +1005,7 @@ function ChannelConfigDialog({
                   name="smtpHost"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>SMTP Host</FormLabel>
+                      <FormLabel>{t("settings.channels.email.smtpHost")}</FormLabel>
                       <FormControl>
                         <Input placeholder="smtp.gmail.com" {...field} data-testid="input-smtp-host" />
                       </FormControl>
@@ -991,7 +1018,7 @@ function ChannelConfigDialog({
                   name="smtpPort"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>SMTP Port</FormLabel>
+                      <FormLabel>{t("settings.channels.email.smtpPort")}</FormLabel>
                       <FormControl>
                         <Input type="number" {...field} data-testid="input-smtp-port" />
                       </FormControl>
@@ -1008,7 +1035,7 @@ function ChannelConfigDialog({
                     <FormControl>
                       <Switch checked={field.value} onCheckedChange={field.onChange} data-testid="switch-smtp-secure" />
                     </FormControl>
-                    <FormLabel className="!mt-0">Use SSL/TLS for SMTP</FormLabel>
+                    <FormLabel className="!mt-0">{t("settings.channels.email.smtpSecure")}</FormLabel>
                   </FormItem>
                 )}
               />
@@ -1018,7 +1045,7 @@ function ChannelConfigDialog({
                 name="email"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Email Address</FormLabel>
+                    <FormLabel>{t("settings.channels.email.emailAddress")}</FormLabel>
                     <FormControl>
                       <Input type="email" placeholder="support@company.com" {...field} data-testid="input-email-address" />
                     </FormControl>
@@ -1032,15 +1059,19 @@ function ChannelConfigDialog({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>
-                      Password / App Password
+                      {t("settings.channels.email.passwordLabel")}
                       {isEditing && hasExistingPassword && (
-                        <span className="text-muted-foreground ml-2 font-normal">(leave blank to keep current)</span>
+                        <span className="text-muted-foreground ml-2 font-normal">{t("settings.channels.email.passwordKeep")}</span>
                       )}
                     </FormLabel>
                     <FormControl>
                       <Input 
                         type="password" 
-                        placeholder={hasExistingPassword ? "Enter new password to change" : "App-specific password"} 
+                        placeholder={
+                          hasExistingPassword
+                            ? t("settings.channels.email.passwordPlaceholderUpdate")
+                            : t("settings.channels.email.passwordPlaceholderNew")
+                        } 
                         {...field} 
                         data-testid="input-email-password" 
                       />
@@ -1054,9 +1085,9 @@ function ChannelConfigDialog({
                 name="fromName"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>From Name (Optional)</FormLabel>
+                    <FormLabel>{t("settings.channels.email.fromNameOptional")}</FormLabel>
                     <FormControl>
-                      <Input placeholder="Support Team" {...field} data-testid="input-from-name" />
+                      <Input placeholder={t("settings.channels.email.fromNamePlaceholder")} {...field} data-testid="input-from-name" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -1064,10 +1095,14 @@ function ChannelConfigDialog({
               />
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => onOpenChange(false)} data-testid="button-cancel-channel">
-                  Cancel
+                  {t("common.cancel")}
                 </Button>
                 <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending} data-testid="button-save-channel">
-                  {createMutation.isPending || updateMutation.isPending ? "Saving..." : isEditing ? "Update" : "Add Channel"}
+                  {createMutation.isPending || updateMutation.isPending
+                    ? t("common.saving")
+                    : isEditing
+                    ? t("common.update")
+                    : t("settings.channels.addChannel")}
                 </Button>
               </DialogFooter>
             </form>
@@ -1080,9 +1115,9 @@ function ChannelConfigDialog({
                 name="name"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Nome da Configuração</FormLabel>
+                    <FormLabel>{t("settings.channels.configName")}</FormLabel>
                     <FormControl>
-                      <Input placeholder="Ex: WhatsApp Principal, Suporte" {...field} data-testid="input-whatsapp-config-name" />
+                      <Input placeholder={t("settings.channels.whatsapp.configNamePlaceholder")} {...field} data-testid="input-whatsapp-config-name" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -1095,24 +1130,26 @@ function ChannelConfigDialog({
                   <Separator />
                   <div className="flex items-center justify-between">
                     <div className="space-y-1">
-                      <Label className="text-sm font-medium">Status da Conexão</Label>
+                      <Label className="text-sm font-medium">{t("settings.channels.whatsapp.connectionStatus")}</Label>
                       <div className="flex items-center gap-2">
                         {connectionStatus === "connected" ? (
                           <>
                             <Wifi className="h-4 w-4 text-green-600" />
-                            <span className="text-sm text-green-600 font-medium">Conectado</span>
+                            <span className="text-sm text-green-600 font-medium">{t("settings.channels.whatsapp.connected")}</span>
                           </>
                         ) : connectionStatus === "connecting" || connectionStatus === "qr_pending" ? (
                           <>
                             <Loader2 className="h-4 w-4 animate-spin text-amber-600" />
                             <span className="text-sm text-amber-600 font-medium">
-                              {connectionStatus === "qr_pending" ? "Aguardando QR Code" : "Conectando..."}
+                              {connectionStatus === "qr_pending"
+                                ? t("settings.channels.whatsapp.waitingQr")
+                                : t("settings.channels.whatsapp.connecting")}
                             </span>
                           </>
                         ) : (
                           <>
                             <WifiOff className="h-4 w-4 text-muted-foreground" />
-                            <span className="text-sm text-muted-foreground">Desconectado</span>
+                            <span className="text-sm text-muted-foreground">{t("settings.channels.whatsapp.disconnected")}</span>
                           </>
                         )}
                       </div>
@@ -1131,7 +1168,7 @@ function ChannelConfigDialog({
                           ) : (
                             <WifiOff className="h-4 w-4 mr-2" />
                           )}
-                          Desconectar
+                          {t("settings.channels.whatsapp.disconnect")}
                         </Button>
                       ) : (
                         <Button
@@ -1141,14 +1178,14 @@ function ChannelConfigDialog({
                           onClick={() => setQrModalOpen(true)}
                         >
                           <QrCode className="h-4 w-4 mr-2" />
-                          Conectar via QR Code
+                          {t("settings.channels.whatsapp.connect")}
                         </Button>
                       )}
                     </div>
                   </div>
                   {instanceName && (
                     <p className="text-xs text-muted-foreground">
-                      Instância: {instanceName}
+                      {t("settings.channels.whatsapp.instance")}: {instanceName}
                     </p>
                   )}
                 </div>
@@ -1156,10 +1193,14 @@ function ChannelConfigDialog({
 
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => onOpenChange(false)} data-testid="button-cancel-whatsapp">
-                  Cancelar
+                  {t("common.cancel")}
                 </Button>
                 <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending} data-testid="button-save-whatsapp">
-                  {createMutation.isPending || updateMutation.isPending ? "Salvando..." : isEditing ? "Atualizar" : "Adicionar"}
+                  {createMutation.isPending || updateMutation.isPending
+                    ? t("common.saving")
+                    : isEditing
+                    ? t("common.update")
+                    : t("common.add")}
                 </Button>
               </DialogFooter>
             </form>
@@ -1201,10 +1242,10 @@ function ChannelConfigsSection() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/channel-configs"] });
-      toast({ title: "Channel configuration deleted successfully" });
+      toast({ title: t("settings.channels.toast.deleted") });
     },
     onError: () => {
-      toast({ title: "Failed to delete channel configuration", variant: "destructive" });
+      toast({ title: t("settings.channels.toast.deleteError"), variant: "destructive" });
     },
   });
 
@@ -1216,11 +1257,11 @@ function ChannelConfigsSection() {
     },
     onSuccess: (data) => {
       setTestingId(null);
-      toast({ title: data.message || "Connection test successful" });
+      toast({ title: data.message || t("settings.channels.toast.testSuccess") });
     },
     onError: () => {
       setTestingId(null);
-      toast({ title: "Connection test failed", variant: "destructive" });
+      toast({ title: t("settings.channels.toast.testError"), variant: "destructive" });
     },
   });
 
@@ -1385,26 +1426,27 @@ function ChannelConfigsSection() {
   );
 }
 
-const templateFormSchema = z.object({
-  name: z.string().min(1, "Name is required"),
-  subject: z.string().min(1, "Subject is required"),
-  body: z.string().min(1, "Body is required"),
-  variables: z.array(z.string()).optional(),
-});
+const createTemplateFormSchema = (t: Translator) =>
+  z.object({
+    name: z.string().min(1, t("validation.required")),
+    subject: z.string().min(1, t("validation.required")),
+    body: z.string().min(1, t("validation.required")),
+    variables: z.array(z.string()).optional(),
+  });
 
-type TemplateFormData = z.infer<typeof templateFormSchema>;
+type TemplateFormData = z.infer<ReturnType<typeof createTemplateFormSchema>>;
 
-const AVAILABLE_VARIABLES = [
-  { key: "{{contact.firstName}}", description: "Contact's first name" },
-  { key: "{{contact.lastName}}", description: "Contact's last name" },
-  { key: "{{contact.email}}", description: "Contact's email" },
-  { key: "{{contact.phone}}", description: "Contact's phone" },
-  { key: "{{contact.jobTitle}}", description: "Contact's job title" },
-  { key: "{{deal.title}}", description: "Deal title" },
-  { key: "{{deal.value}}", description: "Deal value" },
-  { key: "{{company.name}}", description: "Company name" },
-  { key: "{{user.firstName}}", description: "Your first name" },
-  { key: "{{user.lastName}}", description: "Your last name" },
+const getAvailableVariables = (t: Translator) => [
+  { key: "{{contact.firstName}}", description: t("settings.templates.variables.contactFirstName") },
+  { key: "{{contact.lastName}}", description: t("settings.templates.variables.contactLastName") },
+  { key: "{{contact.email}}", description: t("settings.templates.variables.contactEmail") },
+  { key: "{{contact.phone}}", description: t("settings.templates.variables.contactPhone") },
+  { key: "{{contact.jobTitle}}", description: t("settings.templates.variables.contactJobTitle") },
+  { key: "{{deal.title}}", description: t("settings.templates.variables.dealTitle") },
+  { key: "{{deal.value}}", description: t("settings.templates.variables.dealValue") },
+  { key: "{{company.name}}", description: t("settings.templates.variables.companyName") },
+  { key: "{{user.firstName}}", description: t("settings.templates.variables.userFirstName") },
+  { key: "{{user.lastName}}", description: t("settings.templates.variables.userLastName") },
 ];
 
 function EmailTemplateDialog({ 
@@ -1416,11 +1458,14 @@ function EmailTemplateDialog({
   open: boolean; 
   onOpenChange: (open: boolean) => void;
 }) {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const isEditing = !!template;
+  const formSchema = createTemplateFormSchema(t);
+  const availableVariables = getAvailableVariables(t);
 
   const form = useForm<TemplateFormData>({
-    resolver: zodResolver(templateFormSchema),
+    resolver: zodResolver(formSchema),
     defaultValues: {
       name: template?.name || "",
       subject: template?.subject || "",
@@ -1435,12 +1480,12 @@ function EmailTemplateDialog({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/email-templates"] });
-      toast({ title: "Template created successfully" });
+      toast({ title: t("settings.templates.toast.created") });
       onOpenChange(false);
       form.reset();
     },
     onError: () => {
-      toast({ title: "Failed to create template", variant: "destructive" });
+      toast({ title: t("settings.templates.toast.createError"), variant: "destructive" });
     },
   });
 
@@ -1450,16 +1495,16 @@ function EmailTemplateDialog({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/email-templates"] });
-      toast({ title: "Template updated successfully" });
+      toast({ title: t("settings.templates.toast.updated") });
       onOpenChange(false);
     },
     onError: () => {
-      toast({ title: "Failed to update template", variant: "destructive" });
+      toast({ title: t("settings.templates.toast.updateError"), variant: "destructive" });
     },
   });
 
   const onSubmit = (data: TemplateFormData) => {
-    const variablesUsed = AVAILABLE_VARIABLES
+    const variablesUsed = availableVariables
       .filter(v => data.body.includes(v.key) || data.subject.includes(v.key))
       .map(v => v.key);
     
@@ -1481,10 +1526,8 @@ function EmailTemplateDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{isEditing ? "Edit Template" : "Create Email Template"}</DialogTitle>
-          <DialogDescription>
-            Create reusable email templates with variable placeholders for personalization.
-          </DialogDescription>
+          <DialogTitle>{isEditing ? t("settings.templates.dialog.editTitle") : t("settings.templates.dialog.createTitle")}</DialogTitle>
+          <DialogDescription>{t("settings.templates.subtitle")}</DialogDescription>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -1493,10 +1536,10 @@ function EmailTemplateDialog({
               name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Template Name</FormLabel>
+                  <FormLabel>{t("settings.templates.templateName")}</FormLabel>
                   <FormControl>
                     <Input 
-                      placeholder="e.g., Welcome Email, Follow-up Message" 
+                      placeholder={t("settings.templates.dialog.namePlaceholder")} 
                       {...field} 
                       data-testid="input-template-name"
                     />
@@ -1510,10 +1553,10 @@ function EmailTemplateDialog({
               name="subject"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Subject Line</FormLabel>
+                  <FormLabel>{t("settings.templates.subject")}</FormLabel>
                   <FormControl>
                     <Input 
-                      placeholder="e.g., Welcome to {{company.name}}!" 
+                      placeholder={t("settings.templates.dialog.subjectPlaceholder")} 
                       {...field} 
                       data-testid="input-template-subject"
                     />
@@ -1527,10 +1570,10 @@ function EmailTemplateDialog({
               name="body"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Message Body</FormLabel>
+                  <FormLabel>{t("settings.templates.body")}</FormLabel>
                   <FormControl>
                     <Textarea 
-                      placeholder="Write your email template here..."
+                      placeholder={t("settings.templates.dialog.bodyPlaceholder")}
                       className="min-h-[150px]"
                       {...field} 
                       data-testid="input-template-body"
@@ -1541,9 +1584,9 @@ function EmailTemplateDialog({
               )}
             />
             <div className="space-y-2">
-              <Label className="text-sm text-muted-foreground">Available Variables (click to insert)</Label>
+              <Label className="text-sm text-muted-foreground">{t("settings.templates.dialog.variablesTitle")}</Label>
               <div className="flex flex-wrap gap-2">
-                {AVAILABLE_VARIABLES.map((variable) => (
+                {availableVariables.map((variable) => (
                   <Badge 
                     key={variable.key}
                     variant="secondary"
@@ -1563,14 +1606,18 @@ function EmailTemplateDialog({
                 onClick={() => onOpenChange(false)}
                 data-testid="button-cancel-template"
               >
-                Cancel
+                {t("common.cancel")}
               </Button>
               <Button 
                 type="submit" 
                 disabled={createMutation.isPending || updateMutation.isPending}
                 data-testid="button-save-template"
               >
-                {createMutation.isPending || updateMutation.isPending ? "Saving..." : isEditing ? "Update Template" : "Create Template"}
+                {createMutation.isPending || updateMutation.isPending
+                  ? t("common.saving")
+                  : isEditing
+                  ? t("common.update")
+                  : t("settings.templates.newTemplate")}
               </Button>
             </DialogFooter>
           </form>
@@ -1596,10 +1643,10 @@ function EmailTemplatesSection() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/email-templates"] });
-      toast({ title: "Template deleted successfully" });
+      toast({ title: t("settings.templates.toast.deleted") });
     },
     onError: () => {
-      toast({ title: "Failed to delete template", variant: "destructive" });
+      toast({ title: t("settings.templates.toast.deleteError"), variant: "destructive" });
     },
   });
 
@@ -1851,6 +1898,9 @@ export default function SettingsPage() {
   const { user } = useAuth();
   const { theme, setTheme } = useTheme();
   const { language, setLanguage, t, isUpdating: isLanguageUpdating } = useTranslation();
+  const roleKey = user?.role ? `roles.${user.role}` : "roles.unknown";
+  const roleLabel = t(roleKey);
+  const displayRole = roleLabel === roleKey ? (user?.role || t("roles.unknown")) : roleLabel;
 
   const getInitials = () => {
     if (user?.firstName && user?.lastName) {
@@ -1906,7 +1956,7 @@ export default function SettingsPage() {
                   {user?.email}
                 </p>
                 <Badge variant="secondary" className="mt-1 capitalize">
-                  {user?.role || "sales"}
+                  {displayRole}
                 </Badge>
               </div>
             </div>
@@ -2032,7 +2082,7 @@ export default function SettingsPage() {
                 disabled={isLanguageUpdating}
               >
                 <SelectTrigger className="w-[180px]" data-testid="select-language">
-                  <SelectValue placeholder="Selecionar idioma" />
+                <SelectValue placeholder={t("settings.account.languagePlaceholder")} />
                 </SelectTrigger>
                 <SelectContent>
                   {languages.map((lang) => (

@@ -33,6 +33,7 @@ import {
   Activity,
 } from "lucide-react";
 import { format, subDays, startOfMonth, endOfMonth, subMonths } from "date-fns";
+import { enUS, ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import {
   ChartContainer,
@@ -62,17 +63,17 @@ const CHART_COLORS = [
   "hsl(var(--chart-5))",
 ];
 
-const PRESET_RANGES = [
-  { label: "Last 7 days", getValue: () => ({ from: subDays(new Date(), 7), to: new Date() }) },
-  { label: "Last 30 days", getValue: () => ({ from: subDays(new Date(), 30), to: new Date() }) },
-  { label: "This month", getValue: () => ({ from: startOfMonth(new Date()), to: endOfMonth(new Date()) }) },
-  { label: "Last month", getValue: () => ({ from: startOfMonth(subMonths(new Date(), 1)), to: endOfMonth(subMonths(new Date(), 1)) }) },
-  { label: "Last 90 days", getValue: () => ({ from: subDays(new Date(), 90), to: new Date() }) },
-];
-
 export default function ReportsPage() {
   const { t, language } = useTranslation();
   const locale = language === "pt-BR" ? "pt-BR" : "en-US";
+  const dateFnsLocale = language === "pt-BR" ? ptBR : enUS;
+  const presetRanges = useMemo(() => ([
+    { label: t("reports.datePresets.last7Days"), getValue: () => ({ from: subDays(new Date(), 7), to: new Date() }) },
+    { label: t("reports.datePresets.last30Days"), getValue: () => ({ from: subDays(new Date(), 30), to: new Date() }) },
+    { label: t("reports.datePresets.thisMonth"), getValue: () => ({ from: startOfMonth(new Date()), to: endOfMonth(new Date()) }) },
+    { label: t("reports.datePresets.lastMonth"), getValue: () => ({ from: startOfMonth(subMonths(new Date(), 1)), to: endOfMonth(subMonths(new Date(), 1)) }) },
+    { label: t("reports.datePresets.last90Days"), getValue: () => ({ from: subDays(new Date(), 90), to: new Date() }) },
+  ]), [t]);
   const numberFormatter = useMemo(() => new Intl.NumberFormat(locale), [locale]);
   const currencyFormatter = useMemo(
     () => new Intl.NumberFormat(locale, { style: "currency", currency: "BRL", maximumFractionDigits: 0 }),
@@ -97,7 +98,7 @@ export default function ReportsPage() {
         endDate: dateRange.to.toISOString(),
       });
       const res = await fetch(`/api/reports?${params}`);
-      if (!res.ok) throw new Error("Failed to fetch reports");
+      if (!res.ok) throw new Error(t("errors.generic"));
       return res.json();
     },
   });
@@ -470,7 +471,7 @@ export default function ReportsPage() {
           <Select
             value=""
             onValueChange={(value) => {
-              const preset = PRESET_RANGES.find(p => p.label === value);
+              const preset = presetRanges.find(p => p.label === value);
               if (preset) {
                 setDateRange(preset.getValue());
               }
@@ -480,7 +481,7 @@ export default function ReportsPage() {
               <SelectValue placeholder={t("reports.quickSelect")} />
             </SelectTrigger>
             <SelectContent>
-              {PRESET_RANGES.map((preset) => (
+              {presetRanges.map((preset) => (
                 <SelectItem key={preset.label} value={preset.label}>
                   {preset.label}
                 </SelectItem>
@@ -492,7 +493,7 @@ export default function ReportsPage() {
             <PopoverTrigger asChild>
               <Button variant="outline" data-testid="button-date-range">
                 <CalendarIcon className="mr-2 h-4 w-4" />
-                {format(dateRange.from, "MMM dd")} - {format(dateRange.to, "MMM dd, yyyy")}
+                {format(dateRange.from, "MMM dd", { locale: dateFnsLocale })} - {format(dateRange.to, "MMM dd, yyyy", { locale: dateFnsLocale })}
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="end">

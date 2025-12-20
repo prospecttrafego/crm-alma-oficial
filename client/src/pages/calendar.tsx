@@ -58,6 +58,8 @@ import {
   startOfDay,
   endOfDay,
 } from "date-fns";
+import { enUS, ptBR } from "date-fns/locale";
+import type { Locale } from "date-fns";
 import type { CalendarEvent, Contact, Deal, CalendarEventType } from "@shared/schema";
 
 type ViewMode = "month" | "week" | "day";
@@ -262,12 +264,14 @@ function DayCell({
   currentMonth,
   onEventClick,
   onAddEvent,
+  moreLabel,
 }: {
   date: Date;
   events: CalendarEvent[];
   currentMonth: Date;
   onEventClick: (event: CalendarEvent) => void;
   onAddEvent: (date: Date) => void;
+  moreLabel: string;
 }) {
   const dayEvents = events.filter((e) => isSameDay(new Date(e.startTime), date));
   const isCurrentMonth = isSameMonth(date, currentMonth);
@@ -303,7 +307,9 @@ function DayCell({
           );
         })}
         {dayEvents.length > 3 && (
-          <div className="text-xs text-muted-foreground">+{dayEvents.length - 3} more</div>
+          <div className="text-xs text-muted-foreground">
+            +{dayEvents.length - 3} {moreLabel}
+          </div>
         )}
       </div>
     </div>
@@ -315,11 +321,15 @@ function MonthView({
   events,
   onEventClick,
   onAddEvent,
+  weekdays,
+  moreLabel,
 }: {
   currentDate: Date;
   events: CalendarEvent[];
   onEventClick: (event: CalendarEvent) => void;
   onAddEvent: (date: Date) => void;
+  weekdays: string[];
+  moreLabel: string;
 }) {
   const monthStart = startOfMonth(currentDate);
   const monthEnd = endOfMonth(currentDate);
@@ -341,7 +351,7 @@ function MonthView({
   return (
     <div className="border rounded-md overflow-hidden">
       <div className="grid grid-cols-7 bg-muted">
-        {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
+        {weekdays.map((d) => (
           <div key={d} className="text-center py-2 text-sm font-medium border-r last:border-r-0">
             {d}
           </div>
@@ -356,6 +366,7 @@ function MonthView({
             currentMonth={currentDate}
             onEventClick={onEventClick}
             onAddEvent={onAddEvent}
+            moreLabel={moreLabel}
           />
         ))}
       </div>
@@ -368,11 +379,13 @@ function WeekView({
   events,
   onEventClick,
   onAddEvent,
+  locale,
 }: {
   currentDate: Date;
   events: CalendarEvent[];
   onEventClick: (event: CalendarEvent) => void;
   onAddEvent: (date: Date) => void;
+  locale: Locale;
 }) {
   const weekStart = startOfWeek(currentDate);
   const days: Date[] = [];
@@ -393,7 +406,7 @@ function WeekView({
               isToday(d) ? "bg-primary/10 text-primary" : ""
             }`}
           >
-            <div>{format(d, "EEE")}</div>
+            <div>{format(d, "EEE", { locale })}</div>
             <div className="text-lg">{format(d, "d")}</div>
           </div>
         ))}
@@ -403,7 +416,7 @@ function WeekView({
           {hours.map((hour) => (
             <div key={hour} className="grid grid-cols-8 border-b min-h-[48px]">
               <div className="text-xs text-muted-foreground p-1 border-r text-right">
-                {format(new Date().setHours(hour, 0), "h a")}
+                {format(new Date().setHours(hour, 0), "h a", { locale })}
               </div>
               {days.map((d) => {
                 const dayEvents = events.filter((e) => {
@@ -453,11 +466,13 @@ function DayView({
   events,
   onEventClick,
   onAddEvent,
+  locale,
 }: {
   currentDate: Date;
   events: CalendarEvent[];
   onEventClick: (event: CalendarEvent) => void;
   onAddEvent: (date: Date) => void;
+  locale: Locale;
 }) {
   const dayEvents = events.filter((e) => isSameDay(new Date(e.startTime), currentDate));
   const hours = Array.from({ length: 24 }, (_, i) => i);
@@ -465,7 +480,9 @@ function DayView({
   return (
     <div className="border rounded-md overflow-hidden">
       <div className="bg-muted p-3 text-center">
-        <div className="text-lg font-medium">{format(currentDate, "EEEE, MMMM d, yyyy")}</div>
+        <div className="text-lg font-medium">
+          {format(currentDate, "EEEE, MMMM d, yyyy", { locale })}
+        </div>
       </div>
       <ScrollArea className="h-[600px]">
         <div className="relative">
@@ -482,7 +499,7 @@ function DayView({
                 }}
               >
                 <div className="text-xs text-muted-foreground p-2 border-r text-right">
-                  {format(new Date().setHours(hour, 0), "h:mm a")}
+                  {format(new Date().setHours(hour, 0), "h:mm a", { locale })}
                 </div>
                 <div className="p-1 space-y-1">
                   {hourEvents.map((event) => {
@@ -504,7 +521,7 @@ function DayView({
                         <div className="text-xs mt-1 flex items-center gap-4">
                           <span className="flex items-center gap-1">
                             <Clock className="h-3 w-3" />
-                            {format(new Date(event.startTime), "h:mm a")} - {format(new Date(event.endTime), "h:mm a")}
+                            {format(new Date(event.startTime), "h:mm a", { locale })} - {format(new Date(event.endTime), "h:mm a", { locale })}
                           </span>
                           {event.location && (
                             <span className="flex items-center gap-1">
@@ -527,7 +544,18 @@ function DayView({
 }
 
 export default function CalendarPage() {
-  const { t } = useTranslation();
+  const { t, language } = useTranslation();
+  const locale = language === "pt-BR" ? ptBR : enUS;
+  const weekdays = [
+    t("calendar.weekdaysShort.sun"),
+    t("calendar.weekdaysShort.mon"),
+    t("calendar.weekdaysShort.tue"),
+    t("calendar.weekdaysShort.wed"),
+    t("calendar.weekdaysShort.thu"),
+    t("calendar.weekdaysShort.fri"),
+    t("calendar.weekdaysShort.sat"),
+  ];
+  const moreLabel = t("calendar.more");
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<ViewMode>("month");
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
@@ -636,13 +664,13 @@ export default function CalendarPage() {
   };
 
   const getTitle = () => {
-    if (viewMode === "month") return format(currentDate, "MMMM yyyy");
+    if (viewMode === "month") return format(currentDate, "MMMM yyyy", { locale });
     if (viewMode === "week") {
       const weekStart = startOfWeek(currentDate);
       const weekEnd = endOfWeek(currentDate);
-      return `${format(weekStart, "MMM d")} - ${format(weekEnd, "MMM d, yyyy")}`;
+      return `${format(weekStart, "MMM d", { locale })} - ${format(weekEnd, "MMM d, yyyy", { locale })}`;
     }
-    return format(currentDate, "MMMM d, yyyy");
+    return format(currentDate, "MMMM d, yyyy", { locale });
   };
 
   return (
@@ -746,6 +774,8 @@ export default function CalendarPage() {
             events={events}
             onEventClick={handleEventClick}
             onAddEvent={handleAddEvent}
+            weekdays={weekdays}
+            moreLabel={moreLabel}
           />
         ) : viewMode === "week" ? (
           <WeekView
@@ -753,6 +783,7 @@ export default function CalendarPage() {
             events={events}
             onEventClick={handleEventClick}
             onAddEvent={handleAddEvent}
+            locale={locale}
           />
         ) : (
           <DayView
@@ -760,6 +791,7 @@ export default function CalendarPage() {
             events={events}
             onEventClick={handleEventClick}
             onAddEvent={handleAddEvent}
+            locale={locale}
           />
         )}
       </div>

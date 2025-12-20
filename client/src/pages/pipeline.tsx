@@ -273,7 +273,7 @@ export default function PipelinePage() {
                   <Input
                     id="title"
                     name="title"
-                    placeholder="e.g., Website redesign project"
+                    placeholder={t("pipeline.dealTitlePlaceholder")}
                     required
                     data-testid="input-deal-title"
                   />

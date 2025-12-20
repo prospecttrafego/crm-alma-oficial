@@ -116,7 +116,7 @@ export function AppSidebar() {
         <div className="flex items-center gap-2">
           <img src="/logo.png" alt="Alma" className="h-10 w-10 rounded-md object-cover" />
           <div className="flex flex-col">
-            <span className="text-xs text-muted-foreground">Digital Agency CRM</span>
+            <span className="text-xs text-muted-foreground">{t("app.brandSubtitle")}</span>
           </div>
         </div>
       </SidebarHeader>
@@ -125,7 +125,7 @@ export function AppSidebar() {
 
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Main</SidebarGroupLabel>
+          <SidebarGroupLabel>{t("nav.main")}</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {mainNavItems.map((item) => (
@@ -189,11 +189,11 @@ export function AppSidebar() {
               <SidebarMenuButton
                 asChild
                 isActive={location === "/audit-log"}
-                tooltip="Audit Log"
+                tooltip={t("nav.auditLog")}
               >
                 <Link href="/audit-log" data-testid="link-nav-audit-log">
                   <Shield className="h-4 w-4" />
-                  <span>Audit Log</span>
+                  <span>{t("nav.auditLog")}</span>
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
@@ -212,7 +212,7 @@ export function AppSidebar() {
             </Avatar>
             <div className="flex flex-1 flex-col overflow-hidden">
               <span className="truncate text-sm font-medium" data-testid="text-user-name">
-                {user?.firstName || user?.email?.split("@")[0] || "User"}
+                {user?.firstName || user?.email?.split("@")[0] || t("common.user")}
               </span>
               <span className="truncate text-xs text-muted-foreground" data-testid="text-user-email">
                 {user?.email || ""}

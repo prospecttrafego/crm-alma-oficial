@@ -19,20 +19,24 @@ import {
   Settings,
   Search,
 } from "lucide-react";
-
-const navigationItems = [
-  { name: "Dashboard", href: "/", icon: LayoutDashboard },
-  { name: "Inbox", href: "/inbox", icon: Inbox },
-  { name: "Pipeline", href: "/pipeline", icon: Kanban },
-  { name: "Contacts", href: "/contacts", icon: Users },
-  { name: "Companies", href: "/companies", icon: Building2 },
-  { name: "Activities", href: "/activities", icon: Activity },
-  { name: "Settings", href: "/settings", icon: Settings },
-];
+import { useTranslation } from "@/contexts/LanguageContext";
 
 export function CommandPalette() {
   const [open, setOpen] = useState(false);
   const [, setLocation] = useLocation();
+  const { t } = useTranslation();
+
+  const navigationItems = [
+    { key: "dashboard", name: t("nav.dashboard"), href: "/", icon: LayoutDashboard },
+    { key: "inbox", name: t("nav.inbox"), href: "/inbox", icon: Inbox },
+    { key: "pipeline", name: t("nav.pipeline"), href: "/pipeline", icon: Kanban },
+    { key: "contacts", name: t("nav.contacts"), href: "/contacts", icon: Users },
+    { key: "companies", name: t("nav.companies"), href: "/companies", icon: Building2 },
+    { key: "activities", name: t("nav.activities"), href: "/activities", icon: Activity },
+    { key: "settings", name: t("nav.settings"), href: "/settings", icon: Settings },
+  ];
+
+  const searchLabel = `${t("common.search")}...`;
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -59,22 +63,22 @@ export function CommandPalette() {
         data-testid="button-command-palette"
       >
         <Search className="h-4 w-4" />
-        <span className="hidden sm:inline">Search...</span>
+        <span className="hidden sm:inline">{searchLabel}</span>
         <kbd className="pointer-events-none hidden h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-xs font-medium text-muted-foreground sm:flex">
           <span className="text-xs">⌘</span>K
         </kbd>
       </button>
 
       <CommandDialog open={open} onOpenChange={setOpen}>
-        <CommandInput placeholder="Type a command or search..." data-testid="input-command-search" />
+        <CommandInput placeholder={t("commandPalette.placeholder")} data-testid="input-command-search" />
         <CommandList>
-          <CommandEmpty>No results found.</CommandEmpty>
-          <CommandGroup heading="Navigation">
+          <CommandEmpty>{t("common.noResults")}</CommandEmpty>
+          <CommandGroup heading={t("commandPalette.navigation")}>
             {navigationItems.map((item) => (
               <CommandItem
                 key={item.href}
                 onSelect={() => runCommand(() => setLocation(item.href))}
-                data-testid={`command-nav-${item.name.toLowerCase()}`}
+                data-testid={`command-nav-${item.key}`}
               >
                 <item.icon className="mr-2 h-4 w-4" />
                 <span>{item.name}</span>
@@ -82,20 +86,20 @@ export function CommandPalette() {
             ))}
           </CommandGroup>
           <CommandSeparator />
-          <CommandGroup heading="Quick Actions">
+          <CommandGroup heading={t("commandPalette.quickActions")}>
             <CommandItem
               onSelect={() => runCommand(() => setLocation("/pipeline?new=deal"))}
               data-testid="command-new-deal"
             >
               <Kanban className="mr-2 h-4 w-4" />
-              <span>Create New Deal</span>
+              <span>{t("commandPalette.newDeal")}</span>
             </CommandItem>
             <CommandItem
               onSelect={() => runCommand(() => setLocation("/contacts?new=contact"))}
               data-testid="command-new-contact"
             >
               <Users className="mr-2 h-4 w-4" />
-              <span>Add New Contact</span>
+              <span>{t("commandPalette.newContact")}</span>
             </CommandItem>
           </CommandGroup>
         </CommandList>

@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Loader2, CheckCircle2, XCircle, RefreshCw, Smartphone } from "lucide-react";
+import { useTranslation } from "@/contexts/LanguageContext";
 
 interface WhatsAppQRModalProps {
   open: boolean;
@@ -36,6 +37,7 @@ export function WhatsAppQRModal({
   channelConfigId,
   onConnected,
 }: WhatsAppQRModalProps) {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [pairingCode, setPairingCode] = useState<string | null>(null);
@@ -50,7 +52,7 @@ export function WhatsAppQRModal({
       });
       if (!res.ok) {
         const error = await res.json();
-        throw new Error(error.message || "Failed to connect");
+        throw new Error(error.message || t("errors.generic"));
       }
       return res.json() as Promise<ConnectResponse>;
     },
@@ -72,7 +74,7 @@ export function WhatsAppQRModal({
       const res = await fetch(`/api/channel-configs/${channelConfigId}/whatsapp/status`, {
         credentials: "include",
       });
-      if (!res.ok) throw new Error("Failed to get status");
+      if (!res.ok) throw new Error(t("errors.generic"));
       return res.json();
     },
     enabled: open && isConnecting,
@@ -119,10 +121,10 @@ export function WhatsAppQRModal({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Smartphone className="h-5 w-5 text-green-600" />
-            Conectar WhatsApp
+            {t("whatsappQr.title")}
           </DialogTitle>
           <DialogDescription>
-            Escaneie o QR Code com o WhatsApp do seu celular para conectar
+            {t("whatsappQr.subtitle")}
           </DialogDescription>
         </DialogHeader>
 
@@ -134,7 +136,7 @@ export function WhatsAppQRModal({
                 <Smartphone className="h-16 w-16 text-muted-foreground" />
               </div>
               <Button onClick={handleStartConnect} className="w-full">
-                Gerar QR Code
+                {t("whatsappQr.generateQr")}
               </Button>
             </div>
           )}
@@ -143,7 +145,7 @@ export function WhatsAppQRModal({
           {isLoading && (
             <div className="w-64 h-64 bg-muted rounded-lg flex flex-col items-center justify-center">
               <Loader2 className="h-12 w-12 animate-spin text-primary" />
-              <p className="mt-4 text-sm text-muted-foreground">Gerando QR Code...</p>
+              <p className="mt-4 text-sm text-muted-foreground">{t("whatsappQr.generatingQr")}</p>
             </div>
           )}
 
@@ -169,14 +171,14 @@ export function WhatsAppQRModal({
                 {isConnecting && (
                   <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-1 bg-background px-2 py-1 rounded-full text-xs text-muted-foreground">
                     <Loader2 className="h-3 w-3 animate-spin" />
-                    Aguardando conexão...
+                    {t("whatsappQr.waitingConnection")}
                   </div>
                 )}
               </div>
 
               {pairingCode && (
                 <div className="text-center">
-                  <p className="text-sm text-muted-foreground">Ou use o código de pareamento:</p>
+                  <p className="text-sm text-muted-foreground">{t("whatsappQr.orUsePairingCode")}</p>
                   <p className="text-xl font-mono font-bold tracking-widest mt-1">
                     {pairingCode}
                   </p>
@@ -191,19 +193,19 @@ export function WhatsAppQRModal({
                   className="flex-1"
                 >
                   <RefreshCw className="h-4 w-4 mr-2" />
-                  Atualizar QR
+                  {t("whatsappQr.refreshQr")}
                 </Button>
                 <Button
                   variant="ghost"
                   onClick={() => onOpenChange(false)}
                   className="flex-1"
                 >
-                  Cancelar
+                  {t("common.cancel")}
                 </Button>
               </div>
 
               <p className="text-xs text-muted-foreground text-center">
-                Abra o WhatsApp no seu celular, vá em Configurações {">"} Aparelhos conectados {">"} Conectar um aparelho
+                {t("whatsappQr.instructions")}
               </p>
             </div>
           )}
@@ -213,13 +215,13 @@ export function WhatsAppQRModal({
             <div className="text-center space-y-4">
               <div className="w-64 h-64 bg-green-50 rounded-lg flex flex-col items-center justify-center">
                 <CheckCircle2 className="h-16 w-16 text-green-600" />
-                <p className="mt-4 text-lg font-medium text-green-800">Conectado!</p>
+                <p className="mt-4 text-lg font-medium text-green-800">{t("whatsappQr.connected")}</p>
                 <p className="text-sm text-green-600">
-                  WhatsApp conectado com sucesso
+                  {t("whatsappQr.connectedSuccess")}
                 </p>
               </div>
               <Button onClick={() => onOpenChange(false)} className="w-full">
-                Fechar
+                {t("common.close")}
               </Button>
             </div>
           )}
@@ -229,21 +231,21 @@ export function WhatsAppQRModal({
             <div className="text-center space-y-4">
               <div className="w-64 h-64 bg-red-50 rounded-lg flex flex-col items-center justify-center">
                 <XCircle className="h-16 w-16 text-red-600" />
-                <p className="mt-4 text-lg font-medium text-red-800">Erro</p>
+                <p className="mt-4 text-lg font-medium text-red-800">{t("whatsappQr.error")}</p>
                 <p className="text-sm text-red-600 max-w-[200px]">
-                  {connectMutation.error?.message || "Falha ao gerar QR Code"}
+                  {connectMutation.error?.message || t("whatsappQr.errorGeneratingQr")}
                 </p>
               </div>
               <div className="flex gap-2">
                 <Button onClick={handleStartConnect} className="flex-1">
-                  Tentar novamente
+                  {t("whatsappQr.tryAgain")}
                 </Button>
                 <Button
                   variant="ghost"
                   onClick={() => onOpenChange(false)}
                   className="flex-1"
                 >
-                  Cancelar
+                  {t("common.cancel")}
                 </Button>
               </div>
             </div>

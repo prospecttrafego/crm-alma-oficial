@@ -58,18 +58,18 @@ const mockContacts = [
 ];
 
 const mockDeals = [
-  { title: "Projeto de Website Institucional", value: "15000.00", probability: 80, source: "Site", notes: "Cliente precisa de um site moderno e responsivo" },
+  { title: "Projeto de Site Institucional", value: "15000.00", probability: 80, source: "Site", notes: "Cliente precisa de um site moderno e responsivo" },
   { title: "Campanha de Marketing Digital", value: "8500.00", probability: 60, source: "LinkedIn", notes: "Campanha para lancamento de produto" },
   { title: "Sistema de Gestao Interno", value: "45000.00", probability: 40, source: "Indicacao", notes: "ERP customizado para a empresa" },
   { title: "Redesign de Marca", value: "12000.00", probability: 90, source: "Instagram", notes: "Nova identidade visual completa" },
-  { title: "App Mobile iOS/Android", value: "75000.00", probability: 30, source: "Evento", notes: "Aplicativo de delivery" },
+  { title: "Aplicativo móvel iOS/Android", value: "75000.00", probability: 30, source: "Evento", notes: "Aplicativo de delivery" },
   { title: "Consultoria em SEO", value: "6000.00", probability: 70, source: "Google", notes: "Otimizacao para motores de busca" },
-  { title: "E-commerce Completo", value: "35000.00", probability: 50, source: "Site", notes: "Loja virtual com integracao de pagamentos" },
+  { title: "Comércio eletrônico completo", value: "35000.00", probability: 50, source: "Site", notes: "Loja virtual com integracao de pagamentos" },
   { title: "Gestao de Redes Sociais", value: "4500.00", probability: 85, source: "WhatsApp", notes: "Pacote mensal de gestao" },
   { title: "Video Institucional", value: "18000.00", probability: 45, source: "LinkedIn", notes: "Video de 3 minutos com animacoes" },
   { title: "Treinamento em Marketing", value: "9000.00", probability: 65, source: "Indicacao", notes: "Workshop de 2 dias para equipe" },
   { title: "Automacao de WhatsApp", value: "7500.00", probability: 75, source: "Site", notes: "Chatbot e integracao com CRM" },
-  { title: "Landing Page para Lancamento", value: "5000.00", probability: 95, source: "Instagram", notes: "Pagina de captura de leads" },
+  { title: "Página de captura para lançamento", value: "5000.00", probability: 95, source: "Instagram", notes: "Pagina de captura de leads" },
 ];
 
 const mockConversations = [
@@ -104,7 +104,7 @@ const mockActivities = [
   { type: "email" as const, title: "Envio de proposta comercial", description: "Proposta detalhada com valores e prazos" },
   { type: "task" as const, title: "Preparar apresentacao", description: "Criar slides para reuniao com cliente" },
   { type: "note" as const, title: "Anotacoes da reuniao", description: "Cliente interessado em pacote completo" },
-  { type: "call" as const, title: "Follow-up", description: "Ligacao de acompanhamento apos envio da proposta" },
+  { type: "call" as const, title: "Acompanhamento", description: "Ligacao de acompanhamento apos envio da proposta" },
   { type: "meeting" as const, title: "Reuniao de fechamento", description: "Negociacao final e assinatura do contrato" },
   { type: "task" as const, title: "Enviar contrato", description: "Preparar e enviar contrato para assinatura digital" },
 ];

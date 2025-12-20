@@ -31,6 +31,7 @@
     "phone": "Phone",
     "date": "Date",
     "time": "Time",
+    "yesterday": "Yesterday",
     "description": "Description",
     "notes": "Notes",
     "tags": "Tags",
@@ -42,7 +43,11 @@
     "success": "Success",
     "error": "Error",
     "warning": "Warning",
-    "info": "Information"
+    "info": "Information",
+    "toggleSidebar": "Toggle sidebar",
+    "toggleTheme": "Toggle theme",
+    "user": "User",
+    "clear": "Clear"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -54,7 +59,120 @@
     "calendar": "Calendar",
     "reports": "Reports",
     "settings": "Settings",
-    "management": "Management"
+    "management": "Management",
+    "main": "Main",
+    "auditLog": "Audit Log"
+  },
+  "app": {
+    "brandSubtitle": "Digital Agency CRM"
+  },
+  "commandPalette": {
+    "placeholder": "Type a command or search...",
+    "navigation": "Navigation",
+    "quickActions": "Quick Actions",
+    "newDeal": "Create New Deal",
+    "newContact": "Add New Contact"
+  },
+  "notifications": {
+    "title": "Notifications",
+    "markAllRead": "Mark all read",
+    "empty": "No notifications yet",
+    "justNow": "Just now"
+  },
+  "auditLog": {
+    "title": "Audit Log",
+    "subtitle": "Track all changes made to your CRM data",
+    "empty": "No audit logs yet. Changes to deals, contacts, and companies will appear here.",
+    "system": "System",
+    "unknownUser": "Unknown User",
+    "by": "by",
+    "table": {
+      "timestamp": "Timestamp",
+      "user": "User",
+      "action": "Action",
+      "entityType": "Entity Type",
+      "entityName": "Entity Name"
+    },
+    "actions": {
+      "create": "Created",
+      "update": "Updated",
+      "delete": "Deleted"
+    },
+    "entities": {
+      "deal": "Deal",
+      "contact": "Contact",
+      "company": "Company",
+      "conversation": "Conversation",
+      "activity": "Activity",
+      "pipeline": "Pipeline",
+      "email_template": "Email Template"
+    }
+  },
+  "entityHistory": {
+    "title": "Activity History",
+    "empty": "No history available"
+  },
+  "leadScore": {
+    "title": "AI Lead Score",
+    "refresh": "Refresh",
+    "calculate": "Calculate",
+    "loading": "Loading...",
+    "empty": "No score calculated yet. Click Calculate to generate an AI-powered lead score.",
+    "outOf": "out of {{total}}",
+    "scoreFactors": "Score Factors",
+    "engagement": "Engagement",
+    "progress": "Progress",
+    "dealValue": "Deal Value",
+    "activity": "Activity",
+    "recency": "Recency",
+    "completeness": "Completeness",
+    "aiInsight": "AI Insight",
+    "nextBestAction": "Next Best Action"
+  },
+  "filters": {
+    "title": "Filters",
+    "clear": "Clear",
+    "stage": "Stage",
+    "allStages": "All stages",
+    "owner": "Owner",
+    "allOwners": "All owners",
+    "valueRange": "Value Range",
+    "min": "Min",
+    "max": "Max",
+    "status": "Status",
+    "allStatuses": "All statuses",
+    "expectedCloseDate": "Expected Close Date",
+    "from": "From",
+    "to": "To",
+    "channel": "Channel",
+    "allChannels": "All channels",
+    "assignedTo": "Assigned To",
+    "anyone": "Anyone",
+    "saveAsView": "Save as View",
+    "savedViews": "Saved Views",
+    "saveView": "Save View",
+    "saveViewTitle": "Save View",
+    "saveViewDescription": "Give your filter configuration a name to save it for quick access.",
+    "viewName": "View Name",
+    "viewNamePlaceholder": "e.g., High Value Deals",
+    "toast": {
+      "saved": "View saved successfully",
+      "saveError": "Failed to save view",
+      "deleted": "View deleted"
+    }
+  },
+  "notFound": {
+    "title": "404 Page Not Found",
+    "description": "Did you forget to add the page to the router?"
+  },
+  "validation": {
+    "required": "This field is required",
+    "invalidEmail": "Valid email is required"
+  },
+  "roles": {
+    "admin": "Admin",
+    "sales": "Sales",
+    "unknown": "Unknown role"
   },
   "auth": {
     "login": "Login",
@@ -119,11 +237,12 @@
     "account": {
       "title": "Account",
       "subtitle": "Manage your account settings",
-      "language": "Idioma / Language",
+      "language": "Language",
       "languageDescription": "Choose the system language",
       "session": "Session",
       "sessionDescription": "Sign out of your account",
-      "signOut": "Sign Out"
+      "signOut": "Sign Out",
+      "languagePlaceholder": "Select language"
     },
     "channels": {
       "title": "Channel Integrations",
@@ -137,6 +256,24 @@
       "addChannel": "Add Channel",
       "deleteChannel": "Delete Channel?",
       "deleteChannelDescription": "Are you sure you want to delete \"{{name}}\"? This action cannot be undone.",
+      "dialog": {
+        "addEmailTitle": "Add Email Channel",
+        "editEmailTitle": "Edit Email Channel",
+        "addWhatsappTitle": "Add WhatsApp Channel",
+        "editWhatsappTitle": "Edit WhatsApp Channel",
+        "emailDescription": "Configure IMAP/SMTP settings to sync emails with your inbox.",
+        "whatsappDescription": "Connect your WhatsApp Business API account."
+      },
+      "toast": {
+        "created": "Channel configuration created successfully",
+        "createError": "Failed to create channel configuration",
+        "updated": "Channel configuration updated successfully",
+        "updateError": "Failed to update channel configuration",
+        "deleted": "Channel configuration deleted successfully",
+        "deleteError": "Failed to delete channel configuration",
+        "testSuccess": "Connection test successful",
+        "testError": "Connection test failed"
+      },
       "email": {
         "title": "Email Configuration",
         "subtitle": "Configure IMAP/SMTP access to sync emails",
@@ -149,7 +286,13 @@
         "emailAddress": "Email Address",
         "password": "Password",
         "passwordKeep": "(leave blank to keep current)",
-        "fromName": "From Name"
+        "fromName": "From Name",
+        "configNamePlaceholder": "e.g., Support Email, Sales Inbox",
+        "passwordLabel": "Password / App Password",
+        "passwordPlaceholderNew": "App-specific password",
+        "passwordPlaceholderUpdate": "Enter new password to change",
+        "fromNameOptional": "From Name (Optional)",
+        "fromNamePlaceholder": "Support Team"
       },
       "whatsapp": {
         "title": "WhatsApp Configuration",
@@ -164,7 +307,10 @@
         "instance": "Instance",
         "connectedVia": "WhatsApp connected via Evolution API",
         "waitingQrScan": "Waiting for QR Code scan",
-        "viaEvolution": "WhatsApp via Evolution API"
+        "viaEvolution": "WhatsApp via Evolution API",
+        "configNamePlaceholder": "e.g., Main WhatsApp, Support",
+        "disconnectSuccess": "WhatsApp disconnected successfully",
+        "disconnectError": "Failed to disconnect WhatsApp"
       }
     },
     "pipelines": {
@@ -184,7 +330,45 @@
       "dragToReorder": "Drag to reorder",
       "default": "Default",
       "noPipelines": "No pipelines configured",
-      "noPipelinesDescription": "Create your first sales pipeline"
+      "noPipelinesDescription": "Create your first sales pipeline",
+      "createPipelineAction": "Create Pipeline",
+      "dialog": {
+        "createTitle": "Create Pipeline",
+        "editTitle": "Edit Pipeline",
+        "createDescription": "Create a new sales pipeline with default stages",
+        "editDescription": "Update pipeline details",
+        "namePlaceholder": "e.g., Enterprise Sales, SMB Pipeline"
+      },
+      "stageDialog": {
+        "addTitle": "Add Stage",
+        "editTitle": "Edit Stage",
+        "addDescription": "Add a new stage to the pipeline",
+        "editDescription": "Update stage details",
+        "namePlaceholder": "e.g., Qualified, Proposal Sent"
+      },
+      "defaultStages": {
+        "lead": "Lead",
+        "qualified": "Qualified",
+        "proposal": "Proposal",
+        "won": "Won",
+        "lost": "Lost"
+      },
+      "toast": {
+        "created": "Pipeline created successfully",
+        "createError": "Failed to create pipeline",
+        "updated": "Pipeline updated successfully",
+        "updateError": "Failed to update pipeline",
+        "deleted": "Pipeline deleted successfully",
+        "deleteError": "Failed to delete pipeline",
+        "defaultUpdated": "Default pipeline updated",
+        "defaultError": "Failed to set default pipeline",
+        "stageCreated": "Stage added successfully",
+        "stageCreateError": "Failed to add stage",
+        "stageUpdated": "Stage updated successfully",
+        "stageUpdateError": "Failed to update stage",
+        "stageDeleted": "Stage deleted successfully",
+        "stageDeleteError": "Failed to delete stage"
+      }
     },
     "templates": {
       "title": "Email Templates",
@@ -197,7 +381,35 @@
       "subject": "Subject",
       "body": "Body",
       "noTemplates": "No email templates",
-      "noTemplatesDescription": "Create templates to speed up your communications"
+      "noTemplatesDescription": "Create templates to speed up your communications",
+      "dialog": {
+        "createTitle": "Create Email Template",
+        "editTitle": "Edit Template",
+        "namePlaceholder": "e.g., Welcome Email, Follow-up Message",
+        "subjectPlaceholder": "e.g., Welcome to {{company.name}}!",
+        "bodyPlaceholder": "Write your email template here...",
+        "variablesTitle": "Available Variables (click to insert)"
+      },
+      "variables": {
+        "contactFirstName": "Contact's first name",
+        "contactLastName": "Contact's last name",
+        "contactEmail": "Contact's email",
+        "contactPhone": "Contact's phone",
+        "contactJobTitle": "Contact's job title",
+        "dealTitle": "Deal title",
+        "dealValue": "Deal value",
+        "companyName": "Company name",
+        "userFirstName": "Your first name",
+        "userLastName": "Your last name"
+      },
+      "toast": {
+        "created": "Template created successfully",
+        "createError": "Failed to create template",
+        "updated": "Template updated successfully",
+        "updateError": "Failed to update template",
+        "deleted": "Template deleted successfully",
+        "deleteError": "Failed to delete template"
+      }
     }
   },
   "dashboard": {
@@ -239,6 +451,13 @@
     "title": "Reports",
     "subtitle": "Analytics and insights for your business",
     "quickSelect": "Quick select",
+    "datePresets": {
+      "last7Days": "Last 7 days",
+      "last30Days": "Last 30 days",
+      "thisMonth": "This month",
+      "lastMonth": "Last month",
+      "last90Days": "Last 90 days"
+    },
     "exportCsv": "Export CSV",
     "export": "Export",
     "deals": "Deals",
@@ -278,6 +497,7 @@
     "deleteDeal": "Delete Deal?",
     "deleteDealDescription": "Are you sure you want to delete \"{{name}}\"? This action cannot be undone.",
     "dealTitle": "Title",
+    "dealTitlePlaceholder": "e.g., Website redesign project",
     "dealValue": "Value",
     "probability": "Probability",
     "expectedCloseDate": "Expected Close Date",
@@ -299,6 +519,7 @@
   },
   "inbox": {
     "title": "Inbox",
+    "templates": "Templates",
     "newConversation": "New Conversation",
     "noConversations": "No conversations",
     "noConversationsDescription": "Your conversations will appear here",
@@ -315,6 +536,7 @@
       "email": "Email",
       "whatsapp": "WhatsApp",
       "sms": "SMS",
+      "phone": "Phone",
       "internal": "Internal"
     },
     "status": {
@@ -434,7 +656,17 @@
     "selectContact": "Select a contact",
     "selectDeal": "Select a deal",
     "reminder": "Reminder",
-    "other": "Other"
+    "other": "Other",
+    "weekdaysShort": {
+      "sun": "Sun",
+      "mon": "Mon",
+      "tue": "Tue",
+      "wed": "Wed",
+      "thu": "Thu",
+      "fri": "Fri",
+      "sat": "Sat"
+    },
+    "more": "more"
   },
   "whatsappQr": {
     "title": "Connect WhatsApp",

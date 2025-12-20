@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Sparkles, RefreshCw, Lightbulb, ArrowRight } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { LeadScore } from "@shared/schema";
+import { useTranslation } from "@/contexts/LanguageContext";
 
 interface LeadScorePanelProps {
   entityType: "contact" | "deal";
@@ -11,6 +12,7 @@ interface LeadScorePanelProps {
 }
 
 export function LeadScorePanel({ entityType, entityId }: LeadScorePanelProps) {
+  const { t } = useTranslation();
   const { data: leadScore, isLoading } = useQuery<LeadScore | null>({
     queryKey: ["/api/lead-scores", entityType, entityId],
   });
@@ -54,7 +56,7 @@ export function LeadScorePanel({ entityType, entityId }: LeadScorePanelProps) {
       <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
         <CardTitle className="text-sm font-medium flex items-center gap-2">
           <Sparkles className="w-4 h-4 text-primary" />
-          AI Lead Score
+          {t("leadScore.title")}
         </CardTitle>
         <Button
           size="sm"
@@ -64,15 +66,15 @@ export function LeadScorePanel({ entityType, entityId }: LeadScorePanelProps) {
           data-testid="button-calculate-score"
         >
           <RefreshCw className={`w-4 h-4 ${calculateMutation.isPending ? "animate-spin" : ""}`} />
-          {leadScore ? "Refresh" : "Calculate"}
+          {leadScore ? t("leadScore.refresh") : t("leadScore.calculate")}
         </Button>
       </CardHeader>
       <CardContent className="space-y-4">
         {isLoading ? (
-          <div className="text-sm text-muted-foreground">Loading...</div>
+          <div className="text-sm text-muted-foreground">{t("leadScore.loading")}</div>
         ) : !leadScore ? (
           <div className="text-sm text-muted-foreground">
-            No score calculated yet. Click Calculate to generate an AI-powered lead score.
+            {t("leadScore.empty")}
           </div>
         ) : (
           <>
@@ -88,7 +90,7 @@ export function LeadScorePanel({ entityType, entityId }: LeadScorePanelProps) {
                   />
                 </div>
                 <div className="text-xs text-muted-foreground mt-1">
-                  out of 100
+                  {t("leadScore.outOf", { total: 100 })}
                 </div>
               </div>
             </div>
@@ -96,27 +98,29 @@ export function LeadScorePanel({ entityType, entityId }: LeadScorePanelProps) {
             {factors && (
               <div className="space-y-2">
                 <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                  Score Factors
+                  {t("leadScore.scoreFactors")}
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-sm">
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Engagement</span>
+                    <span className="text-muted-foreground">{t("leadScore.engagement")}</span>
                     <span>{Math.round(factors.engagement * 100)}%</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">{entityType === "deal" ? "Progress" : "Deal Value"}</span>
+                    <span className="text-muted-foreground">
+                      {entityType === "deal" ? t("leadScore.progress") : t("leadScore.dealValue")}
+                    </span>
                     <span>{Math.round(factors.dealValue * 100)}%</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Activity</span>
+                    <span className="text-muted-foreground">{t("leadScore.activity")}</span>
                     <span>{Math.round(factors.activityLevel * 100)}%</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Recency</span>
+                    <span className="text-muted-foreground">{t("leadScore.recency")}</span>
                     <span>{Math.round(factors.recency * 100)}%</span>
                   </div>
                   <div className="flex justify-between col-span-2">
-                    <span className="text-muted-foreground">Completeness</span>
+                    <span className="text-muted-foreground">{t("leadScore.completeness")}</span>
                     <span>{Math.round(factors.completeness * 100)}%</span>
                   </div>
                 </div>
@@ -129,7 +133,7 @@ export function LeadScorePanel({ entityType, entityId }: LeadScorePanelProps) {
                   <Lightbulb className="w-4 h-4 text-yellow-400 mt-0.5 flex-shrink-0" />
                   <div>
                     <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
-                      AI Insight
+                      {t("leadScore.aiInsight")}
                     </div>
                     <p className="text-sm" data-testid="text-recommendation">{leadScore.recommendation}</p>
                   </div>
@@ -143,7 +147,7 @@ export function LeadScorePanel({ entityType, entityId }: LeadScorePanelProps) {
                   <ArrowRight className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
                   <div>
                     <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
-                      Next Best Action
+                      {t("leadScore.nextBestAction")}
                     </div>
                     <p className="text-sm font-medium" data-testid="text-next-action">{leadScore.nextBestAction}</p>
                   </div>

@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
+import { enUS, ptBR } from "date-fns/locale";
 import {
   Plus,
   Pencil,
@@ -22,6 +23,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { AuditLog, AuditLogAction, AuditLogEntityType } from "@shared/schema";
+import { useTranslation } from "@/contexts/LanguageContext";
 
 type EnrichedAuditLog = AuditLog & {
   user: { id: string; firstName: string | null; lastName: string | null } | null;
@@ -50,16 +52,30 @@ const entityIcons: Record<AuditLogEntityType, typeof Kanban> = {
 };
 
 export default function AuditLogPage() {
+  const { t, language } = useTranslation();
+  const locale = language === "pt-BR" ? ptBR : enUS;
   const { data: logs, isLoading } = useQuery<EnrichedAuditLog[]>({
     queryKey: ["/api/audit-logs"],
   });
 
   const formatUserName = (user: EnrichedAuditLog["user"]) => {
-    if (!user) return "System";
+    if (!user) return t("auditLog.system");
     if (user.firstName && user.lastName) {
       return `${user.firstName} ${user.lastName}`;
     }
-    return user.firstName || "Unknown User";
+    return user.firstName || t("auditLog.unknownUser");
+  };
+
+  const getActionLabel = (action: AuditLogAction) => {
+    const key = `auditLog.actions.${action}`;
+    const label = t(key);
+    return label === key ? action : label;
+  };
+
+  const getEntityLabel = (entityType: AuditLogEntityType) => {
+    const key = `auditLog.entities.${entityType}`;
+    const label = t(key);
+    return label === key ? entityType.replace("_", " ") : label;
   };
 
   const ActionIcon = ({ action }: { action: AuditLogAction }) => {
@@ -77,7 +93,7 @@ export default function AuditLogPage() {
       <div className="flex h-full flex-col p-6">
         <div className="mb-6 flex items-center gap-3">
           <Shield className="h-6 w-6 text-primary" />
-          <h1 className="text-2xl font-semibold">Audit Log</h1>
+          <h1 className="text-2xl font-semibold">{t("auditLog.title")}</h1>
         </div>
         <div className="space-y-3">
           {Array.from({ length: 10 }).map((_, i) => (
@@ -94,10 +110,10 @@ export default function AuditLogPage() {
         <Shield className="h-6 w-6 text-primary" />
         <div>
           <h1 className="text-2xl font-semibold" data-testid="text-audit-log-title">
-            Audit Log
+            {t("auditLog.title")}
           </h1>
           <p className="text-sm text-muted-foreground">
-            Track all changes made to your CRM data
+            {t("auditLog.subtitle")}
           </p>
         </div>
       </div>
@@ -106,18 +122,18 @@ export default function AuditLogPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[180px]">Timestamp</TableHead>
-              <TableHead className="w-[150px]">User</TableHead>
-              <TableHead className="w-[100px]">Action</TableHead>
-              <TableHead className="w-[120px]">Entity Type</TableHead>
-              <TableHead>Entity Name</TableHead>
+              <TableHead className="w-[180px]">{t("auditLog.table.timestamp")}</TableHead>
+              <TableHead className="w-[150px]">{t("auditLog.table.user")}</TableHead>
+              <TableHead className="w-[100px]">{t("auditLog.table.action")}</TableHead>
+              <TableHead className="w-[120px]">{t("auditLog.table.entityType")}</TableHead>
+              <TableHead>{t("auditLog.table.entityName")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {logs?.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                  No audit logs yet. Changes to deals, contacts, and companies will appear here.
+                  {t("auditLog.empty")}
                 </TableCell>
               </TableRow>
             ) : (
@@ -125,7 +141,7 @@ export default function AuditLogPage() {
                 <TableRow key={log.id} data-testid={`row-audit-log-${log.id}`}>
                   <TableCell className="text-sm text-muted-foreground">
                     {log.createdAt
-                      ? format(new Date(log.createdAt), "MMM d, yyyy HH:mm")
+                      ? format(new Date(log.createdAt), "Pp", { locale })
                       : "-"}
                   </TableCell>
                   <TableCell>
@@ -140,14 +156,14 @@ export default function AuditLogPage() {
                       className={`gap-1 ${actionColors[log.action as AuditLogAction]}`}
                     >
                       <ActionIcon action={log.action as AuditLogAction} />
-                      <span className="capitalize">{log.action}</span>
+                      <span className="capitalize">{getActionLabel(log.action as AuditLogAction)}</span>
                     </Badge>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <EntityIcon entityType={log.entityType as AuditLogEntityType} />
                       <span className="text-sm capitalize">
-                        {log.entityType.replace("_", " ")}
+                        {getEntityLabel(log.entityType as AuditLogEntityType)}
                       </span>
                     </div>
                   </TableCell>

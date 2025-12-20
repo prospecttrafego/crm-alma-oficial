@@ -22,6 +22,8 @@ import {
 } from "lucide-react";
 import type { Notification } from "@shared/schema";
 import { formatDistanceToNow } from "date-fns";
+import { enUS, ptBR } from "date-fns/locale";
+import { useTranslation } from "@/contexts/LanguageContext";
 
 const notificationIcons: Record<string, typeof Bell> = {
   new_message: MessageSquare,
@@ -36,6 +38,8 @@ const notificationIcons: Record<string, typeof Bell> = {
 
 export function NotificationBell() {
   const [open, setOpen] = useState(false);
+  const { t, language } = useTranslation();
+  const locale = language === "pt-BR" ? ptBR : enUS;
 
   const { data: notifications, isLoading } = useQuery<Notification[]>({
     queryKey: ["/api/notifications"],
@@ -95,7 +99,7 @@ export function NotificationBell() {
       </PopoverTrigger>
       <PopoverContent className="w-80 p-0" align="end">
         <div className="flex items-center justify-between border-b px-4 py-3">
-          <h4 className="font-semibold">Notifications</h4>
+          <h4 className="font-semibold">{t("notifications.title")}</h4>
           {unreadCount > 0 && (
             <Button
               variant="ghost"
@@ -105,19 +109,19 @@ export function NotificationBell() {
               data-testid="button-mark-all-read"
             >
               <Check className="mr-1 h-3 w-3" />
-              Mark all read
+              {t("notifications.markAllRead")}
             </Button>
           )}
         </div>
         <ScrollArea className="h-[300px]">
           {isLoading ? (
             <div className="flex items-center justify-center py-8 text-muted-foreground">
-              Loading...
+              {t("common.loading")}
             </div>
           ) : !notifications?.length ? (
             <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
               <Bell className="mb-2 h-8 w-8 opacity-50" />
-              <p className="text-sm">No notifications yet</p>
+              <p className="text-sm">{t("notifications.empty")}</p>
             </div>
           ) : (
             <div className="divide-y">
@@ -152,8 +156,9 @@ export function NotificationBell() {
                         {notification.createdAt
                           ? formatDistanceToNow(new Date(notification.createdAt), {
                               addSuffix: true,
+                              locale,
                             })
-                          : "Just now"}
+                          : t("notifications.justNow")}
                       </p>
                     </div>
                     {!notification.isRead && (

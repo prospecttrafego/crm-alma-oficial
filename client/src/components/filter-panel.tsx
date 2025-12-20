@@ -29,7 +29,9 @@ import { Filter, Save, X, ChevronDown, Trash2, Calendar } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { format } from "date-fns";
+import { enUS, ptBR } from "date-fns/locale";
 import type { SavedView, User, PipelineStage } from "@shared/schema";
+import { useTranslation } from "@/contexts/LanguageContext";
 
 export interface PipelineFilters {
   stageId?: number;
@@ -56,6 +58,8 @@ interface FilterPanelProps {
 
 export function FilterPanel({ type, filters, onFiltersChange, stages }: FilterPanelProps) {
   const { toast } = useToast();
+  const { t, language } = useTranslation();
+  const locale = language === "pt-BR" ? ptBR : enUS;
   const [isOpen, setIsOpen] = useState(false);
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const [viewName, setViewName] = useState("");
@@ -80,10 +84,10 @@ export function FilterPanel({ type, filters, onFiltersChange, stages }: FilterPa
       queryClient.invalidateQueries({ queryKey: ["/api/saved-views", type] });
       setSaveDialogOpen(false);
       setViewName("");
-      toast({ title: "View saved successfully" });
+      toast({ title: t("filters.toast.saved") });
     },
     onError: () => {
-      toast({ title: "Failed to save view", variant: "destructive" });
+      toast({ title: t("filters.toast.saveError"), variant: "destructive" });
     },
   });
 
@@ -93,7 +97,7 @@ export function FilterPanel({ type, filters, onFiltersChange, stages }: FilterPa
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/saved-views", type] });
-      toast({ title: "View deleted" });
+      toast({ title: t("filters.toast.deleted") });
     },
   });
 
@@ -127,7 +131,7 @@ export function FilterPanel({ type, filters, onFiltersChange, stages }: FilterPa
         <PopoverTrigger asChild>
           <Button variant="outline" size="sm" data-testid="button-filter">
             <Filter className="mr-2 h-4 w-4" />
-            Filters
+            {t("filters.title")}
             {activeFilterCount > 0 && (
               <Badge className="ml-2" variant="secondary">
                 {activeFilterCount}
@@ -138,7 +142,7 @@ export function FilterPanel({ type, filters, onFiltersChange, stages }: FilterPa
         <PopoverContent className="w-80" align="start">
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h4 className="font-medium">Filters</h4>
+              <h4 className="font-medium">{t("filters.title")}</h4>
               {hasActiveFilters && (
                 <Button
                   variant="ghost"
@@ -147,7 +151,7 @@ export function FilterPanel({ type, filters, onFiltersChange, stages }: FilterPa
                   data-testid="button-clear-filters"
                 >
                   <X className="mr-1 h-3 w-3" />
-                  Clear
+                  {t("filters.clear")}
                 </Button>
               )}
             </div>
@@ -156,7 +160,7 @@ export function FilterPanel({ type, filters, onFiltersChange, stages }: FilterPa
               <>
                 {stages && stages.length > 0 && (
                   <div className="space-y-2">
-                    <Label>Stage</Label>
+                    <Label>{t("filters.stage")}</Label>
                     <Select
                       value={pipelineFilters.stageId?.toString() || "all"}
                       onValueChange={(v) =>
@@ -164,10 +168,10 @@ export function FilterPanel({ type, filters, onFiltersChange, stages }: FilterPa
                       }
                     >
                       <SelectTrigger data-testid="select-filter-stage">
-                        <SelectValue placeholder="All stages" />
+                        <SelectValue placeholder={t("filters.allStages")} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">All stages</SelectItem>
+                        <SelectItem value="all">{t("filters.allStages")}</SelectItem>
                         {stages.map((stage) => (
                           <SelectItem key={stage.id} value={stage.id.toString()}>
                             {stage.name}
@@ -179,7 +183,7 @@ export function FilterPanel({ type, filters, onFiltersChange, stages }: FilterPa
                 )}
 
                 <div className="space-y-2">
-                  <Label>Owner</Label>
+                  <Label>{t("filters.owner")}</Label>
                   <Select
                     value={pipelineFilters.ownerId || "all"}
                     onValueChange={(v) =>
@@ -187,10 +191,10 @@ export function FilterPanel({ type, filters, onFiltersChange, stages }: FilterPa
                     }
                   >
                     <SelectTrigger data-testid="select-filter-owner">
-                      <SelectValue placeholder="All owners" />
+                      <SelectValue placeholder={t("filters.allOwners")} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">All owners</SelectItem>
+                      <SelectItem value="all">{t("filters.allOwners")}</SelectItem>
                       {users?.map((user) => (
                         <SelectItem key={user.id} value={user.id}>
                           {user.firstName} {user.lastName}
@@ -201,11 +205,11 @@ export function FilterPanel({ type, filters, onFiltersChange, stages }: FilterPa
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Value Range</Label>
+                  <Label>{t("filters.valueRange")}</Label>
                   <div className="flex items-center gap-2">
                     <Input
                       type="number"
-                      placeholder="Min"
+                      placeholder={t("filters.min")}
                       value={pipelineFilters.minValue || ""}
                       onChange={(e) =>
                         onFiltersChange({
@@ -218,7 +222,7 @@ export function FilterPanel({ type, filters, onFiltersChange, stages }: FilterPa
                     <span className="text-muted-foreground">-</span>
                     <Input
                       type="number"
-                      placeholder="Max"
+                      placeholder={t("filters.max")}
                       value={pipelineFilters.maxValue || ""}
                       onChange={(e) =>
                         onFiltersChange({
@@ -232,7 +236,7 @@ export function FilterPanel({ type, filters, onFiltersChange, stages }: FilterPa
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Status</Label>
+                  <Label>{t("filters.status")}</Label>
                   <Select
                     value={pipelineFilters.status || "all"}
                     onValueChange={(v) =>
@@ -240,19 +244,19 @@ export function FilterPanel({ type, filters, onFiltersChange, stages }: FilterPa
                     }
                   >
                     <SelectTrigger data-testid="select-filter-status">
-                      <SelectValue placeholder="All statuses" />
+                      <SelectValue placeholder={t("filters.allStatuses")} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">All statuses</SelectItem>
-                      <SelectItem value="open">Open</SelectItem>
-                      <SelectItem value="won">Won</SelectItem>
-                      <SelectItem value="lost">Lost</SelectItem>
+                      <SelectItem value="all">{t("filters.allStatuses")}</SelectItem>
+                      <SelectItem value="open">{t("pipeline.status.open")}</SelectItem>
+                      <SelectItem value="won">{t("pipeline.status.won")}</SelectItem>
+                      <SelectItem value="lost">{t("pipeline.status.lost")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Expected Close Date</Label>
+                  <Label>{t("filters.expectedCloseDate")}</Label>
                   <div className="flex items-center gap-2">
                     <Popover>
                       <PopoverTrigger asChild>
@@ -264,8 +268,8 @@ export function FilterPanel({ type, filters, onFiltersChange, stages }: FilterPa
                         >
                           <Calendar className="mr-2 h-4 w-4" />
                           {pipelineFilters.dateFrom
-                            ? format(new Date(pipelineFilters.dateFrom), "MMM dd")
-                            : "From"}
+                            ? format(new Date(pipelineFilters.dateFrom), "MMM dd", { locale })
+                            : t("filters.from")}
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent className="w-auto p-0" align="start">
@@ -293,8 +297,8 @@ export function FilterPanel({ type, filters, onFiltersChange, stages }: FilterPa
                         >
                           <Calendar className="mr-2 h-4 w-4" />
                           {pipelineFilters.dateTo
-                            ? format(new Date(pipelineFilters.dateTo), "MMM dd")
-                            : "To"}
+                            ? format(new Date(pipelineFilters.dateTo), "MMM dd", { locale })
+                            : t("filters.to")}
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent className="w-auto p-0" align="start">
@@ -319,7 +323,7 @@ export function FilterPanel({ type, filters, onFiltersChange, stages }: FilterPa
             {type === "inbox" && (
               <>
                 <div className="space-y-2">
-                  <Label>Channel</Label>
+                  <Label>{t("filters.channel")}</Label>
                   <Select
                     value={inboxFilters.channel || "all"}
                     onValueChange={(v) =>
@@ -327,21 +331,21 @@ export function FilterPanel({ type, filters, onFiltersChange, stages }: FilterPa
                     }
                   >
                     <SelectTrigger data-testid="select-filter-channel">
-                      <SelectValue placeholder="All channels" />
+                      <SelectValue placeholder={t("filters.allChannels")} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">All channels</SelectItem>
-                      <SelectItem value="email">Email</SelectItem>
-                      <SelectItem value="whatsapp">WhatsApp</SelectItem>
-                      <SelectItem value="sms">SMS</SelectItem>
-                      <SelectItem value="phone">Phone</SelectItem>
-                      <SelectItem value="internal">Internal</SelectItem>
+                      <SelectItem value="all">{t("filters.allChannels")}</SelectItem>
+                      <SelectItem value="email">{t("inbox.channels.email")}</SelectItem>
+                      <SelectItem value="whatsapp">{t("inbox.channels.whatsapp")}</SelectItem>
+                      <SelectItem value="sms">{t("inbox.channels.sms")}</SelectItem>
+                      <SelectItem value="phone">{t("inbox.channels.phone")}</SelectItem>
+                      <SelectItem value="internal">{t("inbox.channels.internal")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Status</Label>
+                  <Label>{t("filters.status")}</Label>
                   <Select
                     value={inboxFilters.status || "all"}
                     onValueChange={(v) =>
@@ -349,19 +353,19 @@ export function FilterPanel({ type, filters, onFiltersChange, stages }: FilterPa
                     }
                   >
                     <SelectTrigger data-testid="select-filter-inbox-status">
-                      <SelectValue placeholder="All statuses" />
+                      <SelectValue placeholder={t("filters.allStatuses")} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">All statuses</SelectItem>
-                      <SelectItem value="open">Open</SelectItem>
-                      <SelectItem value="closed">Closed</SelectItem>
-                      <SelectItem value="pending">Pending</SelectItem>
+                      <SelectItem value="all">{t("filters.allStatuses")}</SelectItem>
+                      <SelectItem value="open">{t("inbox.status.open")}</SelectItem>
+                      <SelectItem value="closed">{t("inbox.status.closed")}</SelectItem>
+                      <SelectItem value="pending">{t("inbox.status.pending")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Assigned To</Label>
+                  <Label>{t("filters.assignedTo")}</Label>
                   <Select
                     value={inboxFilters.assignedToId || "all"}
                     onValueChange={(v) =>
@@ -369,10 +373,10 @@ export function FilterPanel({ type, filters, onFiltersChange, stages }: FilterPa
                     }
                   >
                     <SelectTrigger data-testid="select-filter-assigned">
-                      <SelectValue placeholder="Anyone" />
+                      <SelectValue placeholder={t("filters.anyone")} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">Anyone</SelectItem>
+                      <SelectItem value="all">{t("filters.anyone")}</SelectItem>
                       {users?.map((user) => (
                         <SelectItem key={user.id} value={user.id}>
                           {user.firstName} {user.lastName}
@@ -397,7 +401,7 @@ export function FilterPanel({ type, filters, onFiltersChange, stages }: FilterPa
                 data-testid="button-save-view"
               >
                 <Save className="mr-2 h-4 w-4" />
-                Save as View
+                {t("filters.saveAsView")}
               </Button>
             </div>
           </div>
@@ -406,12 +410,12 @@ export function FilterPanel({ type, filters, onFiltersChange, stages }: FilterPa
 
       {savedViews && savedViews.length > 0 && (
         <Popover>
-          <PopoverTrigger asChild>
-            <Button variant="outline" size="sm" data-testid="button-saved-views">
-              Saved Views
-              <ChevronDown className="ml-2 h-4 w-4" />
-            </Button>
-          </PopoverTrigger>
+        <PopoverTrigger asChild>
+          <Button variant="outline" size="sm" data-testid="button-saved-views">
+            {t("filters.savedViews")}
+            <ChevronDown className="ml-2 h-4 w-4" />
+          </Button>
+        </PopoverTrigger>
           <PopoverContent className="w-64" align="start">
             <div className="space-y-1">
               {savedViews.map((view) => (
@@ -445,31 +449,29 @@ export function FilterPanel({ type, filters, onFiltersChange, stages }: FilterPa
       <Dialog open={saveDialogOpen} onOpenChange={setSaveDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Save View</DialogTitle>
-            <DialogDescription>
-              Give your filter configuration a name to save it for quick access.
-            </DialogDescription>
+            <DialogTitle>{t("filters.saveViewTitle")}</DialogTitle>
+            <DialogDescription>{t("filters.saveViewDescription")}</DialogDescription>
           </DialogHeader>
           <div className="py-4">
-            <Label htmlFor="viewName">View Name</Label>
+            <Label htmlFor="viewName">{t("filters.viewName")}</Label>
             <Input
               id="viewName"
               value={viewName}
               onChange={(e) => setViewName(e.target.value)}
-              placeholder="e.g., High Value Deals"
+              placeholder={t("filters.viewNamePlaceholder")}
               data-testid="input-view-name"
             />
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setSaveDialogOpen(false)}>
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button
               onClick={handleSaveView}
               disabled={!viewName.trim() || saveViewMutation.isPending}
               data-testid="button-confirm-save-view"
             >
-              {saveViewMutation.isPending ? "Saving..." : "Save View"}
+              {saveViewMutation.isPending ? t("common.saving") : t("filters.saveView")}
             </Button>
           </DialogFooter>
         </DialogContent>

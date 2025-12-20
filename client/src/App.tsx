@@ -4,7 +4,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/theme-provider";
-import { LanguageProvider } from "@/contexts/LanguageContext";
+import { LanguageProvider, useTranslation } from "@/contexts/LanguageContext";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { AppSidebar } from "@/components/app-sidebar";
 import { CommandPalette } from "@/components/command-palette";
@@ -33,6 +33,7 @@ import NotFound from "@/pages/not-found";
 
 function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
+  const { t } = useTranslation();
 
   // Inicializar WebSocket para usuarios autenticados com info de presenca
   const { isConnected } = useWebSocket({
@@ -52,7 +53,7 @@ function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
         <SidebarInset className="flex flex-col">
           <header className="flex h-14 items-center justify-between gap-4 border-b px-4">
             <div className="flex items-center gap-2">
-              <SidebarTrigger data-testid="button-sidebar-toggle" />
+              <SidebarTrigger label={t("common.toggleSidebar")} data-testid="button-sidebar-toggle" />
             </div>
             <div className="flex items-center gap-2">
               <CommandPalette />
