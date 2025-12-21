@@ -11,6 +11,7 @@ vite.config.ts.*
 .env
 .env.local
 .env.*.local
+ecosystem.config.cjs
 
 # Claude Code local settings
 .claude/settings.local.json
