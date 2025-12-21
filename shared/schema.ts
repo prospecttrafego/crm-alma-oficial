@@ -345,6 +345,10 @@ export const channelConfigs = pgTable("channel_configs", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Calendar sync source types
+export const calendarSyncSources = ["local", "google"] as const;
+export type CalendarSyncSource = (typeof calendarSyncSources)[number];
+
 // Calendar events table
 export const calendarEvents = pgTable("calendar_events", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
@@ -362,6 +366,34 @@ export const calendarEvents = pgTable("calendar_events", {
   userId: varchar("user_id"),
   attendees: text("attendees").array(),
   color: varchar("color", { length: 7 }),
+  // Google Calendar sync fields
+  googleEventId: varchar("google_event_id", { length: 255 }),
+  googleCalendarId: varchar("google_calendar_id", { length: 255 }),
+  syncSource: varchar("sync_source", { length: 20 }).$type<CalendarSyncSource>().default("local"),
+  lastSyncedAt: timestamp("last_synced_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Google Calendar sync status
+export const googleCalendarSyncStatuses = ["idle", "syncing", "error"] as const;
+export type GoogleCalendarSyncStatus = (typeof googleCalendarSyncStatuses)[number];
+
+// Google OAuth tokens table (per-user)
+export const googleOAuthTokens = pgTable("google_oauth_tokens", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  userId: varchar("user_id").notNull(),
+  accessToken: text("access_token").notNull(),
+  refreshToken: text("refresh_token"),
+  tokenType: varchar("token_type", { length: 50 }),
+  expiresAt: timestamp("expires_at"),
+  scope: text("scope"),
+  email: varchar("email", { length: 255 }),
+  calendarId: varchar("calendar_id", { length: 255 }),
+  isActive: boolean("is_active").default(true),
+  lastSyncAt: timestamp("last_sync_at"),
+  syncStatus: varchar("sync_status", { length: 20 }).$type<GoogleCalendarSyncStatus>().default("idle"),
+  syncError: text("sync_error"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -639,6 +671,13 @@ export const channelConfigsRelations = relations(channelConfigs, ({ one }) => ({
   }),
 }));
 
+export const googleOAuthTokensRelations = relations(googleOAuthTokens, ({ one }) => ({
+  user: one(users, {
+    fields: [googleOAuthTokens.userId],
+    references: [users.id],
+  }),
+}));
+
 // Insert schemas
 // Nota: Para schemas com campos enum, usamos .extend() para garantir tipos corretos
 export const insertUserSchema = createInsertSchema(users).omit({ createdAt: true, updatedAt: true });
@@ -678,12 +717,18 @@ export const insertLeadScoreSchema = createInsertSchema(leadScores)
   .extend({ entityType: z.enum(leadScoreEntityTypes) });
 export const insertCalendarEventSchema = createInsertSchema(calendarEvents)
   .omit({ id: true, createdAt: true, updatedAt: true })
-  .extend({ type: z.enum(calendarEventTypes).nullable().optional() });
+  .extend({
+    type: z.enum(calendarEventTypes).nullable().optional(),
+    syncSource: z.enum(calendarSyncSources).nullable().optional(),
+  });
 export const insertChannelConfigSchema = createInsertSchema(channelConfigs)
   .omit({ id: true, createdAt: true, updatedAt: true })
   .extend({ type: z.enum(channelConfigTypes) });
 export const insertPushTokenSchema = createInsertSchema(pushTokens)
   .omit({ id: true, createdAt: true, lastUsedAt: true });
+export const insertGoogleOAuthTokenSchema = createInsertSchema(googleOAuthTokens)
+  .omit({ id: true, createdAt: true, updatedAt: true })
+  .extend({ syncStatus: z.enum(googleCalendarSyncStatuses).optional() });
 
 // Types - usamos z.infer para schemas com enum estendidos e $inferSelect para select types
 export type UpsertUser = typeof users.$inferInsert;
@@ -724,3 +769,5 @@ export type InsertChannelConfig = z.infer<typeof insertChannelConfigSchema>;
 export type ChannelConfig = typeof channelConfigs.$inferSelect;
 export type InsertPushToken = z.infer<typeof insertPushTokenSchema>;
 export type PushToken = typeof pushTokens.$inferSelect;
+export type InsertGoogleOAuthToken = z.infer<typeof insertGoogleOAuthTokenSchema>;
+export type GoogleOAuthToken = typeof googleOAuthTokens.$inferSelect;

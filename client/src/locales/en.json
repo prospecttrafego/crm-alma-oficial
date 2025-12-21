@@ -244,6 +244,13 @@
       "signOut": "Sign Out",
       "languagePlaceholder": "Select language"
     },
+    "integrations": {
+      "title": "Integrations",
+      "subtitle": "Connect external services to sync data automatically",
+      "connected": "Connected",
+      "notConnected": "Not connected",
+      "connect": "Connect"
+    },
     "channels": {
       "title": "Channel Integrations",
       "subtitle": "Connect email accounts and WhatsApp to sync messages",
@@ -311,6 +318,43 @@
         "configNamePlaceholder": "e.g., Main WhatsApp, Support",
         "disconnectSuccess": "WhatsApp disconnected successfully",
         "disconnectError": "Failed to disconnect WhatsApp"
+      }
+    },
+    "googleCalendar": {
+      "title": "Google Calendar",
+      "subtitle": "Sync your events with Google Calendar",
+      "notConfigured": "Integration not configured",
+      "notConfiguredDescription": "The administrator needs to configure Google OAuth credentials to enable this integration.",
+      "connect": "Connect",
+      "connecting": "Connecting...",
+      "disconnect": "Disconnect",
+      "disconnecting": "Disconnecting...",
+      "sync": "Sync",
+      "syncing": "Syncing...",
+      "syncNow": "Sync now",
+      "connected": "Connected",
+      "connectedAs": "Connected as {{email}}",
+      "lastSync": "Last sync: {{date}}",
+      "neverSynced": "Never synced",
+      "never": "Never",
+      "notConnected": "Google Calendar not connected",
+      "connectDescription": "Connect your Google account to sync events automatically",
+      "disconnectConfirm": {
+        "title": "Disconnect Google Calendar?",
+        "description": "This will remove the connection to your Google account. Already synced events will remain in the system."
+      },
+      "status": {
+        "idle": "Synced",
+        "syncing": "Syncing",
+        "error": "Sync error"
+      },
+      "toast": {
+        "connected": "Google Calendar connected successfully",
+        "connectError": "Failed to connect Google Calendar",
+        "disconnected": "Google Calendar disconnected successfully",
+        "disconnectError": "Failed to disconnect Google Calendar",
+        "syncSuccess": "Sync completed ({{count}} events imported)",
+        "syncError": "Sync failed"
       }
     },
     "pipelines": {

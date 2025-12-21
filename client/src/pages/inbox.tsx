@@ -44,6 +44,8 @@ import {
   ArrowLeft,
   Check,
   CheckCheck,
+  PanelRightClose,
+  PanelRightOpen,
 } from "lucide-react";
 import { FilterPanel, type InboxFilters } from "@/components/filter-panel";
 import { FileList } from "@/components/file-uploader";
@@ -118,6 +120,9 @@ export default function InboxPage() {
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+
+  // Context panel collapse (desktop only)
+  const [contextPanelCollapsed, setContextPanelCollapsed] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -1051,62 +1056,85 @@ export default function InboxPage() {
             </form>
           </div>
 
-          {/* Painel de contexto - esconde no mobile */}
-          <div className="hidden lg:block w-72 border-l border-border bg-background p-4">
-            <h4 className="mb-4 text-sm font-medium text-foreground">Contexto</h4>
-
-            {selectedConversation.contact && (
-              <div className="mb-4 rounded-lg bg-muted p-3">
-                <div className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
-                  <User className="h-4 w-4" />
-                  Contato
-                </div>
-                <p className="text-sm font-medium text-foreground">
-                  {selectedConversation.contact.firstName}{" "}
-                  {selectedConversation.contact.lastName}
-                </p>
-                {selectedConversation.contact.email && (
-                  <p className="text-xs text-muted-foreground">
-                    {selectedConversation.contact.email}
-                  </p>
+          {/* Painel de contexto - esconde no mobile, colapsável no desktop */}
+          <div className={`hidden lg:flex flex-col border-l border-border bg-background transition-all duration-200 ${contextPanelCollapsed ? 'w-12' : 'w-72'}`}>
+            {/* Header com botão de toggle */}
+            <div className={`flex items-center border-b border-border ${contextPanelCollapsed ? 'justify-center p-3' : 'justify-between p-4'}`}>
+              {!contextPanelCollapsed && (
+                <h4 className="text-sm font-medium text-foreground">Contexto</h4>
+              )}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                onClick={() => setContextPanelCollapsed(!contextPanelCollapsed)}
+                title={contextPanelCollapsed ? "Expandir painel" : "Recolher painel"}
+              >
+                {contextPanelCollapsed ? (
+                  <PanelRightOpen className="h-4 w-4" />
+                ) : (
+                  <PanelRightClose className="h-4 w-4" />
                 )}
-                {selectedConversation.contact.phone && (
-                  <p className="text-xs text-muted-foreground">
-                    {selectedConversation.contact.phone}
-                  </p>
-                )}
-              </div>
-            )}
-
-            {selectedConversation.deal && (
-              <div className="mb-4 rounded-lg bg-muted p-3">
-                <div className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
-                  <Building2 className="h-4 w-4" />
-                  Negócio Relacionado
-                </div>
-                <p className="text-sm font-medium text-foreground">{selectedConversation.deal.title}</p>
-                {selectedConversation.deal.value && (
-                  <p className="text-xs text-primary">
-                    R$ {Number(selectedConversation.deal.value).toLocaleString("pt-BR")}
-                  </p>
-                )}
-              </div>
-            )}
-
-            <div className="rounded-lg bg-muted p-3">
-              <div className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
-                <MessageSquare className="h-4 w-4" />
-                Info da Conversa
-              </div>
-              <div className="space-y-1 text-xs">
-                <p className="text-muted-foreground">
-                  Canal: <span className="text-foreground">{getChannelLabel(selectedConversation.channel)}</span>
-                </p>
-                <p className="text-muted-foreground">
-                  Status: <span className="inline-flex items-center rounded-full bg-primary/20 px-2 py-0.5 text-[10px] font-medium text-primary">{getStatusLabel(selectedConversation.status)}</span>
-                </p>
-              </div>
+              </Button>
             </div>
+
+            {/* Conteúdo do painel - só mostra quando expandido */}
+            {!contextPanelCollapsed && (
+              <div className="flex-1 overflow-y-auto p-4">
+                {selectedConversation.contact && (
+                  <div className="mb-4 rounded-lg bg-muted p-3">
+                    <div className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
+                      <User className="h-4 w-4" />
+                      Contato
+                    </div>
+                    <p className="text-sm font-medium text-foreground">
+                      {selectedConversation.contact.firstName}{" "}
+                      {selectedConversation.contact.lastName}
+                    </p>
+                    {selectedConversation.contact.email && (
+                      <p className="text-xs text-muted-foreground">
+                        {selectedConversation.contact.email}
+                      </p>
+                    )}
+                    {selectedConversation.contact.phone && (
+                      <p className="text-xs text-muted-foreground">
+                        {selectedConversation.contact.phone}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {selectedConversation.deal && (
+                  <div className="mb-4 rounded-lg bg-muted p-3">
+                    <div className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
+                      <Building2 className="h-4 w-4" />
+                      Negócio Relacionado
+                    </div>
+                    <p className="text-sm font-medium text-foreground">{selectedConversation.deal.title}</p>
+                    {selectedConversation.deal.value && (
+                      <p className="text-xs text-primary">
+                        R$ {Number(selectedConversation.deal.value).toLocaleString("pt-BR")}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                <div className="rounded-lg bg-muted p-3">
+                  <div className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
+                    <MessageSquare className="h-4 w-4" />
+                    Info da Conversa
+                  </div>
+                  <div className="space-y-1 text-xs">
+                    <p className="text-muted-foreground">
+                      Canal: <span className="text-foreground">{getChannelLabel(selectedConversation.channel)}</span>
+                    </p>
+                    <p className="text-muted-foreground">
+                      Status: <span className="inline-flex items-center rounded-full bg-primary/20 px-2 py-0.5 text-[10px] font-medium text-primary">{getStatusLabel(selectedConversation.status || "open")}</span>
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </>
       ) : (

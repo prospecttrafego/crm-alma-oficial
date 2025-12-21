@@ -201,49 +201,47 @@ export default function PipelinePage() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex flex-col gap-4 border-b p-4 md:flex-row md:items-center md:justify-between">
-        <div className="flex flex-wrap items-center gap-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-bold" data-testid="text-pipeline-title">
-                {t("pipeline.title")}
-              </h1>
-              {allPipelines && allPipelines.length > 1 && (
-                <Select
-                  value={selectedPipelineId?.toString() || ""}
-                  onValueChange={(val) => setSelectedPipelineId(Number(val))}
+      <div className="flex flex-col gap-3 border-b p-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold" data-testid="text-pipeline-title">
+              {t("pipeline.title")}
+            </h1>
+            {allPipelines && allPipelines.length > 1 && (
+              <Select
+                value={selectedPipelineId?.toString() || ""}
+                onValueChange={(val) => setSelectedPipelineId(Number(val))}
+              >
+                <SelectTrigger
+                  className="w-[200px]"
+                  data-testid="select-pipeline"
                 >
-                  <SelectTrigger
-                    className="w-[200px]"
-                    data-testid="select-pipeline"
-                  >
-                    <SelectValue placeholder={t("settings.pipelines.pipelineName")}>
-                      {pipeline?.name}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {allPipelines.map((p) => (
-                      <SelectItem
-                        key={p.id}
-                        value={p.id.toString()}
-                        data-testid={`select-pipeline-option-${p.id}`}
-                      >
-                        {p.name} {p.isDefault && `(${t("settings.pipelines.default")})`}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-              {(!allPipelines || allPipelines.length <= 1) && (
-                <span className="text-lg font-semibold text-muted-foreground">
-                  {pipeline?.name}
-                </span>
-              )}
-            </div>
-            <p className="text-sm text-muted-foreground">
-              {t("pipeline.dragToMove")}
-            </p>
+                  <SelectValue placeholder={t("settings.pipelines.pipelineName")}>
+                    {pipeline?.name}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {allPipelines.map((p) => (
+                    <SelectItem
+                      key={p.id}
+                      value={p.id.toString()}
+                      data-testid={`select-pipeline-option-${p.id}`}
+                    >
+                      {p.name} {p.isDefault && `(${t("settings.pipelines.default")})`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            {(!allPipelines || allPipelines.length <= 1) && (
+              <span className="text-lg font-semibold text-muted-foreground">
+                {pipeline?.name}
+              </span>
+            )}
           </div>
+          <p className="text-sm text-muted-foreground">
+            {t("pipeline.dragToMove")}
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <FilterPanel

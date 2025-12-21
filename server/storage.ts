@@ -18,6 +18,7 @@ import {
   calendarEvents,
   channelConfigs,
   pushTokens,
+  googleOAuthTokens,
   type User,
   type UpsertUser,
   type Organization,
@@ -60,6 +61,8 @@ import {
   type InsertChannelConfig,
   type PushToken,
   type InsertPushToken,
+  type GoogleOAuthToken,
+  type InsertGoogleOAuthToken,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, sql, count, gte, lte, lt, asc, not } from "drizzle-orm";
@@ -206,6 +209,16 @@ export interface IStorage {
   deletePushToken(token: string): Promise<void>;
   deletePushTokensForUser(userId: string): Promise<void>;
   updatePushTokenLastUsed(token: string): Promise<void>;
+
+  // Google OAuth Tokens
+  getGoogleOAuthToken(userId: string): Promise<GoogleOAuthToken | undefined>;
+  createGoogleOAuthToken(token: InsertGoogleOAuthToken): Promise<GoogleOAuthToken>;
+  updateGoogleOAuthToken(userId: string, updates: Partial<InsertGoogleOAuthToken>): Promise<GoogleOAuthToken | undefined>;
+  deleteGoogleOAuthToken(userId: string): Promise<void>;
+
+  // Calendar sync helpers
+  getCalendarEventByGoogleId(googleEventId: string, userId: string): Promise<CalendarEvent | undefined>;
+  getCalendarEventsForSync(userId: string, organizationId: number): Promise<CalendarEvent[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1154,6 +1167,54 @@ export class DatabaseStorage implements IStorage {
     await db.update(pushTokens)
       .set({ lastUsedAt: new Date() })
       .where(eq(pushTokens.token, token));
+  }
+
+  // Google OAuth Tokens
+  async getGoogleOAuthToken(userId: string): Promise<GoogleOAuthToken | undefined> {
+    const [token] = await db.select().from(googleOAuthTokens)
+      .where(eq(googleOAuthTokens.userId, userId));
+    return token;
+  }
+
+  async createGoogleOAuthToken(token: InsertGoogleOAuthToken): Promise<GoogleOAuthToken> {
+    // Delete existing token for this user first (one token per user)
+    await db.delete(googleOAuthTokens).where(eq(googleOAuthTokens.userId, token.userId));
+
+    const [created] = await db.insert(googleOAuthTokens).values(token).returning();
+    return created;
+  }
+
+  async updateGoogleOAuthToken(userId: string, updates: Partial<InsertGoogleOAuthToken>): Promise<GoogleOAuthToken | undefined> {
+    const [updated] = await db.update(googleOAuthTokens)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(googleOAuthTokens.userId, userId))
+      .returning();
+    return updated;
+  }
+
+  async deleteGoogleOAuthToken(userId: string): Promise<void> {
+    await db.delete(googleOAuthTokens).where(eq(googleOAuthTokens.userId, userId));
+  }
+
+  // Calendar sync helpers
+  async getCalendarEventByGoogleId(googleEventId: string, userId: string): Promise<CalendarEvent | undefined> {
+    const [event] = await db.select().from(calendarEvents)
+      .where(and(
+        eq(calendarEvents.googleEventId, googleEventId),
+        eq(calendarEvents.userId, userId)
+      ));
+    return event;
+  }
+
+  async getCalendarEventsForSync(userId: string, organizationId: number): Promise<CalendarEvent[]> {
+    // Get events that were created locally (syncSource = 'local') and need to be synced to Google
+    return await db.select().from(calendarEvents)
+      .where(and(
+        eq(calendarEvents.userId, userId),
+        eq(calendarEvents.organizationId, organizationId),
+        eq(calendarEvents.syncSource, 'local')
+      ))
+      .orderBy(desc(calendarEvents.startTime));
   }
 }
 

@@ -24,6 +24,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarSeparator,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/hooks/useAuth";
@@ -34,6 +35,8 @@ export function AppSidebar() {
   const [location] = useLocation();
   const { user } = useAuth();
   const { t } = useTranslation();
+  const { state } = useSidebar();
+  const isCollapsed = state === "collapsed";
 
   const mainNavItems = [
     {
@@ -111,13 +114,15 @@ export function AppSidebar() {
   };
 
   return (
-    <Sidebar>
-      <SidebarHeader className="p-4">
-        <div className="flex items-center gap-2">
-          <img src="/logo.png" alt="Alma" className="h-10 w-10 rounded-md object-cover" />
-          <div className="flex flex-col">
-            <span className="text-xs text-muted-foreground">{t("app.brandSubtitle")}</span>
-          </div>
+    <Sidebar collapsible="icon">
+      <SidebarHeader className={isCollapsed ? "p-2" : "p-4"}>
+        <div className={`flex items-center ${isCollapsed ? "justify-center" : "gap-2"}`}>
+          <img src="/logo.png" alt="Alma" className={`rounded-md object-cover ${isCollapsed ? "h-8 w-8" : "h-10 w-10"}`} />
+          {!isCollapsed && (
+            <div className="flex flex-col">
+              <span className="text-xs text-muted-foreground">{t("app.brandSubtitle")}</span>
+            </div>
+          )}
         </div>
       </SidebarHeader>
 
@@ -203,30 +208,34 @@ export function AppSidebar() {
         <SidebarSeparator />
 
         <div className="p-2">
-          <div className="flex items-center gap-3 rounded-md p-2">
-            <Avatar className="h-8 w-8">
+          <div className={`flex items-center rounded-md ${isCollapsed ? "justify-center p-1" : "gap-3 p-2"}`}>
+            <Avatar className={isCollapsed ? "h-7 w-7" : "h-8 w-8"}>
               <AvatarImage src={user?.profileImageUrl || undefined} />
               <AvatarFallback className="bg-primary text-primary-foreground text-xs">
                 {getInitials()}
               </AvatarFallback>
             </Avatar>
-            <div className="flex flex-1 flex-col overflow-hidden">
-              <span className="truncate text-sm font-medium" data-testid="text-user-name">
-                {user?.firstName || user?.email?.split("@")[0] || t("common.user")}
-              </span>
-              <span className="truncate text-xs text-muted-foreground" data-testid="text-user-email">
-                {user?.email || ""}
-              </span>
-            </div>
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground"
-              aria-label={t("settings.account.signOut")}
-              data-testid="button-logout"
-            >
-              <LogOut className="h-4 w-4" />
-            </button>
+            {!isCollapsed && (
+              <>
+                <div className="flex flex-1 flex-col overflow-hidden">
+                  <span className="truncate text-sm font-medium" data-testid="text-user-name">
+                    {user?.firstName || user?.email?.split("@")[0] || t("common.user")}
+                  </span>
+                  <span className="truncate text-xs text-muted-foreground" data-testid="text-user-email">
+                    {user?.email || ""}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground"
+                  aria-label={t("settings.account.signOut")}
+                  data-testid="button-logout"
+                >
+                  <LogOut className="h-4 w-4" />
+                </button>
+              </>
+            )}
           </div>
         </div>
       </SidebarFooter>

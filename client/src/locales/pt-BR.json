@@ -244,6 +244,13 @@
       "signOut": "Sair",
       "languagePlaceholder": "Selecionar idioma"
     },
+    "integrations": {
+      "title": "Integrações",
+      "subtitle": "Conecte serviços externos para sincronizar dados automaticamente",
+      "connected": "Conectado",
+      "notConnected": "Não conectado",
+      "connect": "Conectar"
+    },
     "channels": {
       "title": "Integrações de Canais",
       "subtitle": "Conecte contas de e-mail e WhatsApp para sincronizar mensagens",
@@ -311,6 +318,43 @@
         "configNamePlaceholder": "Ex: WhatsApp Principal, Suporte",
         "disconnectSuccess": "WhatsApp desconectado com sucesso",
         "disconnectError": "Falha ao desconectar WhatsApp"
+      }
+    },
+    "googleCalendar": {
+      "title": "Google Calendar",
+      "subtitle": "Sincronize seus eventos com o Google Calendar",
+      "notConfigured": "Integração não configurada",
+      "notConfiguredDescription": "O administrador precisa configurar as credenciais do Google OAuth para habilitar esta integração.",
+      "connect": "Conectar",
+      "connecting": "Conectando...",
+      "disconnect": "Desconectar",
+      "disconnecting": "Desconectando...",
+      "sync": "Sincronizar",
+      "syncing": "Sincronizando...",
+      "syncNow": "Sincronizar agora",
+      "connected": "Conectado",
+      "connectedAs": "Conectado como {{email}}",
+      "lastSync": "Última sincronização: {{date}}",
+      "neverSynced": "Nunca sincronizado",
+      "never": "Nunca",
+      "notConnected": "Google Calendar não conectado",
+      "connectDescription": "Conecte sua conta Google para sincronizar eventos automaticamente",
+      "disconnectConfirm": {
+        "title": "Desconectar Google Calendar?",
+        "description": "Isso irá remover a conexão com sua conta Google. Os eventos já sincronizados permanecerão no sistema."
+      },
+      "status": {
+        "idle": "Sincronizado",
+        "syncing": "Sincronizando",
+        "error": "Erro na sincronização"
+      },
+      "toast": {
+        "connected": "Google Calendar conectado com sucesso",
+        "connectError": "Falha ao conectar Google Calendar",
+        "disconnected": "Google Calendar desconectado com sucesso",
+        "disconnectError": "Falha ao desconectar Google Calendar",
+        "syncSuccess": "Sincronização concluída ({{count}} eventos importados)",
+        "syncError": "Falha na sincronização"
       }
     },
     "pipelines": {
