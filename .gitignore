@@ -6,4 +6,24 @@ dist
 server/public
 vite.config.ts.*
 *.tar.gz
+
+# Environment
 .env
+.env.local
+.env.*.local
+
+# Claude Code local settings
+.claude/settings.local.json
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+Thumbs.db
