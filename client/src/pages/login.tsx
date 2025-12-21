@@ -134,7 +134,12 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <img src="/logo.png" alt="Alma" className="mx-auto mb-4 h-16 w-16 rounded-md object-cover" />
+          <div className="mx-auto mb-4">
+            <span className="text-3xl font-black tracking-tight">
+              <span className="text-primary">Convert</span>
+              <span className="text-muted-foreground">.CRM</span>
+            </span>
+          </div>
           <CardTitle className="text-2xl">
             {isRegisterMode ? t("auth.signUp") : t("auth.signIn")}
           </CardTitle>

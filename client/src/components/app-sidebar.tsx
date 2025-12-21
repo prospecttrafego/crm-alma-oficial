@@ -11,6 +11,7 @@ import {
   Shield,
   BarChart3,
   Calendar,
+  ChevronRight,
 } from "lucide-react";
 import {
   Sidebar,
@@ -23,13 +24,23 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
   SidebarSeparator,
   useSidebar,
 } from "@/components/ui/sidebar";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/hooks/useAuth";
 import { useTranslation } from "@/contexts/LanguageContext";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useQuery } from "@tanstack/react-query";
+import type { Pipeline } from "@shared/schema";
 
 export function AppSidebar() {
   const [location] = useLocation();
@@ -37,6 +48,12 @@ export function AppSidebar() {
   const { t } = useTranslation();
   const { state } = useSidebar();
   const isCollapsed = state === "collapsed";
+
+  // Fetch pipelines for submenu
+  const { data: pipelines = [] } = useQuery<Pipeline[]>({
+    queryKey: ["/api/pipelines"],
+    enabled: !!user,
+  });
 
   const mainNavItems = [
     {
@@ -50,12 +67,6 @@ export function AppSidebar() {
       url: "/inbox",
       icon: Inbox,
       key: "inbox",
-    },
-    {
-      title: t("nav.pipeline"),
-      url: "/pipeline",
-      icon: Kanban,
-      key: "pipeline",
     },
   ];
 
@@ -116,10 +127,15 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader className={isCollapsed ? "p-2" : "p-4"}>
-        <div className={`flex items-center ${isCollapsed ? "justify-center" : "gap-2"}`}>
-          <img src="/logo.png" alt="Alma" className={`rounded-md object-cover ${isCollapsed ? "h-8 w-8" : "h-10 w-10"}`} />
-          {!isCollapsed && (
+        <div className={`flex items-center ${isCollapsed ? "justify-center" : "gap-3"}`}>
+          {isCollapsed ? (
+            <span className="text-xl font-black text-primary">C</span>
+          ) : (
             <div className="flex flex-col">
+              <span className="text-xl font-black tracking-tight">
+                <span className="text-primary">Convert</span>
+                <span className="text-muted-foreground">.CRM</span>
+              </span>
               <span className="text-xs text-muted-foreground">{t("app.brandSubtitle")}</span>
             </div>
           )}
@@ -147,6 +163,47 @@ export function AppSidebar() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
+
+              {/* Pipeline with submenu */}
+              <Collapsible
+                asChild
+                defaultOpen={location.startsWith("/pipeline")}
+                className="group/collapsible"
+              >
+                <SidebarMenuItem>
+                  <CollapsibleTrigger asChild>
+                    <SidebarMenuButton
+                      tooltip={t("nav.pipeline")}
+                      isActive={location.startsWith("/pipeline")}
+                    >
+                      <Kanban className="h-4 w-4" />
+                      <span>{t("nav.pipeline")}</span>
+                      <ChevronRight className="ml-auto h-4 w-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+                    </SidebarMenuButton>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <SidebarMenuSub>
+                      {pipelines.map((pipeline) => (
+                        <SidebarMenuSubItem key={pipeline.id}>
+                          <SidebarMenuSubButton
+                            asChild
+                            isActive={location === `/pipeline/${pipeline.id}`}
+                          >
+                            <Link href={`/pipeline/${pipeline.id}`}>
+                              <span>{pipeline.name}</span>
+                              {pipeline.isDefault && (
+                                <span className="ml-auto text-[10px] text-muted-foreground">
+                                  {t("settings.pipelines.default")}
+                                </span>
+                              )}
+                            </Link>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                      ))}
+                    </SidebarMenuSub>
+                  </CollapsibleContent>
+                </SidebarMenuItem>
+              </Collapsible>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

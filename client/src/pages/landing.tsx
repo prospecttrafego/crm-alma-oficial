@@ -9,8 +9,10 @@ export default function Landing() {
       <header className="border-b">
         <div className="container mx-auto flex h-16 items-center justify-between px-4">
           <div className="flex items-center gap-2">
-            <img src="/logo.png" alt="Alma" className="h-10 w-10 rounded-md object-cover" />
-            <span className="text-xl font-bold" data-testid="text-logo">Alma</span>
+            <span className="text-xl font-black tracking-tight" data-testid="text-logo">
+              <span className="text-primary">Convert</span>
+              <span className="text-muted-foreground">.CRM</span>
+            </span>
           </div>
           <Link href="/login">
             <Button data-testid="button-login">Entrar</Button>
@@ -22,12 +24,12 @@ export default function Landing() {
         <section className="py-20 md:py-32">
           <div className="container mx-auto px-4 text-center">
             <h1 className="mb-6 text-4xl font-bold tracking-tight md:text-6xl" data-testid="text-hero-title">
-              CRM feito para
-              <span className="text-primary"> agências modernas</span>
+              Converta leads em
+              <span className="text-primary"> clientes fiéis</span>
             </h1>
             <p className="mx-auto mb-8 max-w-2xl text-lg text-muted-foreground md:text-xl" data-testid="text-hero-description">
               Simplifique seu pipeline de vendas e conversas com clientes em uma plataforma
-              bonita e rápida. Feito para equipes que exigem excelência.
+              bonita e rápida. Feito para equipes que exigem conversão.
             </p>
             <Link href="/login">
               <Button size="lg" className="text-lg" data-testid="button-get-started">
@@ -97,7 +99,7 @@ export default function Landing() {
 
       <footer className="border-t py-8">
         <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
-          <p>&copy; {new Date().getFullYear()} Alma Digital Agency. Todos os direitos reservados.</p>
+          <p>&copy; {new Date().getFullYear()} Convert.CRM. Todos os direitos reservados.</p>
         </div>
       </footer>
     </div>

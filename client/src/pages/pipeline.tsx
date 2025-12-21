@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useRoute, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
@@ -51,22 +52,34 @@ interface PipelineWithStages extends Pipeline {
 export default function PipelinePage() {
   const { toast } = useToast();
   const { t } = useTranslation();
+  const [, setLocation] = useLocation();
+  const [match, params] = useRoute("/pipeline/:pipelineId");
+  const urlPipelineId = match ? Number(params?.pipelineId) : null;
+
   const [selectedDeal, setSelectedDeal] = useState<DealWithRelations | null>(null);
   const [newDealOpen, setNewDealOpen] = useState(false);
   const [draggedDeal, setDraggedDeal] = useState<DealWithRelations | null>(null);
   const [dragOverStage, setDragOverStage] = useState<number | null>(null);
   const [filters, setFilters] = useState<PipelineFilters>({});
-  const [selectedPipelineId, setSelectedPipelineId] = useState<number | null>(null);
+  const [selectedPipelineId, setSelectedPipelineId] = useState<number | null>(urlPipelineId);
+
+  // Sync URL parameter with state
+  useEffect(() => {
+    if (urlPipelineId && urlPipelineId !== selectedPipelineId) {
+      setSelectedPipelineId(urlPipelineId);
+    }
+  }, [urlPipelineId]);
 
   const { data: allPipelines } = useQuery<PipelineWithStages[]>({
     queryKey: ["/api/pipelines"],
   });
 
   const { data: pipeline, isLoading: pipelineLoading } = useQuery<PipelineWithStages>({
-    queryKey: ["/api/pipelines", selectedPipelineId],
+    queryKey: ["/api/pipelines", selectedPipelineId || urlPipelineId],
     queryFn: async () => {
-      if (selectedPipelineId) {
-        const res = await fetch(`/api/pipelines/${selectedPipelineId}`, { credentials: "include" });
+      const idToFetch = selectedPipelineId || urlPipelineId;
+      if (idToFetch) {
+        const res = await fetch(`/api/pipelines/${idToFetch}`, { credentials: "include" });
         if (!res.ok) throw new Error("Failed to fetch pipeline");
         return res.json();
       }
@@ -76,11 +89,14 @@ export default function PipelinePage() {
     },
   });
 
+  // Navigate to pipeline URL when selecting a different pipeline
   useEffect(() => {
-    if (pipeline && !selectedPipelineId) {
+    if (pipeline && !urlPipelineId) {
+      // If on /pipeline without ID, redirect to the default pipeline
       setSelectedPipelineId(pipeline.id);
+      setLocation(`/pipeline/${pipeline.id}`);
     }
-  }, [pipeline, selectedPipelineId]);
+  }, [pipeline, urlPipelineId, setLocation]);
 
   const { data: deals, isLoading: dealsLoading } = useQuery<DealWithRelations[]>({
     queryKey: ["/api/deals"],
@@ -210,7 +226,7 @@ export default function PipelinePage() {
             {allPipelines && allPipelines.length > 1 && (
               <Select
                 value={selectedPipelineId?.toString() || ""}
-                onValueChange={(val) => setSelectedPipelineId(Number(val))}
+                onValueChange={(val) => setLocation(`/pipeline/${val}`)}
               >
                 <SelectTrigger
                   className="w-[200px]"
