@@ -10,7 +10,7 @@ import bcrypt from "bcryptjs";
 import type { Express, RequestHandler } from "express";
 import { storage } from "./storage";
 import { db } from "./db";
-import { users } from "@shared/schema";
+import { users, organizations, pipelines, pipelineStages } from "@shared/schema";
 import { eq } from "drizzle-orm";
 
 const BCRYPT_ROUNDS = 12;
@@ -145,7 +145,20 @@ export async function setupAuth(app: Express) {
       // Hash da senha
       const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
 
-      // Criar usuario
+      // Criar organizacao para o novo usuario
+      const orgName = firstName
+        ? `${firstName}'s Organization`
+        : email.split('@')[0] + "'s Organization";
+
+      const [newOrg] = await db
+        .insert(organizations)
+        .values({
+          name: orgName,
+          domain: email.split('@')[1] || null,
+        })
+        .returning();
+
+      // Criar usuario associado a organizacao
       const [newUser] = await db
         .insert(users)
         .values({
@@ -153,8 +166,39 @@ export async function setupAuth(app: Express) {
           passwordHash,
           firstName: firstName || null,
           lastName: lastName || null,
+          organizationId: newOrg.id,
+          role: 'admin', // Primeiro usuario da org e admin
         })
         .returning();
+
+      // Criar pipeline padrao
+      const [defaultPipeline] = await db
+        .insert(pipelines)
+        .values({
+          name: 'Pipeline de Vendas',
+          organizationId: newOrg.id,
+          isDefault: true,
+        })
+        .returning();
+
+      // Criar estagios padrao do pipeline
+      const defaultStages = [
+        { name: 'Novo Lead', order: 0, color: '#6B7280' },
+        { name: 'Qualificado', order: 1, color: '#3B82F6' },
+        { name: 'Proposta', order: 2, color: '#F59E0B' },
+        { name: 'Negociacao', order: 3, color: '#8B5CF6' },
+        { name: 'Fechado (Ganho)', order: 4, color: '#10B981', isWon: true },
+        { name: 'Fechado (Perdido)', order: 5, color: '#EF4444', isLost: true },
+      ];
+
+      await db.insert(pipelineStages).values(
+        defaultStages.map(stage => ({
+          ...stage,
+          pipelineId: defaultPipeline.id,
+        }))
+      );
+
+      console.log(`[Auth] Novo usuario registrado: ${email}, org: ${newOrg.id}, pipeline: ${defaultPipeline.id}`);
 
       // Auto-login apos registro
       req.logIn(newUser, (loginErr) => {
