@@ -9,7 +9,6 @@
     "start": "NODE_ENV=production node dist/index.cjs",
     "check": "tsc",
     "db:push": "drizzle-kit push",
-    "db:seed": "tsx scripts/seed-mock-data.ts",
     "db:migrate-ptbr": "tsx scripts/migrate-ptbr-data.ts"
   },
   "dependencies": {

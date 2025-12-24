@@ -87,9 +87,10 @@ export class EvolutionMessageHandler {
     channelConfigId: number,
     organizationId: number
   ): Promise<void> {
-    console.log(`[Evolution Handler] Received event: ${event.event} for instance: ${event.instance}`);
+    const normalizedEvent = String(event.event || "").toUpperCase().replace(/\./g, "_");
+    console.log(`[Evolution Handler] Received event: ${normalizedEvent} for instance: ${event.instance}`);
 
-    switch (event.event) {
+    switch (normalizedEvent) {
       case 'MESSAGES_UPSERT':
         await this.handleMessagesUpsert(event, channelConfigId, organizationId);
         break;
@@ -115,8 +116,19 @@ export class EvolutionMessageHandler {
     channelConfigId: number,
     organizationId: number
   ): Promise<void> {
-    const messages = event.data as EvolutionMessage[];
-    if (!Array.isArray(messages)) return;
+    const payload = event.data as unknown as
+      | EvolutionMessage[]
+      | { messages?: EvolutionMessage[] }
+      | null
+      | undefined;
+
+    const messages = Array.isArray(payload)
+      ? payload
+      : Array.isArray(payload?.messages)
+        ? payload.messages
+        : null;
+
+    if (!messages) return;
 
     for (const msg of messages) {
       // Skip messages from self

@@ -10,8 +10,9 @@ import bcrypt from "bcryptjs";
 import type { Express, RequestHandler } from "express";
 import { storage } from "./storage";
 import { db } from "./db";
-import { users, organizations, pipelines, pipelineStages } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { users, pipelines, pipelineStages } from "@shared/schema";
+import { and, count, eq } from "drizzle-orm";
+import { getSingleTenantOrganizationId } from "./tenant";
 
 const BCRYPT_ROUNDS = 12;
 
@@ -68,6 +69,18 @@ export async function setupAuth(app: Express) {
 
           const isValid = await bcrypt.compare(password, user.passwordHash);
           if (!isValid) {
+            return done(null, false, { message: "Credenciais invalidas" });
+          }
+
+          // Enforce single-tenant org membership (auto-fix legacy users with NULL org)
+          const tenantOrganizationId = await getSingleTenantOrganizationId();
+          if (!user.organizationId) {
+            await db
+              .update(users)
+              .set({ organizationId: tenantOrganizationId, updatedAt: new Date() })
+              .where(eq(users.id, user.id));
+            user.organizationId = tenantOrganizationId;
+          } else if (user.organizationId !== tenantOrganizationId) {
             return done(null, false, { message: "Credenciais invalidas" });
           }
 
@@ -145,20 +158,16 @@ export async function setupAuth(app: Express) {
       // Hash da senha
       const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
 
-      // Criar organizacao para o novo usuario
-      const orgName = firstName
-        ? `${firstName}'s Organization`
-        : email.split('@')[0] + "'s Organization";
+      const tenantOrganizationId = await getSingleTenantOrganizationId();
 
-      const [newOrg] = await db
-        .insert(organizations)
-        .values({
-          name: orgName,
-          domain: email.split('@')[1] || null,
-        })
-        .returning();
+      // Determine role: first user becomes admin, the rest are sales by default.
+      const [orgUserCount] = await db
+        .select({ count: count() })
+        .from(users)
+        .where(eq(users.organizationId, tenantOrganizationId));
+      const isFirstUserInOrg = Number(orgUserCount?.count || 0) === 0;
 
-      // Criar usuario associado a organizacao
+      // Criar usuario associado a organizacao default (single tenant)
       const [newUser] = await db
         .insert(users)
         .values({
@@ -166,39 +175,44 @@ export async function setupAuth(app: Express) {
           passwordHash,
           firstName: firstName || null,
           lastName: lastName || null,
-          organizationId: newOrg.id,
-          role: 'admin', // Primeiro usuario da org e admin
+          organizationId: tenantOrganizationId,
+          role: isFirstUserInOrg ? "admin" : "sales",
         })
         .returning();
 
-      // Criar pipeline padrao
-      const [defaultPipeline] = await db
-        .insert(pipelines)
-        .values({
-          name: 'Pipeline de Vendas',
-          organizationId: newOrg.id,
-          isDefault: true,
-        })
-        .returning();
+      // Ensure at least one default pipeline exists for the tenant org.
+      const [existingDefaultPipeline] = await db
+        .select({ id: pipelines.id })
+        .from(pipelines)
+        .where(and(eq(pipelines.organizationId, tenantOrganizationId), eq(pipelines.isDefault, true)))
+        .limit(1);
 
-      // Criar estagios padrao do pipeline
-      const defaultStages = [
-        { name: 'Novo Lead', order: 0, color: '#6B7280' },
-        { name: 'Qualificado', order: 1, color: '#3B82F6' },
-        { name: 'Proposta', order: 2, color: '#F59E0B' },
-        { name: 'Negociacao', order: 3, color: '#8B5CF6' },
-        { name: 'Fechado (Ganho)', order: 4, color: '#10B981', isWon: true },
-        { name: 'Fechado (Perdido)', order: 5, color: '#EF4444', isLost: true },
-      ];
+      if (!existingDefaultPipeline) {
+        const [defaultPipeline] = await db
+          .insert(pipelines)
+          .values({
+            name: "Pipeline de Vendas",
+            organizationId: tenantOrganizationId,
+            isDefault: true,
+          })
+          .returning();
 
-      await db.insert(pipelineStages).values(
-        defaultStages.map(stage => ({
-          ...stage,
-          pipelineId: defaultPipeline.id,
-        }))
-      );
+        const defaultStages = [
+          { name: "Novo Lead", order: 0, color: "#6B7280" },
+          { name: "Qualificado", order: 1, color: "#3B82F6" },
+          { name: "Proposta", order: 2, color: "#F59E0B" },
+          { name: "Negociacao", order: 3, color: "#8B5CF6" },
+          { name: "Fechado (Ganho)", order: 4, color: "#10B981", isWon: true },
+          { name: "Fechado (Perdido)", order: 5, color: "#EF4444", isLost: true },
+        ];
 
-      console.log(`[Auth] Novo usuario registrado: ${email}, org: ${newOrg.id}, pipeline: ${defaultPipeline.id}`);
+        await db.insert(pipelineStages).values(
+          defaultStages.map((stage) => ({
+            ...stage,
+            pipelineId: defaultPipeline.id,
+          })),
+        );
+      }
 
       // Auto-login apos registro
       req.logIn(newUser, (loginErr) => {

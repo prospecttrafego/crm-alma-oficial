@@ -39,7 +39,7 @@ export class EvolutionApiService {
   private apiKey: string;
 
   constructor() {
-    this.baseUrl = process.env.EVOLUTION_API_URL || '';
+    this.baseUrl = (process.env.EVOLUTION_API_URL || '').replace(/\/+$/, '');
     this.apiKey = process.env.EVOLUTION_API_KEY || '';
   }
 
@@ -245,7 +245,14 @@ export class EvolutionApiService {
    * Set webhook URL for an instance
    */
   async setWebhook(instanceName: string, webhookUrl: string): Promise<void> {
-    console.log(`[Evolution API] Setting webhook for ${instanceName}: ${webhookUrl}`);
+    let safeUrl = webhookUrl;
+    try {
+      const parsed = new URL(webhookUrl);
+      safeUrl = `${parsed.origin}${parsed.pathname}`;
+    } catch {
+      // ignore
+    }
+    console.log(`[Evolution API] Setting webhook for ${instanceName}: ${safeUrl}`);
 
     await this.request<void>(
       'POST',

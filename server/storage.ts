@@ -66,6 +66,7 @@ import {
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, sql, count, gte, lte, lt, asc, not } from "drizzle-orm";
+import { getSingleTenantOrganizationId } from "./tenant";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -222,23 +223,37 @@ export interface IStorage {
 }
 
 export class DatabaseStorage implements IStorage {
+  private async tenantOrganizationId(): Promise<number> {
+    return getSingleTenantOrganizationId();
+  }
+
   async getUser(id: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.id, id));
+    const organizationId = await this.tenantOrganizationId();
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(and(eq(users.id, id), eq(users.organizationId, organizationId)));
     return user;
   }
 
   async getUsers(organizationId: number): Promise<User[]> {
-    return await db.select().from(users).where(eq(users.organizationId, organizationId));
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    return await db
+      .select()
+      .from(users)
+      .where(eq(users.organizationId, tenantOrganizationId));
   }
 
   async upsertUser(userData: UpsertUser): Promise<User> {
+    const organizationId = await this.tenantOrganizationId();
     const [user] = await db
       .insert(users)
-      .values(userData)
+      .values({ ...userData, organizationId })
       .onConflictDoUpdate({
         target: users.id,
         set: {
           ...userData,
+          organizationId,
           updatedAt: new Date(),
         },
       })
@@ -252,8 +267,12 @@ export class DatabaseStorage implements IStorage {
     profileImageUrl?: string;
     preferences?: { language?: 'pt-BR' | 'en' };
   }): Promise<User | undefined> {
+    const organizationId = await this.tenantOrganizationId();
     // Get existing user to merge preferences
-    const [existing] = await db.select().from(users).where(eq(users.id, id));
+    const [existing] = await db
+      .select()
+      .from(users)
+      .where(and(eq(users.id, id), eq(users.organizationId, organizationId)));
     if (!existing) return undefined;
 
     const updateData: Record<string, unknown> = { updatedAt: new Date() };
@@ -268,15 +287,20 @@ export class DatabaseStorage implements IStorage {
       updateData.preferences = { ...existingPrefs, ...updates.preferences };
     }
 
-    const [updated] = await db.update(users)
+    const [updated] = await db
+      .update(users)
       .set(updateData)
-      .where(eq(users.id, id))
+      .where(and(eq(users.id, id), eq(users.organizationId, organizationId)))
       .returning();
     return updated;
   }
 
   async getOrganization(id: number): Promise<Organization | undefined> {
-    const [org] = await db.select().from(organizations).where(eq(organizations.id, id));
+    const organizationId = await this.tenantOrganizationId();
+    const [org] = await db
+      .select()
+      .from(organizations)
+      .where(and(eq(organizations.id, id), eq(organizations.id, organizationId)));
     return org;
   }
 
@@ -286,172 +310,442 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getDefaultOrganization(): Promise<Organization | undefined> {
-    const [org] = await db.select().from(organizations).limit(1);
+    const organizationId = await this.tenantOrganizationId();
+    const [org] = await db
+      .select()
+      .from(organizations)
+      .where(eq(organizations.id, organizationId))
+      .limit(1);
     return org;
   }
 
   async getCompanies(organizationId: number): Promise<Company[]> {
-    return await db.select().from(companies).where(eq(companies.organizationId, organizationId));
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    return await db
+      .select()
+      .from(companies)
+      .where(eq(companies.organizationId, tenantOrganizationId));
   }
 
   async getCompany(id: number): Promise<Company | undefined> {
-    const [company] = await db.select().from(companies).where(eq(companies.id, id));
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    const [company] = await db
+      .select()
+      .from(companies)
+      .where(and(eq(companies.id, id), eq(companies.organizationId, tenantOrganizationId)));
     return company;
   }
 
   async createCompany(company: InsertCompany): Promise<Company> {
-    const [created] = await db.insert(companies).values(company).returning();
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    const [created] = await db
+      .insert(companies)
+      .values({ ...company, organizationId: tenantOrganizationId })
+      .returning();
     return created;
   }
 
   async updateCompany(id: number, company: Partial<InsertCompany>): Promise<Company | undefined> {
-    const [updated] = await db.update(companies).set({ ...company, updatedAt: new Date() }).where(eq(companies.id, id)).returning();
-    return updated;
-  }
-
-  async deleteCompany(id: number): Promise<void> {
-    await db.delete(companies).where(eq(companies.id, id));
-  }
-
-  async getContacts(organizationId: number): Promise<Contact[]> {
-    return await db.select().from(contacts).where(eq(contacts.organizationId, organizationId));
-  }
-
-  async getContact(id: number): Promise<Contact | undefined> {
-    const [contact] = await db.select().from(contacts).where(eq(contacts.id, id));
-    return contact;
-  }
-
-  async createContact(contact: InsertContact): Promise<Contact> {
-    const [created] = await db.insert(contacts).values(contact).returning();
-    return created;
-  }
-
-  async updateContact(id: number, contact: Partial<InsertContact>): Promise<Contact | undefined> {
-    const [updated] = await db.update(contacts).set({ ...contact, updatedAt: new Date() }).where(eq(contacts.id, id)).returning();
-    return updated;
-  }
-
-  async deleteContact(id: number): Promise<void> {
-    await db.delete(contacts).where(eq(contacts.id, id));
-  }
-
-  async getPipelines(organizationId: number): Promise<Pipeline[]> {
-    return await db.select().from(pipelines).where(eq(pipelines.organizationId, organizationId));
-  }
-
-  async getPipeline(id: number): Promise<Pipeline | undefined> {
-    const [pipeline] = await db.select().from(pipelines).where(eq(pipelines.id, id));
-    return pipeline;
-  }
-
-  async getDefaultPipeline(organizationId: number): Promise<Pipeline | undefined> {
-    const [pipeline] = await db.select().from(pipelines)
-      .where(and(eq(pipelines.organizationId, organizationId), eq(pipelines.isDefault, true)));
-    return pipeline;
-  }
-
-  async createPipeline(pipeline: InsertPipeline): Promise<Pipeline> {
-    const [created] = await db.insert(pipelines).values(pipeline).returning();
-    return created;
-  }
-
-  async getPipelineStages(pipelineId: number): Promise<PipelineStage[]> {
-    return await db.select().from(pipelineStages)
-      .where(eq(pipelineStages.pipelineId, pipelineId))
-      .orderBy(pipelineStages.order);
-  }
-
-  async createPipelineStage(stage: InsertPipelineStage): Promise<PipelineStage> {
-    const [created] = await db.insert(pipelineStages).values(stage).returning();
-    return created;
-  }
-
-  async updatePipeline(id: number, pipeline: Partial<InsertPipeline>): Promise<Pipeline | undefined> {
-    const [updated] = await db.update(pipelines).set({ ...pipeline, updatedAt: new Date() }).where(eq(pipelines.id, id)).returning();
-    return updated;
-  }
-
-  async deletePipeline(id: number): Promise<void> {
-    await db.delete(pipelineStages).where(eq(pipelineStages.pipelineId, id));
-    await db.delete(pipelines).where(eq(pipelines.id, id));
-  }
-
-  async setDefaultPipeline(id: number, organizationId: number): Promise<Pipeline | undefined> {
-    await db.update(pipelines).set({ isDefault: false }).where(eq(pipelines.organizationId, organizationId));
-    const [updated] = await db.update(pipelines).set({ isDefault: true, updatedAt: new Date() }).where(eq(pipelines.id, id)).returning();
-    return updated;
-  }
-
-  async updatePipelineStage(id: number, stage: Partial<InsertPipelineStage>): Promise<PipelineStage | undefined> {
-    const [updated] = await db.update(pipelineStages).set(stage).where(eq(pipelineStages.id, id)).returning();
-    return updated;
-  }
-
-  async deletePipelineStage(id: number): Promise<void> {
-    await db.delete(pipelineStages).where(eq(pipelineStages.id, id));
-  }
-
-  async getDeals(organizationId: number): Promise<Deal[]> {
-    return await db.select().from(deals).where(eq(deals.organizationId, organizationId));
-  }
-
-  async getDealsByPipeline(pipelineId: number): Promise<Deal[]> {
-    return await db.select().from(deals).where(eq(deals.pipelineId, pipelineId));
-  }
-
-  async getDeal(id: number): Promise<Deal | undefined> {
-    const [deal] = await db.select().from(deals).where(eq(deals.id, id));
-    return deal;
-  }
-
-  async createDeal(deal: InsertDeal): Promise<Deal> {
-    const [created] = await db.insert(deals).values(deal).returning();
-    return created;
-  }
-
-  async updateDeal(id: number, deal: Partial<InsertDeal>): Promise<Deal | undefined> {
-    const [updated] = await db.update(deals).set({ ...deal, updatedAt: new Date() }).where(eq(deals.id, id)).returning();
-    return updated;
-  }
-
-  async deleteDeal(id: number): Promise<void> {
-    await db.delete(deals).where(eq(deals.id, id));
-  }
-
-  async moveDealToStage(dealId: number, stageId: number): Promise<Deal | undefined> {
-    const stage = await db.select().from(pipelineStages).where(eq(pipelineStages.id, stageId));
-    if (!stage.length) return undefined;
-    
-    let status = "open";
-    if (stage[0].isWon) status = "won";
-    if (stage[0].isLost) status = "lost";
-    
-    const [updated] = await db.update(deals)
-      .set({ stageId, status, updatedAt: new Date() })
-      .where(eq(deals.id, dealId))
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    const { organizationId: _organizationId, ...updateData } = company as Partial<
+      InsertCompany & { organizationId?: number }
+    >;
+    const [updated] = await db
+      .update(companies)
+      .set({ ...updateData, updatedAt: new Date() })
+      .where(and(eq(companies.id, id), eq(companies.organizationId, tenantOrganizationId)))
       .returning();
     return updated;
   }
 
+  async deleteCompany(id: number): Promise<void> {
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    await db
+      .delete(companies)
+      .where(and(eq(companies.id, id), eq(companies.organizationId, tenantOrganizationId)));
+  }
+
+  async getContacts(organizationId: number): Promise<Contact[]> {
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    return await db
+      .select()
+      .from(contacts)
+      .where(eq(contacts.organizationId, tenantOrganizationId));
+  }
+
+  async getContact(id: number): Promise<Contact | undefined> {
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    const [contact] = await db
+      .select()
+      .from(contacts)
+      .where(and(eq(contacts.id, id), eq(contacts.organizationId, tenantOrganizationId)));
+    return contact;
+  }
+
+  async createContact(contact: InsertContact): Promise<Contact> {
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    const [created] = await db
+      .insert(contacts)
+      .values({ ...contact, organizationId: tenantOrganizationId })
+      .returning();
+    return created;
+  }
+
+  async updateContact(id: number, contact: Partial<InsertContact>): Promise<Contact | undefined> {
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    const { organizationId: _organizationId, ...updateData } = contact as Partial<
+      InsertContact & { organizationId?: number }
+    >;
+    const [updated] = await db
+      .update(contacts)
+      .set({ ...updateData, updatedAt: new Date() })
+      .where(and(eq(contacts.id, id), eq(contacts.organizationId, tenantOrganizationId)))
+      .returning();
+    return updated;
+  }
+
+  async deleteContact(id: number): Promise<void> {
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    await db
+      .delete(contacts)
+      .where(and(eq(contacts.id, id), eq(contacts.organizationId, tenantOrganizationId)));
+  }
+
+  async getPipelines(organizationId: number): Promise<Pipeline[]> {
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    return await db
+      .select()
+      .from(pipelines)
+      .where(eq(pipelines.organizationId, tenantOrganizationId));
+  }
+
+  async getPipeline(id: number): Promise<Pipeline | undefined> {
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    const [pipeline] = await db
+      .select()
+      .from(pipelines)
+      .where(and(eq(pipelines.id, id), eq(pipelines.organizationId, tenantOrganizationId)));
+    return pipeline;
+  }
+
+  async getDefaultPipeline(organizationId: number): Promise<Pipeline | undefined> {
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    const [pipeline] = await db
+      .select()
+      .from(pipelines)
+      .where(and(eq(pipelines.organizationId, tenantOrganizationId), eq(pipelines.isDefault, true)));
+    return pipeline;
+  }
+
+  async createPipeline(pipeline: InsertPipeline): Promise<Pipeline> {
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    const [created] = await db
+      .insert(pipelines)
+      .values({ ...pipeline, organizationId: tenantOrganizationId })
+      .returning();
+    return created;
+  }
+
+  async getPipelineStages(pipelineId: number): Promise<PipelineStage[]> {
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    const rows = await db
+      .select()
+      .from(pipelineStages)
+      .innerJoin(pipelines, eq(pipelineStages.pipelineId, pipelines.id))
+      .where(
+        and(
+          eq(pipelineStages.pipelineId, pipelineId),
+          eq(pipelines.organizationId, tenantOrganizationId),
+        ),
+      )
+      .orderBy(pipelineStages.order);
+
+    return rows.map((row) => row.pipeline_stages);
+  }
+
+  async createPipelineStage(stage: InsertPipelineStage): Promise<PipelineStage> {
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    const [pipeline] = await db
+      .select({ id: pipelines.id })
+      .from(pipelines)
+      .where(and(eq(pipelines.id, stage.pipelineId), eq(pipelines.organizationId, tenantOrganizationId)))
+      .limit(1);
+
+    if (!pipeline) {
+      throw new Error("Pipeline not found");
+    }
+
+    const { pipelineId, ...insertData } = stage as InsertPipelineStage;
+    const [created] = await db
+      .insert(pipelineStages)
+      .values({ ...insertData, pipelineId })
+      .returning();
+    return created;
+  }
+
+  async updatePipeline(id: number, pipeline: Partial<InsertPipeline>): Promise<Pipeline | undefined> {
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    const { organizationId: _organizationId, ...updateData } = pipeline as Partial<
+      InsertPipeline & { organizationId?: number }
+    >;
+    const [updated] = await db
+      .update(pipelines)
+      .set({ ...updateData, updatedAt: new Date() })
+      .where(and(eq(pipelines.id, id), eq(pipelines.organizationId, tenantOrganizationId)))
+      .returning();
+    return updated;
+  }
+
+  async deletePipeline(id: number): Promise<void> {
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    const [pipeline] = await db
+      .select({ id: pipelines.id })
+      .from(pipelines)
+      .where(and(eq(pipelines.id, id), eq(pipelines.organizationId, tenantOrganizationId)))
+      .limit(1);
+
+    if (!pipeline) return;
+
+    await db.delete(pipelineStages).where(eq(pipelineStages.pipelineId, id));
+    await db
+      .delete(pipelines)
+      .where(and(eq(pipelines.id, id), eq(pipelines.organizationId, tenantOrganizationId)));
+  }
+
+  async setDefaultPipeline(id: number, organizationId: number): Promise<Pipeline | undefined> {
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    await db
+      .update(pipelines)
+      .set({ isDefault: false })
+      .where(eq(pipelines.organizationId, tenantOrganizationId));
+    const [updated] = await db
+      .update(pipelines)
+      .set({ isDefault: true, updatedAt: new Date() })
+      .where(and(eq(pipelines.id, id), eq(pipelines.organizationId, tenantOrganizationId)))
+      .returning();
+    return updated;
+  }
+
+  async updatePipelineStage(id: number, stage: Partial<InsertPipelineStage>): Promise<PipelineStage | undefined> {
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    const [existing] = await db
+      .select({ pipelineId: pipelineStages.pipelineId })
+      .from(pipelineStages)
+      .innerJoin(pipelines, eq(pipelineStages.pipelineId, pipelines.id))
+      .where(and(eq(pipelineStages.id, id), eq(pipelines.organizationId, tenantOrganizationId)))
+      .limit(1);
+
+    if (!existing) return undefined;
+
+    const { pipelineId: _pipelineId, ...updateData } = stage as Partial<
+      InsertPipelineStage & { pipelineId?: number }
+    >;
+    const [updated] = await db
+      .update(pipelineStages)
+      .set(updateData)
+      .where(and(eq(pipelineStages.id, id), eq(pipelineStages.pipelineId, existing.pipelineId)))
+      .returning();
+    return updated;
+  }
+
+  async deletePipelineStage(id: number): Promise<void> {
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    const [existing] = await db
+      .select({ pipelineId: pipelineStages.pipelineId })
+      .from(pipelineStages)
+      .innerJoin(pipelines, eq(pipelineStages.pipelineId, pipelines.id))
+      .where(and(eq(pipelineStages.id, id), eq(pipelines.organizationId, tenantOrganizationId)))
+      .limit(1);
+
+    if (!existing) return;
+
+    await db
+      .delete(pipelineStages)
+      .where(and(eq(pipelineStages.id, id), eq(pipelineStages.pipelineId, existing.pipelineId)));
+  }
+
+  async getDeals(organizationId: number): Promise<Deal[]> {
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    return await db
+      .select()
+      .from(deals)
+      .where(eq(deals.organizationId, tenantOrganizationId));
+  }
+
+  async getDealsByPipeline(pipelineId: number): Promise<Deal[]> {
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    return await db
+      .select()
+      .from(deals)
+      .where(and(eq(deals.pipelineId, pipelineId), eq(deals.organizationId, tenantOrganizationId)));
+  }
+
+  async getDeal(id: number): Promise<Deal | undefined> {
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    const [deal] = await db
+      .select()
+      .from(deals)
+      .where(and(eq(deals.id, id), eq(deals.organizationId, tenantOrganizationId)));
+    return deal;
+  }
+
+  async createDeal(deal: InsertDeal): Promise<Deal> {
+    const tenantOrganizationId = await this.tenantOrganizationId();
+
+    const [pipeline] = await db
+      .select({ id: pipelines.id })
+      .from(pipelines)
+      .where(and(eq(pipelines.id, deal.pipelineId), eq(pipelines.organizationId, tenantOrganizationId)))
+      .limit(1);
+    if (!pipeline) {
+      throw new Error("Pipeline not found");
+    }
+
+    const [stage] = await db
+      .select({ id: pipelineStages.id })
+      .from(pipelineStages)
+      .where(and(eq(pipelineStages.id, deal.stageId), eq(pipelineStages.pipelineId, deal.pipelineId)))
+      .limit(1);
+    if (!stage) {
+      throw new Error("Pipeline stage not found");
+    }
+
+    if (deal.contactId) {
+      const [contact] = await db
+        .select({ id: contacts.id })
+        .from(contacts)
+        .where(and(eq(contacts.id, deal.contactId), eq(contacts.organizationId, tenantOrganizationId)))
+        .limit(1);
+      if (!contact) throw new Error("Contact not found");
+    }
+
+    if (deal.companyId) {
+      const [company] = await db
+        .select({ id: companies.id })
+        .from(companies)
+        .where(and(eq(companies.id, deal.companyId), eq(companies.organizationId, tenantOrganizationId)))
+        .limit(1);
+      if (!company) throw new Error("Company not found");
+    }
+
+    const [created] = await db
+      .insert(deals)
+      .values({ ...deal, organizationId: tenantOrganizationId })
+      .returning();
+    return created;
+  }
+
+  async updateDeal(id: number, deal: Partial<InsertDeal>): Promise<Deal | undefined> {
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    const { organizationId: _organizationId, ...updateData } = deal as Partial<
+      InsertDeal & { organizationId?: number }
+    >;
+    const [updated] = await db
+      .update(deals)
+      .set({ ...updateData, updatedAt: new Date() })
+      .where(and(eq(deals.id, id), eq(deals.organizationId, tenantOrganizationId)))
+      .returning();
+    return updated;
+  }
+
+  async deleteDeal(id: number): Promise<void> {
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    await db
+      .delete(deals)
+      .where(and(eq(deals.id, id), eq(deals.organizationId, tenantOrganizationId)));
+  }
+
+  async moveDealToStage(dealId: number, stageId: number): Promise<Deal | undefined> {
+    const tenantOrganizationId = await this.tenantOrganizationId();
+
+    const [deal] = await db
+      .select({ pipelineId: deals.pipelineId })
+      .from(deals)
+      .where(and(eq(deals.id, dealId), eq(deals.organizationId, tenantOrganizationId)))
+      .limit(1);
+    if (!deal) return undefined;
+
+    const [stage] = await db
+      .select({
+        pipelineId: pipelineStages.pipelineId,
+        isWon: pipelineStages.isWon,
+        isLost: pipelineStages.isLost,
+      })
+      .from(pipelineStages)
+      .innerJoin(pipelines, eq(pipelineStages.pipelineId, pipelines.id))
+      .where(and(eq(pipelineStages.id, stageId), eq(pipelines.organizationId, tenantOrganizationId)))
+      .limit(1);
+    if (!stage) return undefined;
+
+    if (stage.pipelineId !== deal.pipelineId) return undefined;
+	    
+	    let status = "open";
+	    if (stage.isWon) status = "won";
+	    if (stage.isLost) status = "lost";
+	    
+	    const [updated] = await db.update(deals)
+	      .set({ stageId, status, updatedAt: new Date() })
+	      .where(and(eq(deals.id, dealId), eq(deals.organizationId, tenantOrganizationId)))
+	      .returning();
+	    return updated;
+  }
+
   async getConversations(organizationId: number): Promise<Conversation[]> {
-    return await db.select().from(conversations)
-      .where(eq(conversations.organizationId, organizationId))
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    return await db
+      .select()
+      .from(conversations)
+      .where(eq(conversations.organizationId, tenantOrganizationId))
       .orderBy(desc(conversations.lastMessageAt));
   }
 
   async getConversation(id: number): Promise<Conversation | undefined> {
-    const [conversation] = await db.select().from(conversations).where(eq(conversations.id, id));
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    const [conversation] = await db
+      .select()
+      .from(conversations)
+      .where(and(eq(conversations.id, id), eq(conversations.organizationId, tenantOrganizationId)));
     return conversation;
   }
 
   async createConversation(conversation: InsertConversation): Promise<Conversation> {
-    const [created] = await db.insert(conversations).values(conversation).returning();
+    const tenantOrganizationId = await this.tenantOrganizationId();
+
+    if (conversation.contactId) {
+      const [contact] = await db
+        .select({ id: contacts.id })
+        .from(contacts)
+        .where(and(eq(contacts.id, conversation.contactId), eq(contacts.organizationId, tenantOrganizationId)))
+        .limit(1);
+      if (!contact) throw new Error("Contact not found");
+    }
+
+    if (conversation.dealId) {
+      const [deal] = await db
+        .select({ id: deals.id })
+        .from(deals)
+        .where(and(eq(deals.id, conversation.dealId), eq(deals.organizationId, tenantOrganizationId)))
+        .limit(1);
+      if (!deal) throw new Error("Deal not found");
+    }
+
+    const [created] = await db
+      .insert(conversations)
+      .values({ ...conversation, organizationId: tenantOrganizationId })
+      .returning();
     return created;
   }
 
   async updateConversation(id: number, conversation: Partial<InsertConversation>): Promise<Conversation | undefined> {
-    const [updated] = await db.update(conversations).set({ ...conversation, updatedAt: new Date() }).where(eq(conversations.id, id)).returning();
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    const { organizationId: _organizationId, ...updateData } = conversation as Partial<
+      InsertConversation & { organizationId?: number }
+    >;
+    const [updated] = await db
+      .update(conversations)
+      .set({ ...updateData, updatedAt: new Date() })
+      .where(and(eq(conversations.id, id), eq(conversations.organizationId, tenantOrganizationId)))
+      .returning();
     return updated;
   }
 
@@ -459,6 +753,17 @@ export class DatabaseStorage implements IStorage {
     conversationId: number,
     options?: { cursor?: number; limit?: number }
   ): Promise<{ messages: Message[]; nextCursor: number | null; hasMore: boolean }> {
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    const [conversation] = await db
+      .select({ id: conversations.id })
+      .from(conversations)
+      .where(and(eq(conversations.id, conversationId), eq(conversations.organizationId, tenantOrganizationId)))
+      .limit(1);
+
+    if (!conversation) {
+      return { messages: [], nextCursor: null, hasMore: false };
+    }
+
     const limit = options?.limit || 30;
     const cursor = options?.cursor;
 
@@ -493,14 +798,35 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createMessage(message: InsertMessage): Promise<Message> {
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    const [conversation] = await db
+      .select({ id: conversations.id })
+      .from(conversations)
+      .where(and(eq(conversations.id, message.conversationId), eq(conversations.organizationId, tenantOrganizationId)))
+      .limit(1);
+
+    if (!conversation) {
+      throw new Error("Conversation not found");
+    }
+
     const [created] = await db.insert(messages).values(message).returning();
-    await db.update(conversations)
+    await db
+      .update(conversations)
       .set({ lastMessageAt: new Date(), unreadCount: sql`${conversations.unreadCount} + 1` })
-      .where(eq(conversations.id, message.conversationId));
+      .where(and(eq(conversations.id, message.conversationId), eq(conversations.organizationId, tenantOrganizationId)));
     return created;
   }
 
   async markMessagesAsRead(conversationId: number, userId: string): Promise<number> {
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    const [conversation] = await db
+      .select({ id: conversations.id })
+      .from(conversations)
+      .where(and(eq(conversations.id, conversationId), eq(conversations.organizationId, tenantOrganizationId)))
+      .limit(1);
+
+    if (!conversation) return 0;
+
     // Get unread messages that this user hasn't read yet
     const unreadMessages = await db.select({ id: messages.id, readBy: messages.readBy })
       .from(messages)
@@ -524,36 +850,59 @@ export class DatabaseStorage implements IStorage {
     }
 
     // Reset unread count on conversation
-    await db.update(conversations)
+    await db
+      .update(conversations)
       .set({ unreadCount: 0 })
-      .where(eq(conversations.id, conversationId));
+      .where(and(eq(conversations.id, conversationId), eq(conversations.organizationId, tenantOrganizationId)));
 
     return unreadMessages.length;
   }
 
   async getActivities(organizationId: number): Promise<Activity[]> {
-    return await db.select().from(activities)
-      .where(eq(activities.organizationId, organizationId))
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    return await db
+      .select()
+      .from(activities)
+      .where(eq(activities.organizationId, tenantOrganizationId))
       .orderBy(desc(activities.createdAt));
   }
 
   async getActivity(id: number): Promise<Activity | undefined> {
-    const [activity] = await db.select().from(activities).where(eq(activities.id, id));
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    const [activity] = await db
+      .select()
+      .from(activities)
+      .where(and(eq(activities.id, id), eq(activities.organizationId, tenantOrganizationId)));
     return activity;
   }
 
   async createActivity(activity: InsertActivity): Promise<Activity> {
-    const [created] = await db.insert(activities).values(activity).returning();
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    const [created] = await db
+      .insert(activities)
+      .values({ ...activity, organizationId: tenantOrganizationId })
+      .returning();
     return created;
   }
 
   async updateActivity(id: number, activity: Partial<InsertActivity>): Promise<Activity | undefined> {
-    const [updated] = await db.update(activities).set({ ...activity, updatedAt: new Date() }).where(eq(activities.id, id)).returning();
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    const { organizationId: _organizationId, ...updateData } = activity as Partial<
+      InsertActivity & { organizationId?: number }
+    >;
+    const [updated] = await db
+      .update(activities)
+      .set({ ...updateData, updatedAt: new Date() })
+      .where(and(eq(activities.id, id), eq(activities.organizationId, tenantOrganizationId)))
+      .returning();
     return updated;
   }
 
   async deleteActivity(id: number): Promise<void> {
-    await db.delete(activities).where(eq(activities.id, id));
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    await db
+      .delete(activities)
+      .where(and(eq(activities.id, id), eq(activities.organizationId, tenantOrganizationId)));
   }
 
   async getDashboardStats(organizationId: number): Promise<{
@@ -566,20 +915,21 @@ export class DatabaseStorage implements IStorage {
     pendingActivities: number;
     unreadConversations: number;
   }> {
+    const tenantOrganizationId = await this.tenantOrganizationId();
     const [dealsStats] = await db.select({
       total: count(),
       open: sql<number>`count(*) filter (where ${deals.status} = 'open')`,
       won: sql<number>`count(*) filter (where ${deals.status} = 'won')`,
       totalValue: sql<string>`coalesce(sum(${deals.value}), 0)`,
-    }).from(deals).where(eq(deals.organizationId, organizationId));
+    }).from(deals).where(eq(deals.organizationId, tenantOrganizationId));
 
-    const [contactsCount] = await db.select({ count: count() }).from(contacts).where(eq(contacts.organizationId, organizationId));
-    const [companiesCount] = await db.select({ count: count() }).from(companies).where(eq(companies.organizationId, organizationId));
+    const [contactsCount] = await db.select({ count: count() }).from(contacts).where(eq(contacts.organizationId, tenantOrganizationId));
+    const [companiesCount] = await db.select({ count: count() }).from(companies).where(eq(companies.organizationId, tenantOrganizationId));
     const [pendingCount] = await db.select({ count: count() }).from(activities)
-      .where(and(eq(activities.organizationId, organizationId), eq(activities.status, "pending")));
+      .where(and(eq(activities.organizationId, tenantOrganizationId), eq(activities.status, "pending")));
     const [unreadCount] = await db.select({ 
       count: sql<number>`count(*) filter (where ${conversations.unreadCount} > 0)` 
-    }).from(conversations).where(eq(conversations.organizationId, organizationId));
+    }).from(conversations).where(eq(conversations.organizationId, tenantOrganizationId));
 
     return {
       totalDeals: Number(dealsStats?.total) || 0,
@@ -626,77 +976,148 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getSavedViews(userId: string, type: SavedViewType): Promise<SavedView[]> {
-    return await db.select().from(savedViews)
-      .where(and(eq(savedViews.userId, userId), eq(savedViews.type, type)))
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    return await db
+      .select()
+      .from(savedViews)
+      .where(
+        and(
+          eq(savedViews.userId, userId),
+          eq(savedViews.type, type),
+          eq(savedViews.organizationId, tenantOrganizationId),
+        ),
+      )
       .orderBy(savedViews.name);
   }
 
   async getSavedView(id: number): Promise<SavedView | undefined> {
-    const [view] = await db.select().from(savedViews).where(eq(savedViews.id, id));
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    const [view] = await db
+      .select()
+      .from(savedViews)
+      .where(and(eq(savedViews.id, id), eq(savedViews.organizationId, tenantOrganizationId)));
     return view;
   }
 
   async createSavedView(view: InsertSavedView): Promise<SavedView> {
-    const [created] = await db.insert(savedViews).values(view).returning();
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    const [created] = await db
+      .insert(savedViews)
+      .values({ ...view, organizationId: tenantOrganizationId })
+      .returning();
     return created;
   }
 
   async updateSavedView(id: number, userId: string, view: Partial<InsertSavedView>): Promise<SavedView | undefined> {
-    const [updated] = await db.update(savedViews)
-      .set({ ...view, updatedAt: new Date() })
-      .where(and(eq(savedViews.id, id), eq(savedViews.userId, userId)))
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    const { organizationId: _organizationId, ...updateData } = view as Partial<
+      InsertSavedView & { organizationId?: number }
+    >;
+    const [updated] = await db
+      .update(savedViews)
+      .set({ ...updateData, updatedAt: new Date() })
+      .where(
+        and(
+          eq(savedViews.id, id),
+          eq(savedViews.userId, userId),
+          eq(savedViews.organizationId, tenantOrganizationId),
+        ),
+      )
       .returning();
     return updated;
   }
 
   async deleteSavedView(id: number, userId: string): Promise<void> {
-    await db.delete(savedViews).where(and(eq(savedViews.id, id), eq(savedViews.userId, userId)));
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    await db
+      .delete(savedViews)
+      .where(
+        and(
+          eq(savedViews.id, id),
+          eq(savedViews.userId, userId),
+          eq(savedViews.organizationId, tenantOrganizationId),
+        ),
+      );
   }
 
   async getEmailTemplates(organizationId: number): Promise<EmailTemplate[]> {
-    return await db.select().from(emailTemplates)
-      .where(eq(emailTemplates.organizationId, organizationId))
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    return await db
+      .select()
+      .from(emailTemplates)
+      .where(eq(emailTemplates.organizationId, tenantOrganizationId))
       .orderBy(emailTemplates.name);
   }
 
   async getEmailTemplate(id: number, organizationId: number): Promise<EmailTemplate | undefined> {
-    const [template] = await db.select().from(emailTemplates)
-      .where(and(eq(emailTemplates.id, id), eq(emailTemplates.organizationId, organizationId)));
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    const [template] = await db
+      .select()
+      .from(emailTemplates)
+      .where(and(eq(emailTemplates.id, id), eq(emailTemplates.organizationId, tenantOrganizationId)));
     return template;
   }
 
   async createEmailTemplate(template: InsertEmailTemplate): Promise<EmailTemplate> {
-    const [created] = await db.insert(emailTemplates).values(template).returning();
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    const [created] = await db
+      .insert(emailTemplates)
+      .values({ ...template, organizationId: tenantOrganizationId })
+      .returning();
     return created;
   }
 
   async updateEmailTemplate(id: number, organizationId: number, template: Partial<InsertEmailTemplate>): Promise<EmailTemplate | undefined> {
-    const [updated] = await db.update(emailTemplates)
-      .set({ ...template, updatedAt: new Date() })
-      .where(and(eq(emailTemplates.id, id), eq(emailTemplates.organizationId, organizationId)))
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    const { organizationId: _organizationId, ...updateData } = template as Partial<
+      InsertEmailTemplate & { organizationId?: number }
+    >;
+    const [updated] = await db
+      .update(emailTemplates)
+      .set({ ...updateData, updatedAt: new Date() })
+      .where(and(eq(emailTemplates.id, id), eq(emailTemplates.organizationId, tenantOrganizationId)))
       .returning();
     return updated;
   }
 
   async deleteEmailTemplate(id: number, organizationId: number): Promise<void> {
-    await db.delete(emailTemplates).where(and(eq(emailTemplates.id, id), eq(emailTemplates.organizationId, organizationId)));
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    await db
+      .delete(emailTemplates)
+      .where(and(eq(emailTemplates.id, id), eq(emailTemplates.organizationId, tenantOrganizationId)));
   }
 
   async getAuditLogs(organizationId: number, limit: number = 100): Promise<AuditLog[]> {
-    return await db.select().from(auditLogs)
-      .where(eq(auditLogs.organizationId, organizationId))
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    return await db
+      .select()
+      .from(auditLogs)
+      .where(eq(auditLogs.organizationId, tenantOrganizationId))
       .orderBy(desc(auditLogs.createdAt))
       .limit(limit);
   }
 
   async getAuditLogsByEntity(entityType: AuditLogEntityType, entityId: number): Promise<AuditLog[]> {
-    return await db.select().from(auditLogs)
-      .where(and(eq(auditLogs.entityType, entityType), eq(auditLogs.entityId, entityId)))
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    return await db
+      .select()
+      .from(auditLogs)
+      .where(
+        and(
+          eq(auditLogs.entityType, entityType),
+          eq(auditLogs.entityId, entityId),
+          eq(auditLogs.organizationId, tenantOrganizationId),
+        ),
+      )
       .orderBy(desc(auditLogs.createdAt));
   }
 
   async createAuditLog(log: InsertAuditLog): Promise<AuditLog> {
-    const [created] = await db.insert(auditLogs).values(log).returning();
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    const [created] = await db
+      .insert(auditLogs)
+      .values({ ...log, organizationId: tenantOrganizationId })
+      .returning();
     return created;
   }
 
@@ -708,9 +1129,10 @@ export class DatabaseStorage implements IStorage {
     activitySummary: { type: string; count: number }[];
     wonLostByMonth: { month: string; won: number; lost: number; wonValue: string; lostValue: string }[];
   }> {
+    const tenantOrganizationId = await this.tenantOrganizationId();
     const stages = await db.select().from(pipelineStages)
       .innerJoin(pipelines, eq(pipelineStages.pipelineId, pipelines.id))
-      .where(eq(pipelines.organizationId, organizationId))
+      .where(eq(pipelines.organizationId, tenantOrganizationId))
       .orderBy(pipelineStages.order);
 
     const dealsByStage = await db.select({
@@ -721,7 +1143,7 @@ export class DatabaseStorage implements IStorage {
       .from(deals)
       .leftJoin(pipelineStages, eq(deals.stageId, pipelineStages.id))
       .where(and(
-        eq(deals.organizationId, organizationId),
+        eq(deals.organizationId, tenantOrganizationId),
         sql`${deals.createdAt} >= ${startDate}`,
         sql`${deals.createdAt} <= ${endDate}`
       ))
@@ -734,7 +1156,7 @@ export class DatabaseStorage implements IStorage {
     })
       .from(deals)
       .where(and(
-        eq(deals.organizationId, organizationId),
+        eq(deals.organizationId, tenantOrganizationId),
         sql`${deals.createdAt} >= ${startDate}`,
         sql`${deals.createdAt} <= ${endDate}`
       ))
@@ -750,7 +1172,7 @@ export class DatabaseStorage implements IStorage {
       .from(deals)
       .leftJoin(pipelineStages, eq(deals.stageId, pipelineStages.id))
       .where(and(
-        eq(deals.organizationId, organizationId),
+        eq(deals.organizationId, tenantOrganizationId),
         sql`${deals.createdAt} >= ${startDate}`,
         sql`${deals.createdAt} <= ${endDate}`
       ))
@@ -768,7 +1190,7 @@ export class DatabaseStorage implements IStorage {
       .from(deals)
       .leftJoin(users, eq(deals.ownerId, users.id))
       .where(and(
-        eq(deals.organizationId, organizationId),
+        eq(deals.organizationId, tenantOrganizationId),
         sql`${deals.createdAt} >= ${startDate}`,
         sql`${deals.createdAt} <= ${endDate}`
       ))
@@ -780,7 +1202,7 @@ export class DatabaseStorage implements IStorage {
     })
       .from(activities)
       .where(and(
-        eq(activities.organizationId, organizationId),
+        eq(activities.organizationId, tenantOrganizationId),
         sql`${activities.createdAt} >= ${startDate}`,
         sql`${activities.createdAt} <= ${endDate}`
       ))
@@ -795,7 +1217,7 @@ export class DatabaseStorage implements IStorage {
     })
       .from(deals)
       .where(and(
-        eq(deals.organizationId, organizationId),
+        eq(deals.organizationId, tenantOrganizationId),
         sql`${deals.updatedAt} >= ${startDate}`,
         sql`${deals.updatedAt} <= ${endDate}`
       ))
@@ -825,49 +1247,88 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getFiles(entityType: FileEntityType, entityId: number): Promise<FileRecord[]> {
-    return await db.select().from(files)
-      .where(and(eq(files.entityType, entityType), eq(files.entityId, entityId)))
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    return await db
+      .select()
+      .from(files)
+      .where(
+        and(
+          eq(files.entityType, entityType),
+          eq(files.entityId, entityId),
+          eq(files.organizationId, tenantOrganizationId),
+        ),
+      )
       .orderBy(desc(files.createdAt));
   }
 
   async getFile(id: number): Promise<FileRecord | undefined> {
-    const [file] = await db.select().from(files).where(eq(files.id, id));
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    const [file] = await db
+      .select()
+      .from(files)
+      .where(and(eq(files.id, id), eq(files.organizationId, tenantOrganizationId)));
     return file;
   }
 
   async createFile(file: InsertFile): Promise<FileRecord> {
-    const [created] = await db.insert(files).values(file).returning();
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    const [created] = await db
+      .insert(files)
+      .values({ ...file, organizationId: tenantOrganizationId })
+      .returning();
     return created;
   }
 
   async updateFile(id: number, updates: Partial<InsertFile>): Promise<FileRecord> {
-    const [updated] = await db.update(files)
-      .set(updates)
-      .where(eq(files.id, id))
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    const { organizationId: _organizationId, ...updateData } = updates as Partial<
+      InsertFile & { organizationId?: number }
+    >;
+    const [updated] = await db
+      .update(files)
+      .set(updateData)
+      .where(and(eq(files.id, id), eq(files.organizationId, tenantOrganizationId)))
       .returning();
     return updated;
   }
 
   async deleteFile(id: number): Promise<void> {
-    await db.delete(files).where(eq(files.id, id));
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    await db.delete(files).where(and(eq(files.id, id), eq(files.organizationId, tenantOrganizationId)));
   }
 
   async getLeadScore(entityType: LeadScoreEntityType, entityId: number): Promise<LeadScore | undefined> {
-    const [score] = await db.select().from(leadScores)
-      .where(and(eq(leadScores.entityType, entityType), eq(leadScores.entityId, entityId)))
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    const [score] = await db
+      .select()
+      .from(leadScores)
+      .where(
+        and(
+          eq(leadScores.entityType, entityType),
+          eq(leadScores.entityId, entityId),
+          eq(leadScores.organizationId, tenantOrganizationId),
+        ),
+      )
       .orderBy(desc(leadScores.createdAt))
       .limit(1);
     return score;
   }
 
   async getLeadScores(organizationId: number): Promise<LeadScore[]> {
-    return await db.select().from(leadScores)
-      .where(eq(leadScores.organizationId, organizationId))
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    return await db
+      .select()
+      .from(leadScores)
+      .where(eq(leadScores.organizationId, tenantOrganizationId))
       .orderBy(desc(leadScores.createdAt));
   }
 
   async createLeadScore(score: InsertLeadScore): Promise<LeadScore> {
-    const [created] = await db.insert(leadScores).values(score).returning();
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    const [created] = await db
+      .insert(leadScores)
+      .values({ ...score, organizationId: tenantOrganizationId })
+      .returning();
     return created;
   }
 
@@ -876,9 +1337,50 @@ export class DatabaseStorage implements IStorage {
     conversations: { totalConversations: number; totalMessages: number; lastMessageDate: Date | null; channels: string[] };
     deals: { count: number; totalValue: number; wonDeals: number };
   }> {
-    const contactActivities = await db.select().from(activities).where(eq(activities.contactId, contactId));
-    const contactConversations = await db.select().from(conversations).where(eq(conversations.contactId, contactId));
-    const contactDeals = await db.select().from(deals).where(eq(deals.contactId, contactId));
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    const [contact] = await db
+      .select({ id: contacts.id })
+      .from(contacts)
+      .where(and(eq(contacts.id, contactId), eq(contacts.organizationId, tenantOrganizationId)))
+      .limit(1);
+
+    if (!contact) {
+      return {
+        activities: {
+          totalActivities: 0,
+          completedActivities: 0,
+          pendingActivities: 0,
+          lastActivityDate: null,
+          activityTypes: {},
+        },
+        conversations: {
+          totalConversations: 0,
+          totalMessages: 0,
+          lastMessageDate: null,
+          channels: [],
+        },
+        deals: {
+          count: 0,
+          totalValue: 0,
+          wonDeals: 0,
+        },
+      };
+    }
+
+    const contactActivities = await db
+      .select()
+      .from(activities)
+      .where(and(eq(activities.contactId, contactId), eq(activities.organizationId, tenantOrganizationId)));
+    const contactConversations = await db
+      .select()
+      .from(conversations)
+      .where(
+        and(eq(conversations.contactId, contactId), eq(conversations.organizationId, tenantOrganizationId)),
+      );
+    const contactDeals = await db
+      .select()
+      .from(deals)
+      .where(and(eq(deals.contactId, contactId), eq(deals.organizationId, tenantOrganizationId)));
 
     const activityTypes: Record<string, number> = {};
     let lastActivityDate: Date | null = null;
@@ -943,7 +1445,11 @@ export class DatabaseStorage implements IStorage {
     activities: { totalActivities: number; completedActivities: number; pendingActivities: number; lastActivityDate: Date | null; activityTypes: Record<string, number> };
     conversations: { totalConversations: number; totalMessages: number; lastMessageDate: Date | null; channels: string[] };
   }> {
-    const [dealRecord] = await db.select().from(deals).where(eq(deals.id, dealId));
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    const [dealRecord] = await db
+      .select()
+      .from(deals)
+      .where(and(eq(deals.id, dealId), eq(deals.organizationId, tenantOrganizationId)));
     if (!dealRecord) {
       return {
         deal: null,
@@ -952,22 +1458,44 @@ export class DatabaseStorage implements IStorage {
       };
     }
 
-    const [stage] = await db.select().from(pipelineStages).where(eq(pipelineStages.id, dealRecord.stageId));
-    const allStages = await db.select().from(pipelineStages).where(eq(pipelineStages.pipelineId, dealRecord.pipelineId));
+    const [stage] = await db
+      .select()
+      .from(pipelineStages)
+      .where(
+        and(eq(pipelineStages.id, dealRecord.stageId), eq(pipelineStages.pipelineId, dealRecord.pipelineId)),
+      );
+    const allStagesRows = await db
+      .select()
+      .from(pipelineStages)
+      .innerJoin(pipelines, eq(pipelineStages.pipelineId, pipelines.id))
+      .where(and(eq(pipelineStages.pipelineId, dealRecord.pipelineId), eq(pipelines.organizationId, tenantOrganizationId)));
+    const allStages = allStagesRows.map((row) => row.pipeline_stages);
 
     let contactName: string | null = null;
     let companyName: string | null = null;
     if (dealRecord.contactId) {
-      const [contact] = await db.select().from(contacts).where(eq(contacts.id, dealRecord.contactId));
+      const [contact] = await db
+        .select()
+        .from(contacts)
+        .where(and(eq(contacts.id, dealRecord.contactId), eq(contacts.organizationId, tenantOrganizationId)));
       if (contact) contactName = `${contact.firstName} ${contact.lastName || ''}`.trim();
     }
     if (dealRecord.companyId) {
-      const [company] = await db.select().from(companies).where(eq(companies.id, dealRecord.companyId));
+      const [company] = await db
+        .select()
+        .from(companies)
+        .where(and(eq(companies.id, dealRecord.companyId), eq(companies.organizationId, tenantOrganizationId)));
       if (company) companyName = company.name;
     }
 
-    const dealActivities = await db.select().from(activities).where(eq(activities.dealId, dealId));
-    const dealConversations = await db.select().from(conversations).where(eq(conversations.dealId, dealId));
+    const dealActivities = await db
+      .select()
+      .from(activities)
+      .where(and(eq(activities.dealId, dealId), eq(activities.organizationId, tenantOrganizationId)));
+    const dealConversations = await db
+      .select()
+      .from(conversations)
+      .where(and(eq(conversations.dealId, dealId), eq(conversations.organizationId, tenantOrganizationId)));
 
     const activityTypes: Record<string, number> = {};
     let lastActivityDate: Date | null = null;
@@ -1028,56 +1556,120 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getCalendarEvents(organizationId: number, startDate: Date, endDate: Date): Promise<CalendarEvent[]> {
-    return await db.select().from(calendarEvents)
-      .where(and(
-        eq(calendarEvents.organizationId, organizationId),
-        gte(calendarEvents.startTime, startDate),
-        lte(calendarEvents.endTime, endDate)
-      ))
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    return await db
+      .select()
+      .from(calendarEvents)
+      .where(
+        and(
+          eq(calendarEvents.organizationId, tenantOrganizationId),
+          gte(calendarEvents.startTime, startDate),
+          lte(calendarEvents.endTime, endDate),
+        ),
+      )
       .orderBy(calendarEvents.startTime);
   }
 
   async getCalendarEvent(id: number): Promise<CalendarEvent | undefined> {
-    const [event] = await db.select().from(calendarEvents).where(eq(calendarEvents.id, id));
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    const [event] = await db
+      .select()
+      .from(calendarEvents)
+      .where(and(eq(calendarEvents.id, id), eq(calendarEvents.organizationId, tenantOrganizationId)));
     return event;
   }
 
   async createCalendarEvent(event: InsertCalendarEvent): Promise<CalendarEvent> {
-    const [created] = await db.insert(calendarEvents).values(event).returning();
+    const tenantOrganizationId = await this.tenantOrganizationId();
+
+    if (event.contactId) {
+      const [contact] = await db
+        .select({ id: contacts.id })
+        .from(contacts)
+        .where(and(eq(contacts.id, event.contactId), eq(contacts.organizationId, tenantOrganizationId)))
+        .limit(1);
+      if (!contact) throw new Error("Contact not found");
+    }
+
+    if (event.dealId) {
+      const [deal] = await db
+        .select({ id: deals.id })
+        .from(deals)
+        .where(and(eq(deals.id, event.dealId), eq(deals.organizationId, tenantOrganizationId)))
+        .limit(1);
+      if (!deal) throw new Error("Deal not found");
+    }
+
+    if (event.activityId) {
+      const [activity] = await db
+        .select({ id: activities.id })
+        .from(activities)
+        .where(and(eq(activities.id, event.activityId), eq(activities.organizationId, tenantOrganizationId)))
+        .limit(1);
+      if (!activity) throw new Error("Activity not found");
+    }
+
+    const [created] = await db
+      .insert(calendarEvents)
+      .values({ ...event, organizationId: tenantOrganizationId })
+      .returning();
     return created;
   }
 
   async updateCalendarEvent(id: number, event: Partial<InsertCalendarEvent>): Promise<CalendarEvent | undefined> {
-    const [updated] = await db.update(calendarEvents)
-      .set({ ...event, updatedAt: new Date() })
-      .where(eq(calendarEvents.id, id))
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    const { organizationId: _organizationId, ...updateData } = event as Partial<
+      InsertCalendarEvent & { organizationId?: number }
+    >;
+    const [updated] = await db
+      .update(calendarEvents)
+      .set({ ...updateData, updatedAt: new Date() })
+      .where(and(eq(calendarEvents.id, id), eq(calendarEvents.organizationId, tenantOrganizationId)))
       .returning();
     return updated;
   }
 
   async deleteCalendarEvent(id: number): Promise<void> {
-    await db.delete(calendarEvents).where(eq(calendarEvents.id, id));
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    await db
+      .delete(calendarEvents)
+      .where(and(eq(calendarEvents.id, id), eq(calendarEvents.organizationId, tenantOrganizationId)));
   }
 
   async getChannelConfigs(organizationId: number): Promise<ChannelConfig[]> {
-    return await db.select().from(channelConfigs)
-      .where(eq(channelConfigs.organizationId, organizationId))
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    return await db
+      .select()
+      .from(channelConfigs)
+      .where(eq(channelConfigs.organizationId, tenantOrganizationId))
       .orderBy(desc(channelConfigs.createdAt));
   }
 
   async getChannelConfig(id: number): Promise<ChannelConfig | undefined> {
-    const [config] = await db.select().from(channelConfigs).where(eq(channelConfigs.id, id));
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    const [config] = await db
+      .select()
+      .from(channelConfigs)
+      .where(and(eq(channelConfigs.id, id), eq(channelConfigs.organizationId, tenantOrganizationId)));
     return config;
   }
 
   async createChannelConfig(config: InsertChannelConfig): Promise<ChannelConfig> {
-    const [created] = await db.insert(channelConfigs).values(config).returning();
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    const [created] = await db
+      .insert(channelConfigs)
+      .values({ ...config, organizationId: tenantOrganizationId })
+      .returning();
     return created;
   }
 
   async updateChannelConfig(id: number, config: Partial<InsertChannelConfig>): Promise<ChannelConfig | undefined> {
+    const tenantOrganizationId = await this.tenantOrganizationId();
     // Fetch existing config to merge nested JSONB objects (preserves secrets if not provided)
-    const [existing] = await db.select().from(channelConfigs).where(eq(channelConfigs.id, id));
+    const [existing] = await db
+      .select()
+      .from(channelConfigs)
+      .where(and(eq(channelConfigs.id, id), eq(channelConfigs.organizationId, tenantOrganizationId)));
     if (!existing) return undefined;
 
     const updateData: Partial<InsertChannelConfig> = { ...config };
@@ -1108,21 +1700,31 @@ export class DatabaseStorage implements IStorage {
       }
     }
 
-    const [updated] = await db.update(channelConfigs)
-      .set({ ...updateData, updatedAt: new Date() })
-      .where(eq(channelConfigs.id, id))
+    const { organizationId: _organizationId, ...finalUpdate } = updateData as Partial<
+      InsertChannelConfig & { organizationId?: number }
+    >;
+
+    const [updated] = await db
+      .update(channelConfigs)
+      .set({ ...finalUpdate, updatedAt: new Date() })
+      .where(and(eq(channelConfigs.id, id), eq(channelConfigs.organizationId, tenantOrganizationId)))
       .returning();
     return updated;
   }
 
   async deleteChannelConfig(id: number): Promise<void> {
-    await db.delete(channelConfigs).where(eq(channelConfigs.id, id));
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    await db
+      .delete(channelConfigs)
+      .where(and(eq(channelConfigs.id, id), eq(channelConfigs.organizationId, tenantOrganizationId)));
   }
 
   async updateChannelConfigLastSync(id: number): Promise<ChannelConfig | undefined> {
-    const [updated] = await db.update(channelConfigs)
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    const [updated] = await db
+      .update(channelConfigs)
       .set({ lastSyncAt: new Date(), updatedAt: new Date() })
-      .where(eq(channelConfigs.id, id))
+      .where(and(eq(channelConfigs.id, id), eq(channelConfigs.organizationId, tenantOrganizationId)))
       .returning();
     return updated;
   }
@@ -1198,22 +1800,33 @@ export class DatabaseStorage implements IStorage {
 
   // Calendar sync helpers
   async getCalendarEventByGoogleId(googleEventId: string, userId: string): Promise<CalendarEvent | undefined> {
-    const [event] = await db.select().from(calendarEvents)
-      .where(and(
-        eq(calendarEvents.googleEventId, googleEventId),
-        eq(calendarEvents.userId, userId)
-      ));
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    const [event] = await db
+      .select()
+      .from(calendarEvents)
+      .where(
+        and(
+          eq(calendarEvents.googleEventId, googleEventId),
+          eq(calendarEvents.userId, userId),
+          eq(calendarEvents.organizationId, tenantOrganizationId),
+        ),
+      );
     return event;
   }
 
   async getCalendarEventsForSync(userId: string, organizationId: number): Promise<CalendarEvent[]> {
     // Get events that were created locally (syncSource = 'local') and need to be synced to Google
-    return await db.select().from(calendarEvents)
-      .where(and(
-        eq(calendarEvents.userId, userId),
-        eq(calendarEvents.organizationId, organizationId),
-        eq(calendarEvents.syncSource, 'local')
-      ))
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    return await db
+      .select()
+      .from(calendarEvents)
+      .where(
+        and(
+          eq(calendarEvents.userId, userId),
+          eq(calendarEvents.organizationId, tenantOrganizationId),
+          eq(calendarEvents.syncSource, 'local'),
+        ),
+      )
       .orderBy(desc(calendarEvents.startTime));
   }
 }

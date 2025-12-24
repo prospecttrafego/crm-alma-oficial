@@ -43,17 +43,17 @@ app.use((req, res, next) => {
     return originalResJson.apply(res, [bodyJson, ...args]);
   };
 
-  res.on("finish", () => {
-    const duration = Date.now() - start;
-    if (path.startsWith("/api")) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
-      }
+	  res.on("finish", () => {
+	    const duration = Date.now() - start;
+	    if (path.startsWith("/api")) {
+	      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
+	      if (process.env.NODE_ENV !== "production" && capturedJsonResponse) {
+	        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
+	      }
 
-      log(logLine);
-    }
-  });
+	      log(logLine);
+	    }
+	  });
 
   next();
 });
@@ -65,8 +65,8 @@ app.use((req, res, next) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
 
+    console.error(err);
     res.status(status).json({ message });
-    throw err;
   });
 
   if (process.env.NODE_ENV === "production") {
@@ -76,7 +76,7 @@ app.use((req, res, next) => {
     await setupVite(httpServer, app);
   }
 
-  const port = parseInt(process.env.PORT || "5000", 10);
+  const port = parseInt(process.env.PORT || "3000", 10);
   httpServer.listen(
     {
       port,

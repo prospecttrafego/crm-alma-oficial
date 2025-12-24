@@ -109,8 +109,16 @@ npm start
 | `SUPABASE_SERVICE_ROLE_KEY` | Sim | Service role key do Supabase |
 | `OPENAI_API_KEY` | Nao | API key OpenAI (para lead scoring) |
 | `ALLOW_REGISTRATION` | Nao | Permitir registro publico (default: false) |
+| `DEFAULT_ORGANIZATION_ID` | Nao | ID da organizacao padrao (modo single-tenant) |
 | `APP_URL` | Nao | URL da aplicacao em producao |
 | `PORT` | Nao | Porta do servidor (default: 3000) |
+| `GOOGLE_CLIENT_ID` | Nao | Client ID OAuth (Google Calendar) |
+| `GOOGLE_CLIENT_SECRET` | Nao | Client Secret OAuth (Google Calendar) |
+| `GOOGLE_REDIRECT_URI` | Nao | Redirect URI OAuth (Google Calendar) |
+| `GOOGLE_TOKEN_ENCRYPTION_KEY` | Nao | Chave base64 (32 bytes) para criptografar tokens |
+| `EVOLUTION_API_URL` | Nao | URL base da Evolution API V2 |
+| `EVOLUTION_API_KEY` | Nao | API key da Evolution API |
+| `EVOLUTION_WEBHOOK_SECRET` | Nao | Segredo para validar webhooks da Evolution API |
 
 ## Comandos Disponiveis
 

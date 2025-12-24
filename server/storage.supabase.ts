@@ -5,6 +5,10 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { Response } from "express";
 import { randomUUID } from "crypto";
+import { and, eq } from "drizzle-orm";
+import { files, users } from "@shared/schema";
+import { db } from "./db";
+import { getSingleTenantOrganizationId } from "./tenant";
 
 // Cliente Supabase com service_role key para acesso administrativo
 let supabaseClient: SupabaseClient | null = null;
@@ -113,19 +117,24 @@ export class ObjectStorageService {
   /**
    * Gera URL de upload assinada para upload direto do cliente
    */
-  async getObjectEntityUploadURL(): Promise<string> {
+  async getObjectEntityUploadURL(): Promise<{ uploadURL: string; objectPath: string; storagePath: string }> {
     const objectId = randomUUID();
-    const objectPath = `uploads/${objectId}`;
+    const storagePath = `uploads/${objectId}`;
 
     const { data, error } = await this.client.storage
       .from(DEFAULT_BUCKET)
-      .createSignedUploadUrl(objectPath);
+      .createSignedUploadUrl(storagePath);
 
     if (error) {
       throw new Error(`Erro ao gerar URL de upload: ${error.message}`);
     }
 
-    return data.signedUrl;
+    const resolvedStoragePath = data.path || storagePath;
+    return {
+      uploadURL: data.signedUrl,
+      storagePath: resolvedStoragePath,
+      objectPath: `/objects/${resolvedStoragePath}`,
+    };
   }
 
   /**
@@ -232,13 +241,33 @@ export class ObjectStorageService {
       return rawPath;
     }
 
-    // Se e uma URL do Supabase, extrai o path
+    // Se parece ser um path dentro do bucket, normaliza para /objects/<path>
+    if (!rawPath.includes("://")) {
+      return `/objects/${rawPath.replace(/^\/+/, "")}`;
+    }
+
+    // Se e uma URL do Supabase, extrai o path (sempre removendo o nome do bucket)
     const supabaseUrl = process.env.SUPABASE_URL;
     if (supabaseUrl && rawPath.startsWith(supabaseUrl)) {
       const url = new URL(rawPath);
-      const pathParts = url.pathname.split("/storage/v1/object/public/");
-      if (pathParts.length > 1) {
-        return `/objects/${pathParts[1]}`;
+
+      const patterns = [
+        /^\/storage\/v1\/object\/public\/([^/]+)\/(.+)/,
+        /^\/storage\/v1\/object\/sign\/([^/]+)\/(.+)/,
+        /^\/storage\/v1\/object\/upload\/sign\/([^/]+)\/(.+)/,
+      ];
+
+      for (const pattern of patterns) {
+        const match = url.pathname.match(pattern);
+        if (!match) continue;
+        const bucket = match[1];
+        const path = match[2];
+
+        if (bucket !== DEFAULT_BUCKET) {
+          return rawPath;
+        }
+
+        return `/objects/${path}`;
       }
     }
 
@@ -271,9 +300,28 @@ export class ObjectStorageService {
     objectFile: { path: string; exists: boolean };
     requestedPermission?: ObjectPermission;
   }): Promise<boolean> {
-    // Com Supabase, o controle de acesso e feito via RLS
-    // Por padrao, permitimos acesso se o arquivo existe
-    // Implementar logica customizada conforme necessario
-    return objectFile.exists;
+    if (!userId) return false;
+    if (!objectFile.exists) return false;
+
+    // We enforce access in the app by requiring the object to be registered in `files` for the tenant org.
+    const tenantOrganizationId = await getSingleTenantOrganizationId();
+    const normalizedObjectPath = `/objects/${objectFile.path.replace(/^\/+/, "")}`;
+
+    const [fileRecord] = await db
+      .select({ id: files.id })
+      .from(files)
+      .where(and(eq(files.organizationId, tenantOrganizationId), eq(files.objectPath, normalizedObjectPath)))
+      .limit(1);
+
+    if (fileRecord) return true;
+
+    // Allow access to user avatars referenced in `users.profileImageUrl` for the tenant org.
+    const [avatarOwner] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(and(eq(users.organizationId, tenantOrganizationId), eq(users.profileImageUrl, normalizedObjectPath)))
+      .limit(1);
+
+    return !!avatarOwner;
   }
 }

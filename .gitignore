@@ -15,6 +15,7 @@ ecosystem.config.cjs
 
 # Claude Code local settings
 .claude/settings.local.json
+.mcp.json
 
 # IDE
 .idea/

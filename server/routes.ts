@@ -2,7 +2,8 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
-import { setupAuth, isAuthenticated } from "./auth";
+import { setupAuth, isAuthenticated, getSession } from "./auth";
+import { createHmac, timingSafeEqual } from "crypto";
 import { z } from "zod";
 import {
   insertCompanySchema,
@@ -43,6 +44,56 @@ function broadcast(type: string, data: unknown) {
   });
 }
 
+function toSafeUser(user: any) {
+  if (!user) return user;
+  const { passwordHash, ...safeUser } = user;
+  return safeUser;
+}
+
+function base64UrlEncode(buffer: Buffer): string {
+  return buffer
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/g, "");
+}
+
+function base64UrlDecode(data: string): Buffer {
+  const normalized = data.replace(/-/g, "+").replace(/_/g, "/");
+  const padLength = (4 - (normalized.length % 4)) % 4;
+  return Buffer.from(normalized + "=".repeat(padLength), "base64");
+}
+
+function signOAuthState(payload: { userId: string; timestamp: number }): string {
+  const secret = process.env.SESSION_SECRET;
+  if (!secret) {
+    throw new Error("SESSION_SECRET is required");
+  }
+
+  const data = base64UrlEncode(Buffer.from(JSON.stringify(payload)));
+  const signature = base64UrlEncode(createHmac("sha256", secret).update(data).digest());
+  return `${data}.${signature}`;
+}
+
+function verifyOAuthState(state: string): { userId: string; timestamp: number } | null {
+  const secret = process.env.SESSION_SECRET;
+  if (!secret) return null;
+
+  const [data, signature] = state.split(".");
+  if (!data || !signature) return null;
+
+  const expected = base64UrlEncode(createHmac("sha256", secret).update(data).digest());
+  const a = Buffer.from(signature);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
+
+  try {
+    return JSON.parse(base64UrlDecode(data).toString("utf8"));
+  } catch {
+    return null;
+  }
+}
+
 const updateDealSchema = insertDealSchema.partial().omit({ organizationId: true });
 const updateContactSchema = insertContactSchema.partial().omit({ organizationId: true });
 const updateCompanySchema = insertCompanySchema.partial().omit({ organizationId: true });
@@ -50,6 +101,8 @@ const updateActivitySchema = insertActivitySchema.partial().omit({ organizationI
 const updateConversationSchema = insertConversationSchema.partial().omit({ organizationId: true });
 const updateSavedViewSchema = insertSavedViewSchema.partial().omit({ userId: true, organizationId: true, type: true });
 const moveDealSchema = z.object({ stageId: z.number() });
+const updatePipelineSchema = insertPipelineSchema.partial().omit({ organizationId: true });
+const updatePipelineStageSchema = insertPipelineStageSchema.partial().omit({ pipelineId: true });
 const updateCalendarEventSchema = insertCalendarEventSchema.partial().omit({ organizationId: true });
 const updateChannelConfigSchema = insertChannelConfigSchema.partial().omit({ organizationId: true, type: true });
 
@@ -58,20 +111,20 @@ export async function registerRoutes(
 ): Promise<Server> {
   await setupAuth(app);
 
-  app.get("/api/auth/user", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = (req.user as any).id;
-      const user = await storage.getUser(userId);
-      res.json(user);
-    } catch (error) {
-      console.error("Error fetching user:", error);
-      res.status(500).json({ message: "Failed to fetch user" });
-    }
-  });
+	  app.get("/api/auth/user", isAuthenticated, async (req: any, res) => {
+	    try {
+	      const userId = (req.user as any).id;
+	      const user = await storage.getUser(userId);
+	      res.json(toSafeUser(user));
+	    } catch (error) {
+	      console.error("Error fetching user:", error);
+	      res.status(500).json({ message: "Failed to fetch user" });
+	    }
+	  });
 
   // Update current user profile
-  app.patch("/api/users/me", isAuthenticated, async (req: any, res) => {
-    try {
+	  app.patch("/api/users/me", isAuthenticated, async (req: any, res) => {
+	    try {
       const userId = (req.user as any).id;
       const { firstName, lastName, profileImageUrl, preferences } = req.body;
 
@@ -89,16 +142,16 @@ export async function registerRoutes(
         preferences,
       });
 
-      if (!updated) {
-        return res.status(404).json({ message: "User not found" });
-      }
+	      if (!updated) {
+	        return res.status(404).json({ message: "User not found" });
+	      }
 
-      res.json(updated);
-    } catch (error) {
-      console.error("Error updating user profile:", error);
-      res.status(500).json({ message: "Failed to update user profile" });
-    }
-  });
+	      res.json(toSafeUser(updated));
+	    } catch (error) {
+	      console.error("Error updating user profile:", error);
+	      res.status(500).json({ message: "Failed to update user profile" });
+	    }
+	  });
 
   app.get("/api/dashboard/stats", isAuthenticated, async (req: any, res) => {
     try {
@@ -185,13 +238,17 @@ export async function registerRoutes(
       if (!parsed.success) {
         return res.status(400).json({ message: "Invalid data", errors: parsed.error.issues });
       }
-      const pipeline = await storage.createPipeline(parsed.data);
-      
-      if (req.body.stages && Array.isArray(req.body.stages)) {
-        for (const stage of req.body.stages) {
-          await storage.createPipelineStage({ ...stage, pipelineId: pipeline.id });
-        }
-      }
+	      const pipeline = await storage.createPipeline(parsed.data);
+	      
+	      if (Array.isArray(req.body.stages)) {
+	        const parsedStages = z.array(insertPipelineStageSchema.omit({ pipelineId: true })).safeParse(req.body.stages);
+	        if (!parsedStages.success) {
+	          return res.status(400).json({ message: "Invalid stages", errors: parsedStages.error.issues });
+	        }
+	        for (const stage of parsedStages.data) {
+	          await storage.createPipelineStage({ ...stage, pipelineId: pipeline.id });
+	        }
+	      }
       
       await storage.createAuditLog({
         userId,
@@ -221,7 +278,11 @@ export async function registerRoutes(
       const existing = await storage.getPipeline(id);
       if (!existing) return res.status(404).json({ message: "Pipeline not found" });
       
-      const pipeline = await storage.updatePipeline(id, req.body);
+	      const parsed = updatePipelineSchema.safeParse(req.body);
+	      if (!parsed.success) {
+	        return res.status(400).json({ message: "Invalid data", errors: parsed.error.issues });
+	      }
+	      const pipeline = await storage.updatePipeline(id, parsed.data);
       
       await storage.createAuditLog({
         userId,
@@ -315,17 +376,23 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/pipelines/:pipelineId/stages/:id", isAuthenticated, async (req: any, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
-      
-      const stage = await storage.updatePipelineStage(id, req.body);
-      broadcast("pipeline:stage:updated", stage);
-      res.json(stage);
-    } catch (error) {
-      console.error("Error updating pipeline stage:", error);
-      res.status(500).json({ message: "Failed to update pipeline stage" });
+	  app.patch("/api/pipelines/:pipelineId/stages/:id", isAuthenticated, async (req: any, res) => {
+	    try {
+	      const id = parseInt(req.params.id);
+	      if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+
+	      const parsed = updatePipelineStageSchema.safeParse(req.body);
+	      if (!parsed.success) {
+	        return res.status(400).json({ message: "Invalid data", errors: parsed.error.issues });
+	      }
+
+	      const stage = await storage.updatePipelineStage(id, parsed.data);
+	      if (!stage) return res.status(404).json({ message: "Stage not found" });
+	      broadcast("pipeline:stage:updated", stage);
+	      res.json(stage);
+	    } catch (error) {
+	      console.error("Error updating pipeline stage:", error);
+	      res.status(500).json({ message: "Failed to update pipeline stage" });
     }
   });
 
@@ -1130,17 +1197,17 @@ export async function registerRoutes(
   });
 
   // Get users for filter dropdown
-  app.get("/api/users", isAuthenticated, async (req: any, res) => {
-    try {
-      const org = await storage.getDefaultOrganization();
-      if (!org) return res.json([]);
-      const usersList = await storage.getUsers(org.id);
-      res.json(usersList);
-    } catch (error) {
-      console.error("Error fetching users:", error);
-      res.status(500).json({ message: "Failed to fetch users" });
-    }
-  });
+	  app.get("/api/users", isAuthenticated, async (req: any, res) => {
+	    try {
+	      const org = await storage.getDefaultOrganization();
+	      if (!org) return res.json([]);
+	      const usersList = await storage.getUsers(org.id);
+	      res.json(usersList.map(toSafeUser));
+	    } catch (error) {
+	      console.error("Error fetching users:", error);
+	      res.status(500).json({ message: "Failed to fetch users" });
+	    }
+	  });
 
   // Email Templates endpoints
   const updateEmailTemplateSchema = insertEmailTemplateSchema.partial().omit({ organizationId: true, createdBy: true });
@@ -1304,56 +1371,60 @@ export async function registerRoutes(
     }
   });
 
-  // File upload - get presigned URL
-  app.post("/api/files/upload-url", isAuthenticated, async (req: any, res) => {
-    try {
-      const objectStorageService = new ObjectStorageService();
-      const uploadURL = await objectStorageService.getObjectEntityUploadURL();
-      res.json({ uploadURL });
-    } catch (error) {
-      console.error("Error getting upload URL:", error);
-      res.status(500).json({ message: "Failed to get upload URL" });
-    }
-  });
+	  // File upload - get presigned URL
+	  app.post("/api/files/upload-url", isAuthenticated, async (req: any, res) => {
+	    try {
+	      const objectStorageService = new ObjectStorageService();
+	      const { uploadURL, objectPath } = await objectStorageService.getObjectEntityUploadURL();
+	      res.json({ uploadURL, objectPath });
+	    } catch (error) {
+	      console.error("Error getting upload URL:", error);
+	      res.status(500).json({ message: "Failed to get upload URL" });
+	    }
+	  });
 
   // Register uploaded file
-  app.post("/api/files", isAuthenticated, async (req: any, res) => {
-    try {
-      const org = await storage.getDefaultOrganization();
-      if (!org) {
-        return res.status(400).json({ message: "No organization found" });
-      }
+	  app.post("/api/files", isAuthenticated, async (req: any, res) => {
+	    try {
+	      const org = await storage.getDefaultOrganization();
+	      if (!org) {
+	        return res.status(400).json({ message: "No organization found" });
+	      }
 
-      const userId = (req.user as any).id;
-      const { name, mimeType, size, uploadURL, entityType, entityId } = req.body;
+	      const userId = (req.user as any).id;
+	      const { name, mimeType, size, uploadURL, objectPath, entityType, entityId } = req.body;
 
-      if (!name || !uploadURL || !entityType || !entityId) {
-        return res.status(400).json({ message: "Missing required fields" });
-      }
+	      if (!name || (!uploadURL && !objectPath) || !entityType || !entityId) {
+	        return res.status(400).json({ message: "Missing required fields" });
+	      }
 
       if (!fileEntityTypes.includes(entityType)) {
         return res.status(400).json({ message: "Invalid entity type" });
       }
 
-      const objectStorageService = new ObjectStorageService();
-      const objectPath = await objectStorageService.trySetObjectEntityAclPolicy(
-        uploadURL,
-        {
-          owner: userId,
-          visibility: "public",
-        }
-      );
+	      const objectStorageService = new ObjectStorageService();
+	      const normalizedObjectPath = await objectStorageService.trySetObjectEntityAclPolicy(
+	        objectPath || uploadURL,
+	        {
+	          owner: userId,
+	          visibility: "public",
+	        }
+	      );
 
-      const file = await storage.createFile({
-        name,
-        mimeType: mimeType || null,
-        size: size || null,
-        objectPath,
-        entityType,
-        entityId: parseInt(entityId),
-        organizationId: org.id,
-        uploadedBy: userId,
-      });
+	      if (!normalizedObjectPath.startsWith("/objects/")) {
+	        return res.status(400).json({ message: "Invalid object path" });
+	      }
+
+	      const file = await storage.createFile({
+	        name,
+	        mimeType: mimeType || null,
+	        size: size || null,
+	        objectPath: normalizedObjectPath,
+	        entityType,
+	        entityId: parseInt(entityId),
+	        organizationId: org.id,
+	        uploadedBy: userId,
+	      });
 
       res.status(201).json(file);
     } catch (error) {
@@ -1379,48 +1450,69 @@ export async function registerRoutes(
     }
   });
 
-  // Delete file
-  app.delete("/api/files/:id", isAuthenticated, async (req: any, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) {
-        return res.status(400).json({ message: "Invalid file ID" });
-      }
+	  // Delete file
+	  app.delete("/api/files/:id", isAuthenticated, async (req: any, res) => {
+	    try {
+	      const id = parseInt(req.params.id);
+	      if (isNaN(id)) {
+	        return res.status(400).json({ message: "Invalid file ID" });
+	      }
 
-      await storage.deleteFile(id);
-      res.status(204).send();
-    } catch (error) {
-      console.error("Error deleting file:", error);
-      res.status(500).json({ message: "Failed to delete file" });
+	      const file = await storage.getFile(id);
+	      if (!file) {
+	        return res.status(404).json({ message: "File not found" });
+	      }
+
+	      // Best-effort delete from storage
+	      try {
+	        const objectStorageService = new ObjectStorageService();
+	        const objectFile = await objectStorageService.getObjectEntityFile(file.objectPath);
+	        await objectStorageService.deleteFile(objectFile.path);
+	      } catch (e) {
+	        console.warn("Failed to delete object from storage (continuing):", e);
+	      }
+
+	      await storage.deleteFile(id);
+	      res.status(204).send();
+	    } catch (error) {
+	      console.error("Error deleting file:", error);
+	      res.status(500).json({ message: "Failed to delete file" });
     }
   });
 
-  // Audio transcription endpoint
-  app.post("/api/audio/transcribe", isAuthenticated, async (req: any, res) => {
-    try {
-      const { audioUrl, language } = req.body;
+	  // Audio transcription endpoint
+	  app.post("/api/audio/transcribe", isAuthenticated, async (req: any, res) => {
+	    try {
+	      const { audioUrl, language } = req.body;
 
       if (!audioUrl) {
         return res.status(400).json({ message: "Audio URL is required" });
       }
 
-      const { transcribeAudio, isWhisperAvailable } = await import("./whisper");
+	      const { transcribeAudio, isWhisperAvailable } = await import("./whisper");
 
       if (!isWhisperAvailable()) {
         return res.status(503).json({ message: "Transcription service not available" });
       }
 
-      const result = await transcribeAudio(audioUrl, language);
-      res.json(result);
-    } catch (error) {
-      console.error("Error transcribing audio:", error);
-      res.status(500).json({ message: "Failed to transcribe audio" });
-    }
-  });
+	      let resolvedUrl: string = audioUrl;
+	      if (typeof audioUrl === "string" && audioUrl.startsWith("/objects/")) {
+	        const objectStorageService = new ObjectStorageService();
+	        const objectFile = await objectStorageService.getObjectEntityFile(audioUrl);
+	        resolvedUrl = await objectStorageService.getSignedUrl(objectFile.path, 15 * 60);
+	      }
+
+	      const result = await transcribeAudio(resolvedUrl, language);
+	      res.json(result);
+	    } catch (error) {
+	      console.error("Error transcribing audio:", error);
+	      res.status(500).json({ message: "Failed to transcribe audio" });
+	    }
+	  });
 
   // Transcribe audio file by ID (fetches file URL and transcribes)
-  app.post("/api/files/:id/transcribe", isAuthenticated, async (req: any, res) => {
-    try {
+	  app.post("/api/files/:id/transcribe", isAuthenticated, async (req: any, res) => {
+	    try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
         return res.status(400).json({ message: "Invalid file ID" });
@@ -1436,13 +1528,16 @@ export async function registerRoutes(
         return res.status(400).json({ message: "File is not an audio file" });
       }
 
-      const { transcribeAudio, isWhisperAvailable } = await import("./whisper");
+	      const { transcribeAudio, isWhisperAvailable } = await import("./whisper");
 
       if (!isWhisperAvailable()) {
         return res.status(503).json({ message: "Transcription service not available" });
       }
 
-      const result = await transcribeAudio(file.objectPath, req.body.language);
+	      const objectStorageService = new ObjectStorageService();
+	      const objectFile = await objectStorageService.getObjectEntityFile(file.objectPath);
+	      const signedUrl = await objectStorageService.getSignedUrl(objectFile.path, 15 * 60);
+	      const result = await transcribeAudio(signedUrl, req.body.language);
 
       // Return transcription result
       // Note: To persist transcription, add a 'metadata' jsonb field to the files table
@@ -1822,25 +1917,35 @@ export async function registerRoutes(
       if (!config) return res.status(404).json({ message: "Channel config not found" });
       if (config.type !== "whatsapp") return res.status(400).json({ message: "Not a WhatsApp channel" });
 
-      if (!evolutionApi.isConfigured()) {
-        return res.status(503).json({ message: "Evolution API is not configured" });
-      }
+	      if (!evolutionApi.isConfigured()) {
+	        return res.status(503).json({ message: "Evolution API is not configured" });
+	      }
 
-      const organizationId = config.organizationId;
-      const instanceName = `crm-org-${organizationId}-channel-${id}`;
+	      if (process.env.NODE_ENV === "production" && !process.env.EVOLUTION_WEBHOOK_SECRET) {
+	        return res.status(500).json({
+	          message: "EVOLUTION_WEBHOOK_SECRET is required in production to validate webhooks",
+	        });
+	      }
+
+	      const organizationId = config.organizationId;
+	      const instanceName = `crm-org-${organizationId}-channel-${id}`;
 
       // Check if instance already exists
-      const existingInstance = await evolutionApi.getInstanceInfo(instanceName);
+	      const existingInstance = await evolutionApi.getInstanceInfo(instanceName);
 
-      if (!existingInstance) {
-        // Create new instance
-        await evolutionApi.createInstance(instanceName);
+	      if (!existingInstance) {
+	        // Create new instance
+	        await evolutionApi.createInstance(instanceName);
+	      }
 
-        // Set webhook URL for this instance
-        const appUrl = process.env.APP_URL || `http://localhost:${process.env.PORT || 3000}`;
-        const webhookUrl = `${appUrl}/api/webhooks/evolution`;
-        await evolutionApi.setWebhook(instanceName, webhookUrl);
-      }
+	      // Set (or refresh) webhook URL for this instance
+	      const appUrl = process.env.APP_URL || `http://localhost:${process.env.PORT || 3000}`;
+	      const webhookSecret = process.env.EVOLUTION_WEBHOOK_SECRET;
+	      const webhookUrl = new URL("/api/webhooks/evolution", appUrl);
+	      if (webhookSecret) {
+	        webhookUrl.searchParams.set("token", webhookSecret);
+	      }
+	      await evolutionApi.setWebhook(instanceName, webhookUrl.toString());
 
       // Get QR code
       const qrData = await evolutionApi.getQrCode(instanceName);
@@ -1976,36 +2081,75 @@ export async function registerRoutes(
     }
   });
 
-  // Evolution API Webhook (receives messages from WhatsApp)
-  // Note: This endpoint does NOT require authentication as it's called by Evolution API
-  app.post("/api/webhooks/evolution", async (req, res) => {
-    try {
-      const event = req.body as EvolutionWebhookEvent;
+	  // Evolution API Webhook (receives messages from WhatsApp)
+	  // Note: This endpoint does NOT require authentication as it's called by Evolution API
+	  app.post("/api/webhooks/evolution", async (req, res) => {
+	    try {
+	      const expectedToken = process.env.EVOLUTION_WEBHOOK_SECRET;
+	      if (expectedToken) {
+	        const providedToken = (req.query?.token as string | undefined) ||
+	          (req.headers["x-evolution-webhook-secret"] as string | undefined);
+	        if (!providedToken || providedToken !== expectedToken) {
+	          console.warn("[Evolution Webhook] Invalid token");
+	          return res.status(200).json({ received: true });
+	        }
+	      } else if (process.env.NODE_ENV === "production") {
+	        console.warn("[Evolution Webhook] EVOLUTION_WEBHOOK_SECRET is not set; skipping processing");
+	        return res.status(200).json({ received: true });
+	      }
 
-      console.log(`[Evolution Webhook] Received: ${event.event} for instance: ${event.instance}`);
+	      const event = req.body as EvolutionWebhookEvent;
 
-      // Parse instance name to get channel config ID
-      // Format: crm-org-{orgId}-channel-{configId}
-      const instanceMatch = event.instance?.match(/crm-org-(\d+)-channel-(\d+)/);
-      if (!instanceMatch) {
-        console.log("[Evolution Webhook] Unknown instance format:", event.instance);
-        return res.status(200).json({ received: true });
-      }
+	      const normalizedEvent = String(event.event || "").toUpperCase().replace(/\./g, "_");
+	      console.log(`[Evolution Webhook] Received: ${normalizedEvent} for instance: ${event.instance}`);
 
-      const organizationId = parseInt(instanceMatch[1]);
-      const channelConfigId = parseInt(instanceMatch[2]);
+	      // Parse instance name to get channel config ID.
+	      // Known formats:
+	      // - crm-org-{orgId}-channel-{configId}
+	      // - crm-channel-{configId}
+	      const channelMatch =
+	        event.instance?.match(/crm-org-\d+-channel-(\d+)/) ||
+	        event.instance?.match(/crm-channel-(\d+)/);
+	      if (!channelMatch) {
+	        console.log("[Evolution Webhook] Unknown instance format:", event.instance);
+	        return res.status(200).json({ received: true });
+	      }
 
-      // Set broadcast function for real-time updates
-      evolutionHandler.setBroadcast((orgId, eventType, data) => {
-        broadcast(`whatsapp:${eventType}`, { organizationId: orgId, data });
-      });
+	      const channelConfigId = parseInt(channelMatch[1]);
+	      if (Number.isNaN(channelConfigId)) {
+	        return res.status(200).json({ received: true });
+	      }
 
-      // Process the webhook event
-      await evolutionHandler.handleWebhook(event, channelConfigId, organizationId);
+	      const config = await storage.getChannelConfig(channelConfigId);
+	      if (!config || config.type !== "whatsapp") {
+	        console.log("[Evolution Webhook] Channel config not found:", channelConfigId);
+	        return res.status(200).json({ received: true });
+	      }
 
-      res.status(200).json({ received: true });
-    } catch (error) {
-      console.error("[Evolution Webhook] Error processing webhook:", error);
+	      const whatsappConfig = (config.whatsappConfig || {}) as Record<string, unknown>;
+	      const expectedInstanceName = whatsappConfig.instanceName as string | undefined;
+	      if (!expectedInstanceName || expectedInstanceName !== event.instance) {
+	        console.log("[Evolution Webhook] Instance mismatch for channel:", channelConfigId);
+	        return res.status(200).json({ received: true });
+	      }
+
+	      const organizationId = config.organizationId;
+
+	      // Set broadcast function for real-time updates
+	      evolutionHandler.setBroadcast((orgId, eventType, data) => {
+	        broadcast(`whatsapp:${eventType}`, { organizationId: orgId, data });
+	      });
+
+	      // Process the webhook event
+	      await evolutionHandler.handleWebhook(
+	        { ...event, event: normalizedEvent },
+	        channelConfigId,
+	        organizationId,
+	      );
+
+	      res.status(200).json({ received: true });
+	    } catch (error) {
+	      console.error("[Evolution Webhook] Error processing webhook:", error);
       // Always return 200 to prevent retries
       res.status(200).json({ received: true, error: "Processing failed" });
     }
@@ -2160,30 +2304,29 @@ export async function registerRoutes(
   });
 
   // Initiate OAuth flow - returns authorization URL
-  app.get("/api/auth/google/authorize", isAuthenticated, async (req: any, res) => {
-    try {
-      const { googleCalendarService } = await import("./google-calendar");
+	  app.get("/api/auth/google/authorize", isAuthenticated, async (req: any, res) => {
+	    try {
+	      const { googleCalendarService } = await import("./google-calendar");
 
       if (!googleCalendarService.isConfigured()) {
         return res.status(503).json({ message: "Google Calendar integration is not configured" });
       }
 
-      const userId = (req.user as any).id;
-      // Encode userId in state for callback verification
-      const state = Buffer.from(JSON.stringify({ userId, timestamp: Date.now() })).toString('base64');
+	      const userId = (req.user as any).id;
+	      const state = signOAuthState({ userId, timestamp: Date.now() });
 
-      const authUrl = googleCalendarService.getAuthUrl(state);
-      res.json({ authUrl });
-    } catch (error) {
+	      const authUrl = googleCalendarService.getAuthUrl(state);
+	      res.json({ authUrl });
+	    } catch (error) {
       console.error("Error generating auth URL:", error);
       res.status(500).json({ message: "Failed to generate authorization URL" });
     }
   });
 
   // OAuth callback - handles code exchange
-  app.get("/api/auth/google/callback", async (req, res) => {
-    try {
-      const { code, state, error: oauthError } = req.query;
+	  app.get("/api/auth/google/callback", async (req, res) => {
+	    try {
+	      const { code, state, error: oauthError } = req.query;
 
       if (oauthError) {
         console.error("OAuth error:", oauthError);
@@ -2194,15 +2337,22 @@ export async function registerRoutes(
         return res.redirect("/settings?google_calendar=error&message=missing_params");
       }
 
-      // Decode state to get userId
-      let stateData: { userId: string; timestamp: number };
-      try {
-        stateData = JSON.parse(Buffer.from(String(state), 'base64').toString());
-      } catch {
-        return res.redirect("/settings?google_calendar=error&message=invalid_state");
-      }
+	      const stateData = verifyOAuthState(String(state));
+	      if (!stateData?.userId || !stateData.timestamp) {
+	        return res.redirect("/settings?google_calendar=error&message=invalid_state");
+	      }
 
-      const { googleCalendarService, encryptToken } = await import("./google-calendar");
+	      // Prevent very old states (10 minutes)
+	      if (Date.now() - stateData.timestamp > 10 * 60 * 1000) {
+	        return res.redirect("/settings?google_calendar=error&message=state_expired");
+	      }
+
+	      const user = await storage.getUser(stateData.userId);
+	      if (!user) {
+	        return res.redirect("/settings?google_calendar=error&message=invalid_user");
+	      }
+
+	      const { googleCalendarService, encryptToken } = await import("./google-calendar");
 
       // Exchange code for tokens
       const tokens = await googleCalendarService.exchangeCode(String(code));
@@ -2344,34 +2494,67 @@ export async function registerRoutes(
 
   const httpServer = createServer(app);
 
-  const wss = new WebSocketServer({ server: httpServer, path: "/ws" });
-
-  // Map to track user IDs for each WebSocket connection
+  // WebSocket auth via the same session cookie used by the API (prevents userId spoofing).
+  const sessionParser = getSession();
+  const wss = new WebSocketServer({ noServer: true });
   const clientUserMap = new Map<WebSocket, string>();
 
-  wss.on("connection", (ws) => {
+  const fakeRes = {
+    getHeader() {
+      return undefined;
+    },
+    setHeader() {},
+  } as any;
+
+  httpServer.on("upgrade", (req, socket, head) => {
+    const url = req.url ? new URL(req.url, "http://localhost") : null;
+    if (!url || url.pathname !== "/ws") {
+      if (process.env.NODE_ENV === "production") {
+        socket.destroy();
+      }
+      return;
+    }
+
+    sessionParser(req as any, fakeRes, () => {
+      const userId = (req as any).session?.passport?.user as string | undefined;
+      if (!userId) {
+        socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
+        socket.destroy();
+        return;
+      }
+
+      wss.handleUpgrade(req, socket, head, (ws) => {
+        wss.emit("connection", ws, req);
+      });
+    });
+  });
+
+  wss.on("connection", async (ws, req) => {
+    const userId = (req as any).session?.passport?.user as string | undefined;
+    if (!userId) {
+      ws.close(1008, "Not authenticated");
+      return;
+    }
+
     clients.add(ws);
+    clientUserMap.set(ws, userId);
+
+    try {
+      const user = await storage.getUser(userId);
+      const userName = user ? `${user.firstName || ""} ${user.lastName || ""}`.trim() : undefined;
+      const { setUserOnline } = await import("./redis");
+      await setUserOnline(userId);
+      broadcast("user:online", { userId, userName, lastSeenAt: new Date().toISOString() });
+    } catch (e) {
+      console.error("WebSocket online status error:", e);
+    }
 
     ws.on("message", async (message) => {
       try {
         const data = JSON.parse(message.toString());
 
-        // Handle presence - user identifies themselves
-        if (data.type === "presence" && data.payload?.userId) {
-          const { userId, userName } = data.payload;
-          clientUserMap.set(ws, userId);
-
-          // Mark user as online (uses Redis if available)
-          const { setUserOnline } = await import("./redis");
-          await setUserOnline(userId);
-
-          // Broadcast user is online
-          broadcast("user:online", { userId, userName, lastSeenAt: new Date().toISOString() });
-        }
-
-        // Handle typing indicator
         if (data.type === "typing") {
-          broadcast("typing", data.payload);
+          broadcast("typing", { ...data.payload, userId });
         }
       } catch (e) {
         console.error("WebSocket message error:", e);
@@ -2380,24 +2563,19 @@ export async function registerRoutes(
 
     ws.on("close", async () => {
       clients.delete(ws);
+      clientUserMap.delete(ws);
 
-      // Get user ID for this connection
-      const userId = clientUserMap.get(ws);
-      if (userId) {
-        clientUserMap.delete(ws);
+      const hasOtherConnections = Array.from(clientUserMap.values()).includes(userId);
+      if (hasOtherConnections) return;
 
-        // Check if user has other active connections
-        const hasOtherConnections = Array.from(clientUserMap.values()).includes(userId);
-
-        if (!hasOtherConnections) {
-          // Mark user as offline (uses Redis if available)
-          const { setUserOffline } = await import("./redis");
-          await setUserOffline(userId);
-
-          // Broadcast user is offline
-          broadcast("user:offline", { userId, lastSeenAt: new Date().toISOString() });
-        }
+      try {
+        const { setUserOffline } = await import("./redis");
+        await setUserOffline(userId);
+      } catch (e) {
+        console.error("WebSocket offline status error:", e);
       }
+
+      broadcast("user:offline", { userId, lastSeenAt: new Date().toISOString() });
     });
   });
 
