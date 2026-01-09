@@ -2,7 +2,7 @@
 
 Este arquivo contém **apenas o plano de ação** com milestones e checkboxes.
 
-Diagnóstico (explicação do projeto + análise atual): `DIAGNOSTICO_E_PLANO.md`.
+Diagnóstico (explicação do projeto + análise atual): `DIAGNOSTICO.md`.
 
 ---
 
@@ -119,4 +119,3 @@ Use isso como "lista de pronto" para operar com confiança:
 - [x] Integrações com timeout e status visível ✅ (retries pendente)
 - [ ] Rotina de migrações e bootstrap (sem "mexer no banco na mão")
 - [ ] Política mínima de retenção e ações LGPD (exportar/remover quando necessário)
-
