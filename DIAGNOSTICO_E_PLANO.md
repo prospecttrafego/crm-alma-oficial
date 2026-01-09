@@ -343,111 +343,110 @@ Foram executados:
 
 ---
 
-## 9) Principais achados (foco backend + integrações)
+## 9) Principais achados (produção: escala, segurança e integrações)
 
-### A) “Blockers” (coisas que costumam quebrar deploy/uso)
-- **Organização obrigatória no banco (single-tenant):** o backend assume que existe uma organização. Se não existir, muitos fluxos dão erro (e não há endpoint para criar).  
-- **`DEFAULT_ORGANIZATION_ID` precisa bater com o banco:** se o env apontar para um ID inexistente, o backend falha quando tenta determinar a organização.
-- **`gen_random_uuid()` no Postgres:** em alguns ambientes você precisa habilitar extensão (pgcrypto). Isso pode quebrar `db:push`.
-- **Uploads exigem Supabase configurado:** sem `SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY`, upload/download falham.
-- **WhatsApp em produção exige `EVOLUTION_WEBHOOK_SECRET`:** o código evita processar webhooks sem segredo em produção.
+> Contexto: você deixou claro que este CRM é **projeto real**, usado por empresa com **alto volume** (muitos leads, muitos registros e vários usuários).  
+> Então, os pontos abaixo priorizam **confiabilidade, segurança, performance e governança** — e não “MVP”.
 
-### B) Gaps de integração (existe “a tela”, mas falta o motor)
-- **Email (IMAP/SMTP):** existe `channel_configs.emailConfig`, mas não existe rotina para buscar/enviar emails; o endpoint “test” só responde OK.
-- **SMS/telefone:** o modelo de conversas suporta `sms`/`phone`, mas não há integração para entrada/saída.
-- **Redis:** presença é usada, mas cache e rate-limit ainda não foram aplicados nas rotas (o código base existe).
+### P0 — Riscos críticos (impactam operação e/ou segurança)
+- **Listagens sem paginação:** endpoints como contatos/empresas/deals/conversas/atividades retornam “tudo de uma vez”. Em volume alto, isso vira lentidão, travamentos e custo de banco.
+- **WhatsApp handler com varredura em memória:** para achar contato/conversa ele lê listas inteiras e procura no JavaScript. Com muitos leads, isso degrada rápido e aumenta risco de falhas.
+- **“Não lidas” não está claramente definido por usuário:** `unreadCount` hoje é global na conversa e pode contar de um jeito confuso em times grandes (ex.: quando o próprio usuário envia mensagem).
+- **Bootstrap da organização (single-tenant):** o backend depende de existir organização no banco; hoje não há um fluxo “oficial” dentro do app para criar isso com segurança.
+- **Integrações críticas dependem de variáveis de ambiente:** Supabase, WhatsApp, Google, OpenAI e Firebase precisam estar corretos; sem isso partes importantes param.
 
-### C) Melhorias recomendadas (qualidade/reliabilidade)
-- **Linter agora existe:** mas há muitos warnings de imports/variáveis não usados; vale limpar gradualmente.
-- **Vulnerabilidades npm:** existem 6 (moderate/high) — vale avaliar com `npm audit` e planejar atualização.
-- **Unread count em conversas é global:** a lógica atual incrementa e zera de forma simplificada (não é por usuário); pode gerar contagens “estranhas” em times maiores.
-- **WhatsApp mídia:** mensagens de mídia entram como placeholders (`[Imagem]`, etc.) sem anexar arquivo/URL de mídia (melhoria para “inbox completo”).
+### P1 — Lacunas funcionais (promete multicanal, mas ainda não entrega tudo)
+- **Email (IMAP/SMTP):** existe configuração (`channel_configs.emailConfig`), mas não existe sincronização real de emails nem envio por SMTP.
+- **SMS/telefone:** o schema suporta, mas não há integração implementada.
+- **Redis:** presença (online/offline) existe; porém cache e rate limiting ainda não estão aplicados na maioria das rotas.
 
----
-
-## 10) Plano de ação (milestones + checkboxes)
-
-### Milestone 0 — “Rodar local com o mínimo”
-Objetivo: conseguir logar e usar pipeline/inbox localmente com o básico.
-
-- [ ] Criar `.env` a partir de `.env.example`
-- [ ] Configurar `DATABASE_URL` e `SESSION_SECRET`
-- [ ] Rodar `npm run db:push`
-- [ ] Garantir que existe 1 organização em `organizations` e definir `DEFAULT_ORGANIZATION_ID` corretamente
-- [ ] Rodar `npm run dev` e validar login
-
-### Milestone 1 — “Bootstrap e estabilidade do backend”
-Objetivo: evitar erros clássicos de deploy e tornar a inicialização “à prova de esquecimento”.
-
-- [ ] Criar um **script de seed** (ex.: `scripts/seed.ts`) para criar organização + admin inicial
-- [ ] (Opcional) Criar endpoint/admin protegido para bootstrap (somente em dev/primeiro uso)
-- [ ] Validar e padronizar mensagens de erro quando faltar env obrigatório
-- [ ] Revisar exigência/uso de `DEFAULT_ORGANIZATION_ID` (documentar e/ou tornar mais simples)
-- [ ] Adicionar endpoint simples de “health check” (ex.: `/api/health`) para deploy monitorar
-
-### Milestone 2 — “Arquivos (Supabase) redondo”
-Objetivo: upload/download confiável e bem explicado.
-
-- [ ] Confirmar bucket `uploads` no Supabase
-- [ ] Documentar claramente: `SUPABASE_SERVICE_ROLE_KEY` é necessário e por quê
-- [ ] Validar políticas/RLS do bucket (se aplicável) e garantir que o fluxo com URL assinada funciona
-- [ ] (Opcional) Melhorar armazenamento: incluir metadados (ex.: transcription) no banco quando necessário
-
-### Milestone 3 — “WhatsApp (Evolution) em produção”
-Objetivo: conectar WhatsApp e receber/enviar mensagens com segurança.
-
-- [ ] Configurar `EVOLUTION_API_URL` e `EVOLUTION_API_KEY`
-- [ ] Definir `APP_URL` com domínio real do CRM
-- [ ] Definir `EVOLUTION_WEBHOOK_SECRET` e validar chamadas no webhook
-- [ ] Criar Channel Config WhatsApp no Settings e conectar (QR)
-- [ ] Testar recebimento de mensagens (webhook) e envio (`/whatsapp/send`)
-- [ ] (Melhoria) Suportar anexos/mídias recebidas: baixar mídia e registrar como `files` + link na mensagem
-
-### Milestone 4 — “Google Calendar”
-Objetivo: conectar e sincronizar agenda de forma segura.
-
-- [ ] Criar OAuth Client no Google Cloud Console
-- [ ] Configurar `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`
-- [ ] Configurar `GOOGLE_TOKEN_ENCRYPTION_KEY` (recomendado)
-- [ ] Conectar via Settings e testar sync (`/integrations/google-calendar/sync`)
-- [ ] (Melhoria) Sincronização bidirecional (hoje está focado em importar)
-
-### Milestone 5 — “Push Notifications (Firebase)”
-Objetivo: push funcionar quando usuário estiver offline.
-
-- [ ] Criar projeto no Firebase e habilitar Cloud Messaging
-- [ ] Preencher envs do backend (service account) e do frontend (SDK + VAPID)
-- [ ] Confirmar service worker `client/public/firebase-messaging-sw.js` e permissões no navegador
-- [ ] Testar: usuário offline recebe push ao chegar mensagem atribuída
-
-### Milestone 6 — “Qualidade contínua”
-Objetivo: manter o projeto saudável conforme evolui.
-
-- [ ] Rodar `npm run check` em PRs/antes de deploy
-- [ ] Rodar `npm run lint` em PRs/antes de deploy
-- [ ] Limpar warnings do lint aos poucos (remover imports/variáveis não usadas)
-- [ ] Fazer um plano para tratar `npm audit` (atualizações sem quebrar)
-- [ ] (Opcional) Adicionar testes básicos de rotas críticas do backend
-
-### Milestone 7 — “Inbox multicanal completo (roadmap)”
-Objetivo: tornar real o “multicanal” além de WhatsApp.
-
-- [ ] Implementar sincronização Email (IMAP) e envio (SMTP) usando `channel_configs.emailConfig`
-- [ ] Implementar SMS (provider) e telefonia (se desejado)
-- [ ] Ajustar modelo de “não lidas” para ser por usuário (ou por responsável)
-- [ ] Melhorar performance do handler WhatsApp (buscar contato/conversa direto no banco, não em memória)
+### P2 — Maturidade (qualidade/operacional)
+- **Linter agora existe:** ele roda e ajuda a manter padrão, mas há muitos warnings (limpeza gradual recomendada).
+- **Vulnerabilidades npm:** o `npm` reportou `6 vulnerabilities` (moderate/high). Precisa triagem e plano de atualização sem quebrar o produto.
 
 ---
 
-## 11) Checklist rápido de deploy (resumo)
+## 10) Plano de ação (produção — infraestrutura, segurança, escala e integrações)
 
-- [ ] Banco Postgres acessível + `DATABASE_URL`
-- [ ] `SESSION_SECRET` forte
-- [ ] Rodar `npm run db:push`
-- [ ] Garantir organização existente + `DEFAULT_ORGANIZATION_ID`
-- [ ] `APP_URL` setado com domínio final
-- [ ] (Se usar uploads) Supabase bucket `uploads` + `SUPABASE_SERVICE_ROLE_KEY`
-- [ ] (Se usar WhatsApp) `EVOLUTION_*` + webhook secret
-- [ ] `npm run build` e `npm start` (ou PM2)
-- [ ] Nginx com suporte a WebSocket (`Upgrade`/`Connection`)
+Este plano não é “MVP”. Ele é para um CRM que precisa:
+- aguentar volume (muitos leads e mensagens),
+- manter dados seguros,
+- ser confiável no dia a dia,
+- e evoluir sem virar “bomba-relógio”.
 
+Vou organizar por **prioridade** e por **milestones**.
+
+### Milestone P0-1 — Segurança de acesso (login, sessões e permissões)
+Objetivo: reduzir risco de invasão, vazamento e ações indevidas.
+
+- [ ] Rate limit e proteção anti brute force no login e endpoints sensíveis (reaproveitar `server/redis.ts` ou outra estratégia)
+- [ ] Política de senha (mínimo, bloqueio de senhas fracas) e fluxo de “esqueci minha senha”
+- [ ] Revisar sessões/cookies: duração real, renovação, logout em todos os dispositivos, e parâmetros seguros (sem “surpresas”)
+- [ ] Definir claramente o que cada perfil pode fazer (admin/sales/cs/support) e aplicar isso nas rotas (RBAC de verdade)
+- [ ] Revisar dados expostos nos endpoints (por exemplo: listas de usuários, auditoria, arquivos) para garantir que só sai o necessário
+- [ ] Revisar segurança de webhooks (WhatsApp): segredo obrigatório, logs de falha, e idempotência (não duplicar mensagens)
+
+### Milestone P0-2 — Performance e escalabilidade (principalmente backend + banco)
+Objetivo: o CRM continuar rápido com muito dado.
+
+- [ ] Paginação + busca + ordenação nas listagens grandes (contatos, empresas, deals, conversas, atividades, notificações, auditoria)
+- [ ] Índices no Postgres para os filtros reais (email/telefone, pipeline/stage, datas de mensagem, etc.)
+- [ ] Corrigir/definir a regra de “não lidas” (evitar contar a própria mensagem; decidir se é por usuário/responsável)
+- [ ] Otimizar WhatsApp: buscar contato/conversa direto no banco (sem carregar tudo em memória)
+- [ ] Melhorar consistência de dados (ex.: normalizar e indexar telefone para busca rápida)
+
+### Milestone P0-3 — Observabilidade e confiabilidade
+Objetivo: você “enxergar” problemas antes de virarem crise e evitar travar o app.
+
+- [ ] Logs estruturados (com `requestId`) e logs específicos de integrações (WhatsApp, Google, OpenAI, Supabase)
+- [ ] Endpoint de health/status interno (DB ok? Supabase ok? Redis ok? Evolution ok?) para diagnosticar rapidamente
+- [ ] Timeouts e retries controlados nas chamadas externas (hoje a maioria das chamadas é “best effort”)
+- [ ] Tirar tarefas pesadas do request (ex.: transcrição/sync/score) e rodar em job/background quando fizer sentido
+- [ ] Política de erros: o que retorna pro usuário, o que fica no log, e como alertar quando algo cair
+
+### Milestone P1-1 — Integrações “de verdade” (não só configuração)
+Objetivo: as integrações serem estáveis e completas.
+
+- [ ] Email: implementar sincronização IMAP + envio SMTP usando `channel_configs.emailConfig` (com segurança e proteção de credenciais)
+- [ ] WhatsApp: suportar mídia/anexos recebidos (baixar mídia, registrar em `files`, vincular na mensagem)
+- [ ] Google Calendar: sincronização incremental e tratamento robusto de refresh token/expiração
+- [ ] Firebase push: fluxo de tokens (registrar/atualizar/remover) e testes reais em múltiplos dispositivos
+
+### Milestone P1-2 — Governança e dados (empresa de verdade)
+Objetivo: evitar perda de dados e ficar mais “profissional” na operação.
+
+- [ ] Estratégia de migração (Drizzle migrations) para evoluir schema com segurança
+- [ ] Seed/bootstrap controlado (organização + usuário admin inicial) para não depender de “mexer no banco na mão”
+- [ ] Política de retenção (o que guardar e por quanto tempo) e ações LGPD básicas (exportação/remoção sob demanda)
+- [ ] Auditoria mais completa (cobrir ações críticas: deals, contatos, arquivos, integrações)
+
+### Milestone P2 — Qualidade contínua (para o projeto não degradar)
+Objetivo: manter o ritmo de evolução sem quebrar produção.
+
+- [ ] Padronizar rotinas internas: `npm run check`, `npm run lint`, `npm run build`
+- [ ] Começar suíte de testes do backend (rotas críticas + permissões + integrações mockadas)
+- [ ] Limpar warnings do lint gradualmente (não precisa “parar o mundo”)
+- [ ] Plano para reduzir vulnerabilidades do `npm audit` sem quebrar dependências
+
+### (Opcional) Milestone Roadmap — Multicanal completo
+Objetivo: transformar “multicanal” em realidade (além do WhatsApp).
+
+- [ ] Email completo (já no P1-1)
+- [ ] SMS e telefonia (definir provider e requisitos)
+- [ ] Relatórios avançados (KPI por canal, SLA de atendimento, performance por usuário)
+
+---
+
+## 11) Checklist de maturidade (empresa com alto volume)
+
+Use isso como “lista de pronto” para operar com confiança:
+
+- [ ] Listagens com paginação + busca (não carregar tudo)
+- [ ] Índices e queries revisados (principalmente contatos, conversas, deals, mensagens)
+- [ ] Regra clara e correta de “não lidas” (por usuário ou por responsável)
+- [ ] Rate limit e proteção no login
+- [ ] Permissões por perfil aplicadas (RBAC)
+- [ ] Logs e alertas (saber quando algo quebrou)
+- [ ] Integrações com timeout/retry e status visível
+- [ ] Rotina de migrações e bootstrap (sem “mexer no banco na mão”)
+- [ ] Política mínima de retenção e ações LGPD (exportar/remover quando necessário)

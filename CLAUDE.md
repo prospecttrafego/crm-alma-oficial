@@ -379,7 +379,7 @@ POST   /api/register       # Registro (se habilitado)
 GET    /api/auth/me        # Usuario atual
 GET    /api/auth/user      # Usuario atual (alias usado no frontend)
 PATCH  /api/users/me       # Atualizar perfil/preferencias do usuario atual
-GET    /api/users          # Listar usuarios (admin)
+GET    /api/users          # Listar usuarios (para dropdown/filtros; requer login)
 ```
 
 ### Contatos
