@@ -1,7 +1,7 @@
 # Diagnóstico completo + Plano de ação — Alma CRM
 
 Data do diagnóstico: 2026-01-09  
-Commit analisado (base): `206c98e`  
+Commit analisado (base): `3afebb2`  
 Ambiente usado para validações: Node `v25.2.1`, npm `11.6.2` (o projeto documenta Node 20+)
 
 Este documento foi criado para:
