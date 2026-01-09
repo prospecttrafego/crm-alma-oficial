@@ -11,6 +11,7 @@ Objetivo: ter um ambiente local que reproduz a operação real para validar regr
 
 - [ ] Criar `.env` a partir de `.env.example`
 - [ ] Configurar `DATABASE_URL` e `SESSION_SECRET`
+- [ ] Conferir se estrutura do Supabase foi feito corretamente
 - [ ] Rodar `npm run db:push` (criar/atualizar tabelas)
 - [ ] Garantir que existe uma organizacao em `organizations` e definir `DEFAULT_ORGANIZATION_ID` corretamente
 - [ ] Subir com `npm run dev` e validar login/registro (conforme `ALLOW_REGISTRATION`)
