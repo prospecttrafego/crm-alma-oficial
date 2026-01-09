@@ -1,0 +1,49 @@
+import type { Express } from "express";
+import { registerActivityRoutes } from "./activities";
+import { registerAuditLogRoutes } from "./auditLogs";
+import { registerCalendarEventRoutes } from "./calendarEvents";
+import { registerChannelConfigRoutes } from "./channelConfigs";
+import { registerCompanyRoutes } from "./companies";
+import { registerContactRoutes } from "./contacts";
+import { registerConversationRoutes } from "./conversations";
+import { registerDashboardRoutes } from "./dashboard";
+import { registerDealRoutes } from "./deals";
+import { registerEmailTemplateRoutes } from "./emailTemplates";
+import { registerEvolutionRoutes } from "./evolution";
+import { registerFileRoutes } from "./files";
+import { registerGoogleCalendarRoutes } from "./googleCalendar";
+import { registerHealthRoutes } from "./health";
+import { registerLeadScoreRoutes } from "./leadScores";
+import { registerNotificationRoutes } from "./notifications";
+import { registerObjectRoutes } from "./objects";
+import { registerPipelineRoutes } from "./pipelines";
+import { registerPushTokenRoutes } from "./pushTokens";
+import { registerReportRoutes } from "./reports";
+import { registerSavedViewRoutes } from "./savedViews";
+import { registerUserRoutes } from "./users";
+
+export function registerApiRoutes(app: Express) {
+  registerHealthRoutes(app);
+  registerUserRoutes(app);
+  registerDashboardRoutes(app);
+  registerPipelineRoutes(app);
+  registerDealRoutes(app);
+  registerContactRoutes(app);
+  registerCompanyRoutes(app);
+  registerConversationRoutes(app);
+  registerActivityRoutes(app);
+  registerNotificationRoutes(app);
+  registerSavedViewRoutes(app);
+  registerEmailTemplateRoutes(app);
+  registerAuditLogRoutes(app);
+  registerReportRoutes(app);
+  registerFileRoutes(app);
+  registerLeadScoreRoutes(app);
+  registerCalendarEventRoutes(app);
+  registerChannelConfigRoutes(app);
+  registerEvolutionRoutes(app);
+  registerPushTokenRoutes(app);
+  registerGoogleCalendarRoutes(app);
+  registerObjectRoutes(app);
+}
+

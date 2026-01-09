@@ -91,7 +91,9 @@ npm start
 │   ├── index.ts             # Entry point
 │   ├── logger.ts            # Logs estruturados (requestId + integrações)
 │   ├── health.ts            # Health check (DB + integrações opcionais)
-│   ├── routes.ts            # Endpoints da API
+│   ├── routes.ts            # Agregador (auth + rate limit + API + WebSocket)
+│   ├── api/                 # Rotas HTTP por domínio (módulos)
+│   └── ws/                  # WebSocket (/ws) + broadcast
 │   ├── storage.ts           # Camada de acesso ao banco
 │   ├── auth.ts              # Autenticacao Passport.js
 │   ├── db.ts                # Drizzle + conexao Postgres

@@ -134,9 +134,23 @@ client/                Frontend (React)
 
 server/                Backend (Express)
   index.ts             Entry point (Express + Vite dev + static prod)
+  routes.ts            Agregador (auth + rate limit + API + WS)
+  api/                 Rotas HTTP por domínio (módulos)
+    index.ts           Registra todos os módulos de API
+    contacts.ts        Endpoints de contatos
+    companies.ts       Endpoints de empresas
+    deals.ts           Endpoints de deals
+    pipelines.ts       Endpoints de pipelines/estágios
+    conversations.ts   Inbox (conversas/mensagens)
+    files.ts           Upload/download + transcrição
+    channelConfigs.ts  Canais (email/whatsapp) + ações WhatsApp
+    googleCalendar.ts  Integração Google Calendar
+    evolution.ts       Status + webhook Evolution (WhatsApp)
+    ...                (demais domínios: activities, notifications, reports, etc.)
+  ws/                  WebSocket (/ws) + broadcast
+    index.ts           Upgrade handler + presença + "typing" + broadcast
   logger.ts            Logs estruturados (requestId + loggers de integrações)
   health.ts            Health check (DB + integrações opcionais)
-  routes.ts            Todas as rotas /api + WebSocket (/ws)
   auth.ts              Sessões + Passport (login/register/logout/me)
   db.ts                Conexão Postgres + Drizzle
   storage.ts           “Camada de banco” (CRUD e queries)
@@ -293,7 +307,7 @@ O que você fornece:
 
 ## 7) API (resumo real do que existe hoje)
 
-Endpoints `/api` principais (somando `server/auth.ts` e `server/routes.ts`):
+Endpoints `/api` principais (somando `server/auth.ts` e `server/api/*`, registradas via `server/routes.ts`):
 
 - Health/Observabilidade:  
   `/api/health`
@@ -471,8 +485,8 @@ Objetivo: transformar “multicanal” em realidade (além do WhatsApp).
 ### Milestone 8 (P1) — Manutenibilidade (estrutura do backend)
 Objetivo: facilitar evolução sem “routes.ts gigante” e reduzir risco de regressões.
 
-- [ ] Criar `server/api/` e quebrar rotas por domínio (auth, contacts, deals, inbox, etc.)
-- [ ] Criar `server/ws/` e extrair WebSocket/broadcast para módulo dedicado
+- [x] Criar `server/api/` e quebrar rotas por domínio (auth, contacts, deals, inbox, etc.)
+- [x] Criar `server/ws/` e extrair WebSocket/broadcast para módulo dedicado
 - [ ] Criar `server/integrations/` e organizar integrações (Evolution/Google/OpenAI/Firebase/Supabase)
 - [ ] Padronizar middlewares (auth, rate limit, validação) e contratos de resposta
 

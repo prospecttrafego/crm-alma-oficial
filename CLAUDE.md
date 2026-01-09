@@ -141,7 +141,17 @@ CRM_Oficial/
 │   ├── index.ts                 # Entry point, inicia servidor
 │   ├── logger.ts                # Logs estruturados (requestId + loggers de integrações)
 │   ├── health.ts                # Health check (DB + integrações opcionais)
-│   ├── routes.ts                # Todos os endpoints da API
+│   ├── routes.ts                # Agregador (auth + rate limit + API + WebSocket)
+│   ├── api/                     # Rotas HTTP por domínio (módulos)
+│   │   ├── index.ts             # Registra todos os módulos de API
+│   │   ├── contacts.ts          # Contatos
+│   │   ├── companies.ts         # Empresas
+│   │   ├── deals.ts             # Deals
+│   │   ├── pipelines.ts         # Pipelines/estágios
+│   │   ├── conversations.ts     # Inbox (conversas/mensagens)
+│   │   └── ...                  # Demais domínios (activities, files, etc.)
+│   ├── ws/                      # WebSocket (/ws) + broadcast
+│   │   └── index.ts             # Upgrade handler + presença + "typing"
 │   ├── storage.ts               # Camada de acesso ao banco (DAL)
 │   ├── auth.ts                  # Passport.js + sessoes
 │   ├── db.ts                    # Drizzle + conexao Postgres (Pool)

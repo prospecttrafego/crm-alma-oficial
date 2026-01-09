@@ -1,0 +1,94 @@
+import type { Express } from "express";
+import { isAuthenticated } from "../auth";
+import { storage } from "../storage";
+import { broadcast } from "../ws/index";
+import { evolutionApi } from "../evolution-api";
+import { evolutionHandler, type EvolutionWebhookEvent } from "../evolution-message-handler";
+
+export function registerEvolutionRoutes(app: Express) {
+  // Check if Evolution API is configured
+  app.get("/api/evolution/status", isAuthenticated, async (_req: any, res) => {
+    try {
+      const config = evolutionApi.getConfiguration();
+      res.json({
+        configured: config.configured,
+        url: config.configured ? config.url : null,
+      });
+    } catch (error) {
+      console.error("Error checking Evolution API status:", error);
+      res.status(500).json({ message: "Failed to check Evolution API status" });
+    }
+  });
+
+  // Evolution API Webhook (receives messages from WhatsApp)
+  // Note: This endpoint does NOT require authentication as it's called by Evolution API
+  app.post("/api/webhooks/evolution", async (req, res) => {
+    try {
+      const expectedToken = process.env.EVOLUTION_WEBHOOK_SECRET;
+      if (expectedToken) {
+        const providedToken =
+          (req.query?.token as string | undefined) ||
+          (req.headers["x-evolution-webhook-secret"] as string | undefined);
+        if (!providedToken || providedToken !== expectedToken) {
+          console.warn("[Evolution Webhook] Invalid token");
+          return res.status(200).json({ received: true });
+        }
+      } else if (process.env.NODE_ENV === "production") {
+        console.warn("[Evolution Webhook] EVOLUTION_WEBHOOK_SECRET is not set; skipping processing");
+        return res.status(200).json({ received: true });
+      }
+
+      const event = req.body as EvolutionWebhookEvent;
+
+      const normalizedEvent = String(event.event || "")
+        .toUpperCase()
+        .replace(/\./g, "_");
+      console.log(`[Evolution Webhook] Received: ${normalizedEvent} for instance: ${event.instance}`);
+
+      // Parse instance name to get channel config ID.
+      // Known formats:
+      // - crm-org-{orgId}-channel-{configId}
+      // - crm-channel-{configId}
+      const channelMatch =
+        event.instance?.match(/crm-org-\d+-channel-(\d+)/) || event.instance?.match(/crm-channel-(\d+)/);
+      if (!channelMatch) {
+        console.log("[Evolution Webhook] Unknown instance format:", event.instance);
+        return res.status(200).json({ received: true });
+      }
+
+      const channelConfigId = parseInt(channelMatch[1]);
+      if (Number.isNaN(channelConfigId)) {
+        return res.status(200).json({ received: true });
+      }
+
+      const config = await storage.getChannelConfig(channelConfigId);
+      if (!config || config.type !== "whatsapp") {
+        console.log("[Evolution Webhook] Channel config not found:", channelConfigId);
+        return res.status(200).json({ received: true });
+      }
+
+      const whatsappConfig = (config.whatsappConfig || {}) as Record<string, unknown>;
+      const expectedInstanceName = whatsappConfig.instanceName as string | undefined;
+      if (!expectedInstanceName || expectedInstanceName !== event.instance) {
+        console.log("[Evolution Webhook] Instance mismatch for channel:", channelConfigId);
+        return res.status(200).json({ received: true });
+      }
+
+      const organizationId = config.organizationId;
+
+      // Set broadcast function for real-time updates
+      evolutionHandler.setBroadcast((orgId, eventType, data) => {
+        broadcast(`whatsapp:${eventType}`, { organizationId: orgId, data });
+      });
+
+      // Process the webhook event
+      await evolutionHandler.handleWebhook({ ...event, event: normalizedEvent }, channelConfigId, organizationId);
+
+      res.status(200).json({ received: true });
+    } catch (error) {
+      console.error("[Evolution Webhook] Error processing webhook:", error);
+      // Always return 200 to prevent retries
+      res.status(200).json({ received: true, error: "Processing failed" });
+    }
+  });
+}
