@@ -366,17 +366,31 @@ Foram executados:
 
 ---
 
-## 10) Plano de ação (produção — infraestrutura, segurança, escala e integrações)
+## 10) Plano de ação (produção + validação local)
 
-Este plano não é “MVP”. Ele é para um CRM que precisa:
+Este plano é para um CRM **de uso real**, que precisa:
 - aguentar volume (muitos leads e mensagens),
 - manter dados seguros,
 - ser confiável no dia a dia,
 - e evoluir sem virar “bomba-relógio”.
 
+Obs: o **Milestone 0** abaixo não é “MVP”. Ele é o “ambiente local de validação” para você conseguir testar mudanças de forma segura antes de colocar em uso.
+
 Vou organizar por **prioridade** e por **milestones**.
 
-### Milestone P0-1 — Segurança de acesso (login, sessões e permissões)
+### Milestone 0 — Ambiente local de validação (para testar “como empresa”)
+Objetivo: ter um ambiente local que reproduz a operação real para validar regras, integrações e volume.
+
+- [ ] Criar `.env` a partir de `.env.example`
+- [ ] Configurar `DATABASE_URL` e `SESSION_SECRET`
+- [ ] Rodar `npm run db:push` (criar/atualizar tabelas)
+- [ ] Garantir que existe uma organizacao em `organizations` e definir `DEFAULT_ORGANIZATION_ID` corretamente
+- [ ] Subir com `npm run dev` e validar login/registro (conforme `ALLOW_REGISTRATION`)
+- [ ] Criar um “dataset de teste” (contatos, empresas, deals, conversas e mensagens) para simular volume
+- [ ] Validar features principais manualmente: pipeline (drag), inbox (mensagens), anexos, notificacoes, relatorios
+- [ ] Rodar rotinas de qualidade: `npm run check`, `npm run lint`, `npm run build`
+
+### Milestone 1 (P0) — Segurança de acesso (login, sessões e permissões)
 Objetivo: reduzir risco de invasão, vazamento e ações indevidas.
 
 - [ ] Rate limit e proteção anti brute force no login e endpoints sensíveis (reaproveitar `server/redis.ts` ou outra estratégia)
@@ -386,7 +400,7 @@ Objetivo: reduzir risco de invasão, vazamento e ações indevidas.
 - [ ] Revisar dados expostos nos endpoints (por exemplo: listas de usuários, auditoria, arquivos) para garantir que só sai o necessário
 - [ ] Revisar segurança de webhooks (WhatsApp): segredo obrigatório, logs de falha, e idempotência (não duplicar mensagens)
 
-### Milestone P0-2 — Performance e escalabilidade (principalmente backend + banco)
+### Milestone 2 (P0) — Performance e escalabilidade (principalmente backend + banco)
 Objetivo: o CRM continuar rápido com muito dado.
 
 - [ ] Paginação + busca + ordenação nas listagens grandes (contatos, empresas, deals, conversas, atividades, notificações, auditoria)
@@ -395,7 +409,7 @@ Objetivo: o CRM continuar rápido com muito dado.
 - [ ] Otimizar WhatsApp: buscar contato/conversa direto no banco (sem carregar tudo em memória)
 - [ ] Melhorar consistência de dados (ex.: normalizar e indexar telefone para busca rápida)
 
-### Milestone P0-3 — Observabilidade e confiabilidade
+### Milestone 3 (P0) — Observabilidade e confiabilidade
 Objetivo: você “enxergar” problemas antes de virarem crise e evitar travar o app.
 
 - [ ] Logs estruturados (com `requestId`) e logs específicos de integrações (WhatsApp, Google, OpenAI, Supabase)
@@ -404,7 +418,7 @@ Objetivo: você “enxergar” problemas antes de virarem crise e evitar travar 
 - [ ] Tirar tarefas pesadas do request (ex.: transcrição/sync/score) e rodar em job/background quando fizer sentido
 - [ ] Política de erros: o que retorna pro usuário, o que fica no log, e como alertar quando algo cair
 
-### Milestone P1-1 — Integrações “de verdade” (não só configuração)
+### Milestone 4 (P1) — Integrações “de verdade” (não só configuração)
 Objetivo: as integrações serem estáveis e completas.
 
 - [ ] Email: implementar sincronização IMAP + envio SMTP usando `channel_configs.emailConfig` (com segurança e proteção de credenciais)
@@ -412,7 +426,7 @@ Objetivo: as integrações serem estáveis e completas.
 - [ ] Google Calendar: sincronização incremental e tratamento robusto de refresh token/expiração
 - [ ] Firebase push: fluxo de tokens (registrar/atualizar/remover) e testes reais em múltiplos dispositivos
 
-### Milestone P1-2 — Governança e dados (empresa de verdade)
+### Milestone 5 (P1) — Governança e dados (empresa de verdade)
 Objetivo: evitar perda de dados e ficar mais “profissional” na operação.
 
 - [ ] Estratégia de migração (Drizzle migrations) para evoluir schema com segurança
@@ -420,7 +434,7 @@ Objetivo: evitar perda de dados e ficar mais “profissional” na operação.
 - [ ] Política de retenção (o que guardar e por quanto tempo) e ações LGPD básicas (exportação/remoção sob demanda)
 - [ ] Auditoria mais completa (cobrir ações críticas: deals, contatos, arquivos, integrações)
 
-### Milestone P2 — Qualidade contínua (para o projeto não degradar)
+### Milestone 6 (P2) — Qualidade contínua (para o projeto não degradar)
 Objetivo: manter o ritmo de evolução sem quebrar produção.
 
 - [ ] Padronizar rotinas internas: `npm run check`, `npm run lint`, `npm run build`
@@ -428,7 +442,7 @@ Objetivo: manter o ritmo de evolução sem quebrar produção.
 - [ ] Limpar warnings do lint gradualmente (não precisa “parar o mundo”)
 - [ ] Plano para reduzir vulnerabilidades do `npm audit` sem quebrar dependências
 
-### (Opcional) Milestone Roadmap — Multicanal completo
+### Milestone 7 (Roadmap) — Multicanal completo
 Objetivo: transformar “multicanal” em realidade (além do WhatsApp).
 
 - [ ] Email completo (já no P1-1)
