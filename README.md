@@ -12,7 +12,7 @@ Sistema de CRM (Customer Relationship Management) desenvolvido para a agencia di
 - Historico de movimentacoes
 
 ### Inbox Unificado
-- Conversas multicanal (email, WhatsApp, SMS, telefone)
+- Conversas multicanal (modelo suporta email/WhatsApp/SMS/telefone; integracao implementada: WhatsApp via Evolution API; demais em roadmap)
 - Atribuicao de responsaveis
 - Notas internas
 - Anexos de arquivos
@@ -31,7 +31,7 @@ Sistema de CRM (Customer Relationship Management) desenvolvido para a agencia di
 - Templates de email
 - Notificacoes em tempo real
 - Logs de auditoria
-- Multi-organizacao
+- Multi-organizacao (parcial: schema suporta, execucao atual em modo single-tenant por instalacao)
 
 ## Stack Tecnologica
 
@@ -78,9 +78,12 @@ npm start
 
 ```
 ├── client/                  # Frontend React
+│   ├── public/              # Assets publicos (favicon, logo, SW do Firebase)
 │   └── src/
 │       ├── components/      # Componentes reutilizaveis
 │       │   └── ui/          # shadcn/ui components
+│       ├── contexts/        # Contextos (ex.: idioma)
+│       ├── locales/         # Traducoes (pt-BR/en)
 │       ├── pages/           # Paginas da aplicacao
 │       ├── hooks/           # React hooks customizados
 │       └── lib/             # Utilitarios e configuracoes
@@ -89,8 +92,18 @@ npm start
 │   ├── routes.ts            # Endpoints da API
 │   ├── storage.ts           # Camada de acesso ao banco
 │   ├── auth.ts              # Autenticacao Passport.js
+│   ├── db.ts                # Drizzle + conexao Postgres
+│   ├── tenant.ts            # Single-tenant (organizacao)
 │   ├── storage.supabase.ts  # Upload de arquivos
-│   └── aiScoring.ts         # Lead scoring com IA
+│   ├── aiScoring.ts         # Lead scoring com IA
+│   ├── whisper.ts           # Transcricao de audio (Whisper/OpenAI)
+│   ├── evolution-api.ts     # Evolution API (WhatsApp)
+│   ├── evolution-message-handler.ts # Webhook handler (WhatsApp)
+│   ├── google-calendar.ts   # Google Calendar (OAuth + sync)
+│   ├── notifications.ts     # Push notifications (Firebase Admin)
+│   ├── redis.ts             # Redis (Upstash)
+│   ├── static.ts            # Servir frontend em producao
+│   └── vite.ts              # Vite middleware (dev)
 ├── shared/                  # Codigo compartilhado
 │   └── schema.ts            # Schema Drizzle + tipos
 ├── scripts/                 # Scripts utilitarios
@@ -106,12 +119,26 @@ npm start
 | `DATABASE_URL` | Sim | URL de conexao PostgreSQL |
 | `SESSION_SECRET` | Sim | Chave para criptografia de sessoes |
 | `SUPABASE_URL` | Sim | URL do projeto Supabase |
+| `SUPABASE_ANON_KEY` | Nao | Anon key do Supabase (nao usada diretamente hoje pelo backend) |
 | `SUPABASE_SERVICE_ROLE_KEY` | Sim | Service role key do Supabase |
 | `OPENAI_API_KEY` | Nao | API key OpenAI (para lead scoring) |
 | `ALLOW_REGISTRATION` | Nao | Permitir registro publico (default: false) |
+| `VITE_ALLOW_REGISTRATION` | Nao | Permitir registro (flag no frontend) |
 | `DEFAULT_ORGANIZATION_ID` | Nao | ID da organizacao padrao (modo single-tenant) |
 | `APP_URL` | Nao | URL da aplicacao em producao |
 | `PORT` | Nao | Porta do servidor (default: 3000) |
+| `UPSTASH_REDIS_REST_URL` | Nao | URL Upstash Redis (opcional) |
+| `UPSTASH_REDIS_REST_TOKEN` | Nao | Token Upstash Redis (opcional) |
+| `FIREBASE_PROJECT_ID` | Nao | Firebase Project ID (push/FCM - opcional) |
+| `FIREBASE_PRIVATE_KEY` | Nao | Private key do service account (push/FCM - opcional) |
+| `FIREBASE_CLIENT_EMAIL` | Nao | Client email do service account (push/FCM - opcional) |
+| `VITE_FIREBASE_API_KEY` | Nao | Firebase Web SDK (frontend) |
+| `VITE_FIREBASE_AUTH_DOMAIN` | Nao | Firebase Web SDK (frontend) |
+| `VITE_FIREBASE_PROJECT_ID` | Nao | Firebase Web SDK (frontend) |
+| `VITE_FIREBASE_STORAGE_BUCKET` | Nao | Firebase Web SDK (frontend) |
+| `VITE_FIREBASE_MESSAGING_SENDER_ID` | Nao | Firebase Web SDK (frontend) |
+| `VITE_FIREBASE_APP_ID` | Nao | Firebase Web SDK (frontend) |
+| `VITE_FIREBASE_VAPID_KEY` | Nao | VAPID key (push/FCM - frontend) |
 | `GOOGLE_CLIENT_ID` | Nao | Client ID OAuth (Google Calendar) |
 | `GOOGLE_CLIENT_SECRET` | Nao | Client Secret OAuth (Google Calendar) |
 | `GOOGLE_REDIRECT_URI` | Nao | Redirect URI OAuth (Google Calendar) |
@@ -127,7 +154,10 @@ npm run dev       # Servidor de desenvolvimento
 npm run build     # Build de producao
 npm start         # Inicia servidor de producao
 npm run check     # Verifica tipos TypeScript
+npm run lint      # Lint (ESLint)
+npm run lint:fix  # Lint + autofix (opcional)
 npm run db:push   # Aplica schema no banco
+npm run db:migrate-ptbr # Ajustes pontuais (dados legados PT-BR)
 ```
 
 ## Deploy em VPS (Ubuntu)

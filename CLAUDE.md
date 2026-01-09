@@ -15,7 +15,7 @@ Este documento contem todas as informacoes necessarias para entender, desenvolve
 - Monorepo: Frontend e Backend no mesmo repositorio
 - Type-safe: TypeScript em toda a stack
 - Real-time: WebSockets para atualizacoes ao vivo
-- Multi-tenant: Suporte a multiplas organizacoes
+- Multi-tenant (parcial): schema suporta multiplas organizacoes, mas a implementacao atual roda em modo single-tenant por instalacao (via DEFAULT_ORGANIZATION_ID)
 
 ---
 
@@ -55,12 +55,21 @@ Este documento contem todas as informacoes necessarias para entender, desenvolve
 └────────────────┴────────────────┴────────────────────────────────┘
 ```
 
+Obs: alem do trio principal acima, o backend possui integracoes opcionais com:
+- **Evolution API** (WhatsApp)
+- **Google Calendar** (OAuth + sincronizacao)
+- **Upstash Redis** (presenca/online e base para cache/rate limit)
+- **Firebase Cloud Messaging (FCM)** (push notifications)
+
 ### Fluxo de Dados
 
 1. **Requisicao HTTP**: Cliente → Express → Drizzle → PostgreSQL
 2. **Upload de Arquivo**: Cliente → Express → Supabase Storage
 3. **Real-time**: Express → WebSocket → Todos os clientes conectados
 4. **AI Scoring**: Express → OpenAI API → Calculo de score → Banco
+5. **WhatsApp**: Evolution API → Webhook → Express → Banco → WebSocket
+6. **Google Calendar**: OAuth + Google API → Sincronizacao → Banco → WebSocket
+7. **Push**: Express → Firebase → Notificacao no dispositivo (quando usuario estiver offline)
 
 ---
 
@@ -100,6 +109,10 @@ Este documento contem todas as informacoes necessarias para entender, desenvolve
 | pg | 8.16.3 | Driver PostgreSQL |
 | @supabase/supabase-js | 2.87.3 | Cliente Supabase |
 | openai | 6.10.0 | API OpenAI |
+| googleapis | 169.0.0 | Google Calendar API |
+| firebase-admin | 13.6.0 | Push notifications (FCM) |
+| @upstash/redis | 1.35.8 | Redis (Upstash REST) |
+| @upstash/ratelimit | 2.0.7 | Rate limiting (opcional) |
 
 ### UI Components (Radix UI)
 
@@ -115,37 +128,31 @@ Todos os componentes Radix UI estao na versao ~1.1.x a ~2.1.x:
 ```
 CRM_Oficial/
 ├── client/
+│   ├── public/                  # Assets publicos (favicon, logo, SW do Firebase)
 │   └── src/
-│       ├── components/
-│       │   ├── ui/              # shadcn/ui (button, input, card, etc)
-│       │   ├── layout/          # Header, Sidebar, Layout
-│       │   ├── pipeline/        # Kanban, DealCard, StageColumn
-│       │   ├── inbox/           # ConversationList, MessageThread
-│       │   └── shared/          # Componentes genericos
-│       ├── pages/
-│       │   ├── dashboard.tsx    # Dashboard principal
-│       │   ├── pipeline.tsx     # Pipeline Kanban
-│       │   ├── inbox.tsx        # Inbox de conversas
-│       │   ├── contacts.tsx     # Lista de contatos
-│       │   ├── companies.tsx    # Lista de empresas
-│       │   ├── calendar.tsx     # Calendario
-│       │   ├── settings.tsx     # Configuracoes
-│       │   ├── login.tsx        # Login/Registro
-│       │   └── landing.tsx      # Landing page
-│       ├── hooks/
-│       │   ├── useAuth.ts       # Autenticacao
-│       │   ├── useWebSocket.ts  # Conexao WebSocket
-│       │   └── use-toast.ts     # Notificacoes toast
-│       └── lib/
-│           ├── queryClient.ts   # Configuracao TanStack Query
-│           └── utils.ts         # Utilitarios (cn, formatters)
+│       ├── components/          # Componentes (features) + UI (shadcn)
+│       │   └── ui/              # shadcn/ui (button, input, card, etc)
+│       ├── contexts/            # Contextos (ex.: idioma)
+│       ├── hooks/               # Hooks (auth, websocket, push, toast…)
+│       ├── lib/                 # Infra do frontend (query client, firebase, utils)
+│       ├── locales/             # Traducoes (pt-BR/en)
+│       └── pages/               # Paginas (dashboard, pipeline, inbox, settings…)
 ├── server/
 │   ├── index.ts                 # Entry point, inicia servidor
 │   ├── routes.ts                # Todos os endpoints da API
 │   ├── storage.ts               # Camada de acesso ao banco (DAL)
 │   ├── auth.ts                  # Passport.js + sessoes
+│   ├── db.ts                    # Drizzle + conexao Postgres (Pool)
+│   ├── tenant.ts                # Single-tenant (organizacao da instalacao)
 │   ├── storage.supabase.ts      # Upload/download de arquivos
 │   ├── aiScoring.ts             # Lead scoring com OpenAI
+│   ├── whisper.ts               # Transcricao de audio (OpenAI Whisper)
+│   ├── evolution-api.ts         # Cliente Evolution API (WhatsApp)
+│   ├── evolution-message-handler.ts # Webhook handler (WhatsApp)
+│   ├── google-calendar.ts       # Integracao Google Calendar (OAuth + sync)
+│   ├── notifications.ts         # Push notifications (Firebase Admin)
+│   ├── redis.ts                 # Upstash Redis (presenca + base cache/rate-limit)
+│   ├── static.ts                # Servir frontend em producao (dist/public)
 │   └── vite.ts                  # Integracao Vite em dev
 ├── shared/
 │   └── schema.ts                # Schema Drizzle + tipos TypeScript
@@ -155,6 +162,7 @@ CRM_Oficial/
 │   └── build.ts                 # Script de build customizado
 ├── migrations/                  # Migracoes Drizzle (se houver)
 ├── dist/                        # Build de producao (gerado)
+├── eslint.config.js             # Lint (ESLint)
 ├── package.json
 ├── tsconfig.json
 ├── vite.config.ts
@@ -182,6 +190,7 @@ CRM_Oficial/
   profileImageUrl: string,
   role: 'admin' | 'sales' | 'cs' | 'support',
   organizationId: number (FK),
+  preferences: jsonb (ex.: { language: 'pt-BR' | 'en' }),
   createdAt: timestamp,
   updatedAt: timestamp
 }
@@ -314,8 +323,10 @@ CRM_Oficial/
   senderId: string (FK users),
   senderType: 'user' | 'contact' | 'system',
   content: text,
+  contentType: 'text' | 'audio' | 'image' | 'file' | 'video',
   isInternal: boolean,
-  attachments: jsonb[],
+  attachments: jsonb[] (ex.: [{ name, url, type }]),
+  metadata: jsonb (ex.: { transcription, duration, waveform }),
   mentions: string[],
   readBy: string[],
   createdAt: timestamp
@@ -345,25 +356,30 @@ CRM_Oficial/
 
 - **sessions**: Armazenamento de sessoes (connect-pg-simple)
 - **notifications**: Notificacoes do sistema
+- **push_tokens**: Tokens para push notifications (FCM)
 - **saved_views**: Views salvas pelos usuarios
 - **email_templates**: Templates de email
 - **audit_logs**: Logs de auditoria
 - **files**: Metadados de arquivos
 - **lead_scores**: Historico de scores de IA
 - **calendar_events**: Eventos do calendario
+- **google_oauth_tokens**: Tokens OAuth (Google Calendar)
 - **channel_configs**: Configuracoes de canais (IMAP/SMTP, WhatsApp)
 
 ---
 
 ## API Endpoints
 
-### Autenticacao
+### Autenticacao e Usuario
 
 ```
 POST   /api/login          # Login com email/senha
 POST   /api/logout         # Encerrar sessao
 POST   /api/register       # Registro (se habilitado)
 GET    /api/auth/me        # Usuario atual
+GET    /api/auth/user      # Usuario atual (alias usado no frontend)
+PATCH  /api/users/me       # Atualizar perfil/preferencias do usuario atual
+GET    /api/users          # Listar usuarios (admin)
 ```
 
 ### Contatos
@@ -374,7 +390,6 @@ POST   /api/contacts                    # Criar contato
 GET    /api/contacts/:id                # Detalhes do contato
 PATCH  /api/contacts/:id                # Atualizar contato
 DELETE /api/contacts/:id                # Excluir contato
-GET    /api/contacts/:id/score          # Score do contato (AI)
 ```
 
 ### Empresas
@@ -387,21 +402,24 @@ PATCH  /api/companies/:id               # Atualizar empresa
 DELETE /api/companies/:id               # Excluir empresa
 ```
 
-### Pipelines e Deals
+### Pipelines, Estagios e Deals
 
 ```
 GET    /api/pipelines                   # Listar pipelines
 POST   /api/pipelines                   # Criar pipeline
 PATCH  /api/pipelines/:id               # Atualizar pipeline
 DELETE /api/pipelines/:id               # Excluir pipeline
+POST   /api/pipelines/:id/set-default   # Definir pipeline default
+POST   /api/pipelines/:id/stages        # Criar estagio
+PATCH  /api/pipelines/:pipelineId/stages/:id  # Atualizar estagio
+DELETE /api/pipelines/:pipelineId/stages/:id  # Excluir estagio
 
 GET    /api/deals                       # Listar deals
 POST   /api/deals                       # Criar deal
 GET    /api/deals/:id                   # Detalhes do deal
 PATCH  /api/deals/:id                   # Atualizar deal
 DELETE /api/deals/:id                   # Excluir deal
-PUT    /api/deals/:id/move              # Mover deal de stage
-GET    /api/deals/:id/score             # Score do deal (AI)
+PATCH  /api/deals/:id/stage             # Mover deal de stage
 ```
 
 ### Conversas e Mensagens
@@ -412,8 +430,9 @@ POST   /api/conversations               # Criar conversa
 GET    /api/conversations/:id           # Detalhes da conversa
 PATCH  /api/conversations/:id           # Atualizar conversa
 
-GET    /api/conversations/:id/messages  # Listar mensagens
+GET    /api/conversations/:id/messages  # Listar mensagens (paginado)
 POST   /api/conversations/:id/messages  # Enviar mensagem
+POST   /api/conversations/:id/read      # Marcar mensagens como lidas
 ```
 
 ### Atividades
@@ -425,20 +444,76 @@ PATCH  /api/activities/:id              # Atualizar atividade
 DELETE /api/activities/:id              # Excluir atividade
 ```
 
-### Arquivos
+### Arquivos e Midia (Supabase Storage)
 
 ```
-POST   /api/uploads/presigned           # Gerar URL de upload
-GET    /api/files/:path                 # Download de arquivo
+POST   /api/files/upload-url            # Gerar URL de upload assinada
+POST   /api/files                       # Registrar arquivo enviado no banco
+GET    /api/files/:entityType/:entityId # Listar arquivos de uma entidade
+DELETE /api/files/:id                   # Remover registro e tentar deletar do storage
+GET    /objects/:path                   # Baixar arquivo (rota protegida)
+POST   /api/audio/transcribe            # Transcricao por URL (Whisper/OpenAI)
+POST   /api/files/:id/transcribe        # Transcricao de arquivo de audio registrado
 ```
 
-### Outros
+### Notificacoes, Calendario, Auditoria e Relatorios
 
 ```
 GET    /api/notifications               # Listar notificacoes
+GET    /api/notifications/unread-count  # Contagem de nao lidas
+PATCH  /api/notifications/:id/read      # Marcar notificacao como lida
+POST   /api/notifications/mark-all-read # Marcar todas como lidas
+
 GET    /api/calendar-events             # Listar eventos
+POST   /api/calendar-events             # Criar evento
+PATCH  /api/calendar-events/:id         # Atualizar evento
+DELETE /api/calendar-events/:id         # Excluir evento
+
 GET    /api/audit-logs                  # Logs de auditoria
-GET    /api/users                       # Listar usuarios (admin)
+GET    /api/audit-logs/entity/:entityType/:entityId # Auditoria por entidade
+
+GET    /api/reports                     # Relatorios
+```
+
+### Views salvas e Email templates
+
+```
+GET    /api/saved-views                 # Listar views salvas
+POST   /api/saved-views                 # Criar view salva
+PATCH  /api/saved-views/:id             # Atualizar view salva
+DELETE /api/saved-views/:id             # Excluir view salva
+
+GET    /api/email-templates             # Listar templates de email
+POST   /api/email-templates             # Criar template
+PATCH  /api/email-templates/:id         # Atualizar template
+DELETE /api/email-templates/:id         # Excluir template
+```
+
+### Integracoes (WhatsApp, Google Calendar, Push)
+
+```
+# Evolution API (WhatsApp)
+GET    /api/evolution/status
+POST   /api/channel-configs/:id/whatsapp/connect
+GET    /api/channel-configs/:id/whatsapp/status
+POST   /api/channel-configs/:id/whatsapp/disconnect
+POST   /api/channel-configs/:id/whatsapp/send
+POST   /api/webhooks/evolution                  # Webhook publico (sem auth)
+
+# Google Calendar
+GET    /api/integrations/google-calendar/configured
+GET    /api/integrations/google-calendar/status
+GET    /api/auth/google/authorize
+GET    /api/auth/google/callback
+POST   /api/integrations/google-calendar/sync
+POST   /api/integrations/google-calendar/disconnect
+
+# Push tokens (Firebase)
+POST   /api/push-tokens
+DELETE /api/push-tokens
+
+# WebSocket
+GET    /ws
 ```
 
 ---
@@ -453,6 +528,11 @@ npm run dev
 
 # Verificar tipos TypeScript
 npm run check
+
+# Rodar linter (ESLint)
+npm run lint
+# (Opcional) aplicar correcoes automaticas
+npm run lint:fix
 ```
 
 ### Banco de Dados
@@ -460,6 +540,9 @@ npm run check
 ```bash
 # Aplicar schema no banco (criar/atualizar tabelas)
 npm run db:push
+
+# Ajustes pontuais (dados legados PT-BR)
+npm run db:migrate-ptbr
 
 # Gerar migracoes (se necessario)
 npx drizzle-kit generate
@@ -484,7 +567,7 @@ NODE_ENV=production node dist/index.cjs
 ### Arquivo .env
 
 ```bash
-# ====== OBRIGATORIAS ======
+# ====== MINIMO PARA RODAR (OBRIGATORIAS) ======
 
 # Conexao com PostgreSQL
 DATABASE_URL=postgresql://usuario:senha@host:5432/database
@@ -492,25 +575,70 @@ DATABASE_URL=postgresql://usuario:senha@host:5432/database
 # Chave para criptografia de sessoes (gerar com: openssl rand -base64 32)
 SESSION_SECRET=chave-secreta-de-pelo-menos-32-caracteres
 
-# Supabase Storage
-SUPABASE_URL=https://xxxxx.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-
-# ====== OPCIONAIS ======
-
 # Ambiente
 NODE_ENV=production
 PORT=3000
 
-# OpenAI para lead scoring
-OPENAI_API_KEY=sk-...
+# ====== RECOMENDADAS (SINGLE-TENANT) ======
 
-# URL publica da aplicacao
+# URL publica da aplicacao (usada em webhooks e callbacks OAuth)
 APP_URL=https://crm.seudominio.com
+
+# ID da organizacao (single-tenant)
+DEFAULT_ORGANIZATION_ID=1
 
 # Permitir registro de novos usuarios
 ALLOW_REGISTRATION=false
 VITE_ALLOW_REGISTRATION=false
+
+# ====== SUPABASE (UPLOADS) ======
+
+SUPABASE_URL=https://xxxxx.supabase.co
+# Opcional (nao usado diretamente hoje pelo backend, mas util para futuros fluxos/cliente)
+SUPABASE_ANON_KEY=sua-anon-key-aqui
+# Necessario para assinar uploads e acessar storage de forma administrativa
+SUPABASE_SERVICE_ROLE_KEY=sua-service-role-key-aqui
+
+# ====== OPENAI (IA) ======
+
+# Lead scoring (recomendacoes) e transcricao Whisper
+OPENAI_API_KEY=sk-...
+
+# ====== UPSTASH REDIS (OPCIONAL) ======
+
+UPSTASH_REDIS_REST_URL=https://xxx.upstash.io
+UPSTASH_REDIS_REST_TOKEN=xxx
+
+# ====== FIREBASE CLOUD MESSAGING (OPCIONAL) ======
+
+# Backend (Firebase Admin)
+FIREBASE_PROJECT_ID=seu-projeto-id
+FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+FIREBASE_CLIENT_EMAIL=firebase-adminsdk-xxx@seu-projeto.iam.gserviceaccount.com
+
+# Frontend (Firebase Web SDK)
+VITE_FIREBASE_API_KEY=sua-api-key
+VITE_FIREBASE_AUTH_DOMAIN=seu-projeto.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=seu-projeto-id
+VITE_FIREBASE_STORAGE_BUCKET=seu-projeto.appspot.com
+VITE_FIREBASE_MESSAGING_SENDER_ID=123456789
+VITE_FIREBASE_APP_ID=1:123456789:web:abcdef123456
+VITE_FIREBASE_VAPID_KEY=sua-vapid-key-aqui
+
+# ====== EVOLUTION API (WHATSAPP) - OPCIONAL ======
+
+EVOLUTION_API_URL=https://seu-evolution-api.com
+EVOLUTION_API_KEY=sua-api-key-aqui
+# Recomendado em producao (o backend valida o webhook quando setado)
+EVOLUTION_WEBHOOK_SECRET=sua-webhook-secret-aqui
+
+# ====== GOOGLE CALENDAR OAUTH - OPCIONAL ======
+
+GOOGLE_CLIENT_ID=seu-google-client-id.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=seu-google-client-secret
+GOOGLE_REDIRECT_URI=https://crm.seudominio.com/api/auth/google/callback
+# Chave base64 de 32 bytes para criptografar tokens (gerar com: openssl rand -base64 32)
+GOOGLE_TOKEN_ENCRYPTION_KEY=sua-chave-base64-aqui
 ```
 
 ### Gerando SESSION_SECRET
