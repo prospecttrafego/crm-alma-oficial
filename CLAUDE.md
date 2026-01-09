@@ -139,6 +139,8 @@ CRM_Oficial/
 │       └── pages/               # Paginas (dashboard, pipeline, inbox, settings…)
 ├── server/
 │   ├── index.ts                 # Entry point, inicia servidor
+│   ├── logger.ts                # Logs estruturados (requestId + loggers de integrações)
+│   ├── health.ts                # Health check (DB + integrações opcionais)
 │   ├── routes.ts                # Todos os endpoints da API
 │   ├── storage.ts               # Camada de acesso ao banco (DAL)
 │   ├── auth.ts                  # Passport.js + sessoes
@@ -380,6 +382,12 @@ GET    /api/auth/me        # Usuario atual
 GET    /api/auth/user      # Usuario atual (alias usado no frontend)
 PATCH  /api/users/me       # Atualizar perfil/preferencias do usuario atual
 GET    /api/users          # Listar usuarios (para dropdown/filtros; requer login)
+```
+
+### Observabilidade
+
+```
+GET    /api/health         # Health check (DB + integrações opcionais)
 ```
 
 ### Contatos

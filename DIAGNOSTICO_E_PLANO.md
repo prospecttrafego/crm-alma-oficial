@@ -1,7 +1,7 @@
 # Diagnóstico completo + Plano de ação — Alma CRM
 
 Data do diagnóstico: 2026-01-09  
-Commit analisado: `f6586ca`  
+Commit analisado (base): `206c98e`  
 Ambiente usado para validações: Node `v25.2.1`, npm `11.6.2` (o projeto documenta Node 20+)
 
 Este documento foi criado para:
@@ -134,6 +134,8 @@ client/                Frontend (React)
 
 server/                Backend (Express)
   index.ts             Entry point (Express + Vite dev + static prod)
+  logger.ts            Logs estruturados (requestId + loggers de integrações)
+  health.ts            Health check (DB + integrações opcionais)
   routes.ts            Todas as rotas /api + WebSocket (/ws)
   auth.ts              Sessões + Passport (login/register/logout/me)
   db.ts                Conexão Postgres + Drizzle
@@ -168,6 +170,10 @@ Você precisa de um banco Postgres e uma URL de conexão.
 
 O que você fornece:
 - `DATABASE_URL=postgresql://usuario:senha@host:5432/database`
+
+Se você usa Supabase:
+- Para este projeto (servidor Node rodando continuamente), prefira **Session Pooler** (ou conexão direta).  
+  O **Transaction Pooler** é mais indicado para cenários serverless/funções.
 
 O que fazer:
 - Crie um banco Postgres (pode ser Supabase, Neon, Railway, VPS, etc.).
@@ -287,10 +293,12 @@ O que você fornece:
 
 ## 7) API (resumo real do que existe hoje)
 
-Endpoints `/api` encontrados em `server/routes.ts`:
+Endpoints `/api` principais (somando `server/auth.ts` e `server/routes.ts`):
 
+- Health/Observabilidade:  
+  `/api/health`
 - Auth/Usuário:  
-  `/api/auth/user`, `/api/users/me`, `/api/users`
+  `/api/login`, `/api/logout`, `/api/register`, `/api/auth/me`, `/api/auth/user`, `/api/users/me`, `/api/users`
 - Dashboard/Relatórios:  
   `/api/dashboard/stats`, `/api/reports`
 - Pipeline:  
@@ -338,8 +346,8 @@ Foram executados:
 - `npm run lint` (OK) — linter configurado; há warnings principalmente de imports/variáveis não usadas
 
 ### 8.2 Documentação vs código
-- `README.md` está relativamente alinhado com as integrações atuais.
-- `CLAUDE.md` estava **desatualizado** em pontos importantes (ex.: endpoints e integrações novas). Foi marcado para atualização (ver seção 10 e tarefas).
+- `README.md` e `CLAUDE.md` estão alinhados com o código atual (variáveis de ambiente, integrações e endpoints principais, incluindo health check).
+- Regra prática: sempre que um endpoint/integração mudar, atualizar os 2 arquivos para manter “100% verdade”.
 
 ---
 
@@ -348,12 +356,19 @@ Foram executados:
 > Contexto: você deixou claro que este CRM é **projeto real**, usado por empresa com **alto volume** (muitos leads, muitos registros e vários usuários).  
 > Então, os pontos abaixo priorizam **confiabilidade, segurança, performance e governança** — e não “MVP”.
 
-### P0 — Riscos críticos (impactam operação e/ou segurança)
-- **Listagens sem paginação:** endpoints como contatos/empresas/deals/conversas/atividades retornam “tudo de uma vez”. Em volume alto, isso vira lentidão, travamentos e custo de banco.
-- **WhatsApp handler com varredura em memória:** para achar contato/conversa ele lê listas inteiras e procura no JavaScript. Com muitos leads, isso degrada rápido e aumenta risco de falhas.
-- **“Não lidas” não está claramente definido por usuário:** `unreadCount` hoje é global na conversa e pode contar de um jeito confuso em times grandes (ex.: quando o próprio usuário envia mensagem).
-- **Bootstrap da organização (single-tenant):** o backend depende de existir organização no banco; hoje não há um fluxo “oficial” dentro do app para criar isso com segurança.
-- **Integrações críticas dependem de variáveis de ambiente:** Supabase, WhatsApp, Google, OpenAI e Firebase precisam estar corretos; sem isso partes importantes param.
+### ✅ Principais melhorias já aplicadas (estado atual)
+- **Listagens grandes com paginação + busca:** reduz risco de travar com volume (contacts/companies/deals/conversations/activities).
+- **WhatsApp otimizado:** handler deixa de “varrer tudo em memória” e passa a consultar direto no banco (mais rápido e estável).
+- **Observabilidade básica:** logs com `requestId`, endpoint `GET /api/health` e timeouts nas integrações externas.
+- **Sessões mais eficientes:** session store passa a reutilizar o mesmo pool do Postgres (evita conexões duplicadas).
+- **Rate limit geral para usuários logados (quando Upstash Redis estiver configurado):** protege endpoints autenticados sem bloquear webhooks/health.
+
+### P0 — Riscos críticos ainda abertos (impactam operação e/ou segurança)
+- **Regra de “não lidas” não está claramente definida por usuário/responsável:** `unreadCount` ainda é global na conversa e pode confundir times grandes (ex.: quando o próprio usuário envia mensagem).
+- **Bootstrap da organização (single-tenant):** o backend depende de existir organização no banco; ainda falta um fluxo “oficial” e seguro (seed/bootstrap).
+- **Webhooks (WhatsApp):** token existe, mas falta idempotência (evitar duplicar mensagens) e melhor tratamento de picos/retries.
+- **Proteção contra brute force distribuída:** login/register têm rate limit local (memória). Para múltiplas instâncias, o ideal é mover isso para Redis.
+- **Integrações dependem de variáveis de ambiente:** Supabase, WhatsApp, Google, OpenAI e Firebase precisam estar corretos; sem isso partes importantes ficam indisponíveis.
 
 ### P1 — Lacunas funcionais (promete multicanal, mas ainda não entrega tudo)
 - **Email (IMAP/SMTP):** existe configuração (`channel_configs.emailConfig`), mas não existe sincronização real de emails nem envio por SMTP.
@@ -394,6 +409,7 @@ Objetivo: ter um ambiente local que reproduz a operação real para validar regr
 Objetivo: reduzir risco de invasão, vazamento e ações indevidas.
 
 - [x] Rate limit e proteção anti brute force no login e endpoints sensíveis ✅ (2026-01-09) — 5 tentativas/min por IP no login/registro
+- [x] Rate limit geral para rotas autenticadas ✅ (2026-01-09) — exige Upstash Redis configurado
 - [x] Política de senha (mínimo 8 chars, 1 maiúscula, 1 número) ✅ (2026-01-09)
 - [ ] Fluxo de "esqueci minha senha" (pendente)
 - [ ] Revisar sessões/cookies: duração real, renovação, logout em todos os dispositivos, e parâmetros seguros (sem "surpresas")
@@ -406,6 +422,7 @@ Objetivo: o CRM continuar rápido com muito dado.
 
 - [x] Paginação + busca + ordenação nas listagens grandes ✅ (2026-01-09) — contacts, companies, deals, conversations, activities
 - [x] Índices no Postgres para os filtros reais ✅ (2026-01-09) — contacts (org, email, phone, company), companies (org, domain), deals (org, pipeline, stage, status), conversations (org, contact, status, lastMessage), messages (conversation, createdAt)
+- [x] Reutilizar pool do Postgres (queries + sessões) ✅ (2026-01-09) — reduz conexões duplicadas no banco
 - [ ] Corrigir/definir a regra de "não lidas" (evitar contar a própria mensagem; decidir se é por usuário/responsável)
 - [x] Otimizar WhatsApp: buscar contato/conversa direto no banco ✅ (2026-01-09) — `getContactByPhone()` e `getConversationByContactAndChannel()` criados
 - [ ] Melhorar consistência de dados (ex.: normalizar e indexar telefone para busca rápida)
@@ -450,6 +467,14 @@ Objetivo: transformar “multicanal” em realidade (além do WhatsApp).
 - [ ] Email completo (já no P1-1)
 - [ ] SMS e telefonia (definir provider e requisitos)
 - [ ] Relatórios avançados (KPI por canal, SLA de atendimento, performance por usuário)
+
+### Milestone 8 (P1) — Manutenibilidade (estrutura do backend)
+Objetivo: facilitar evolução sem “routes.ts gigante” e reduzir risco de regressões.
+
+- [ ] Criar `server/api/` e quebrar rotas por domínio (auth, contacts, deals, inbox, etc.)
+- [ ] Criar `server/ws/` e extrair WebSocket/broadcast para módulo dedicado
+- [ ] Criar `server/integrations/` e organizar integrações (Evolution/Google/OpenAI/Firebase/Supabase)
+- [ ] Padronizar middlewares (auth, rate limit, validação) e contratos de resposta
 
 ---
 

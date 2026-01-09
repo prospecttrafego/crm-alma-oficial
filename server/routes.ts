@@ -127,26 +127,34 @@ export async function registerRoutes(
     }
   });
 
-	  app.get("/api/auth/user", isAuthenticated, async (req: any, res) => {
-	    try {
-	      const userId = (req.user as any).id;
-	      const user = await storage.getUser(userId);
-	      res.json(toSafeUser(user));
-	    } catch (error) {
-	      console.error("Error fetching user:", error);
-	      res.status(500).json({ message: "Failed to fetch user" });
-	    }
-	  });
+  // Rate limiting (apenas para /api autenticado; nao afeta webhooks/health)
+  app.use("/api", (req: any, res, next) => {
+    if (req.isAuthenticated?.()) {
+      return rateLimitMiddleware(req, res, next);
+    }
+    next();
+  });
+
+  app.get("/api/auth/user", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const user = await storage.getUser(userId);
+      res.json(toSafeUser(user));
+    } catch (error) {
+      console.error("Error fetching user:", error);
+      res.status(500).json({ message: "Failed to fetch user" });
+    }
+  });
 
   // Update current user profile
-	  app.patch("/api/users/me", isAuthenticated, async (req: any, res) => {
-	    try {
+  app.patch("/api/users/me", isAuthenticated, async (req: any, res) => {
+    try {
       const userId = (req.user as any).id;
       const { firstName, lastName, profileImageUrl, preferences } = req.body;
 
       // Validate preferences if provided
       if (preferences && preferences.language) {
-        if (!['pt-BR', 'en'].includes(preferences.language)) {
+        if (!["pt-BR", "en"].includes(preferences.language)) {
           return res.status(400).json({ message: "Invalid language preference" });
         }
       }
@@ -158,16 +166,16 @@ export async function registerRoutes(
         preferences,
       });
 
-	      if (!updated) {
-	        return res.status(404).json({ message: "User not found" });
-	      }
+      if (!updated) {
+        return res.status(404).json({ message: "User not found" });
+      }
 
-	      res.json(toSafeUser(updated));
-	    } catch (error) {
-	      console.error("Error updating user profile:", error);
-	      res.status(500).json({ message: "Failed to update user profile" });
-	    }
-	  });
+      res.json(toSafeUser(updated));
+    } catch (error) {
+      console.error("Error updating user profile:", error);
+      res.status(500).json({ message: "Failed to update user profile" });
+    }
+  });
 
   app.get("/api/dashboard/stats", isAuthenticated, async (req: any, res) => {
     try {

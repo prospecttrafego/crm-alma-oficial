@@ -4,14 +4,11 @@
  */
 
 import { randomUUID } from "crypto";
-import type { Request, Response, NextFunction, RequestHandler } from "express";
+import type { RequestHandler } from "express";
 
-// Estender Request para incluir requestId
-declare global {
-  namespace Express {
-    interface Request {
-      requestId?: string;
-    }
+declare module "express-serve-static-core" {
+  interface Request {
+    requestId?: string;
   }
 }
 

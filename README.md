@@ -89,6 +89,8 @@ npm start
 │       └── lib/             # Utilitarios e configuracoes
 ├── server/                  # Backend Express
 │   ├── index.ts             # Entry point
+│   ├── logger.ts            # Logs estruturados (requestId + integrações)
+│   ├── health.ts            # Health check (DB + integrações opcionais)
 │   ├── routes.ts            # Endpoints da API
 │   ├── storage.ts           # Camada de acesso ao banco
 │   ├── auth.ts              # Autenticacao Passport.js
@@ -159,6 +161,10 @@ npm run lint:fix  # Lint + autofix (opcional)
 npm run db:push   # Aplica schema no banco
 npm run db:migrate-ptbr # Ajustes pontuais (dados legados PT-BR)
 ```
+
+## Health check
+
+- `GET /api/health` retorna status do banco e integrações opcionais (Redis/Supabase/Evolution API) quando configuradas.
 
 ## Deploy em VPS (Ubuntu)
 

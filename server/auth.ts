@@ -9,7 +9,7 @@ import connectPg from "connect-pg-simple";
 import bcrypt from "bcryptjs";
 import type { Express, RequestHandler, Request, Response, NextFunction } from "express";
 import { storage } from "./storage";
-import { db } from "./db";
+import { db, pool } from "./db";
 import { users, pipelines, pipelineStages } from "@shared/schema";
 import { and, count, eq } from "drizzle-orm";
 import { getSingleTenantOrganizationId } from "./tenant";
@@ -133,12 +133,13 @@ export const rateLimitMiddleware: RequestHandler = async (req, res, next) => {
  * Configura middleware de sessao com PostgreSQL
  */
 export function getSession() {
-  const sessionTtl = 7 * 24 * 60 * 60 * 1000; // 1 semana
+  const sessionTtlMs = 7 * 24 * 60 * 60 * 1000; // 1 semana
+  const sessionTtlSec = Math.ceil(sessionTtlMs / 1000);
   const pgStore = connectPg(session);
   const sessionStore = new pgStore({
-    conString: process.env.DATABASE_URL,
+    pool,
     createTableIfMissing: false,
-    ttl: sessionTtl,
+    ttl: sessionTtlSec,
     tableName: "sessions",
   });
 
@@ -150,7 +151,7 @@ export function getSession() {
     cookie: {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      maxAge: sessionTtl,
+      maxAge: sessionTtlMs,
       sameSite: "lax",
     },
   });
