@@ -59,38 +59,54 @@ export const organizations = pgTable("organizations", {
 });
 
 // Companies table
-export const companies = pgTable("companies", {
-  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-  name: varchar("name", { length: 255 }).notNull(),
-  domain: varchar("domain", { length: 255 }),
-  website: varchar("website", { length: 500 }),
-  segment: varchar("segment", { length: 100 }),
-  size: varchar("size", { length: 50 }),
-  industry: varchar("industry", { length: 100 }),
-  organizationId: integer("organization_id").notNull(),
-  ownerId: varchar("owner_id"),
-  customFields: jsonb("custom_fields").$type<Record<string, unknown>>(),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
+export const companies = pgTable(
+  "companies",
+  {
+    id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+    name: varchar("name", { length: 255 }).notNull(),
+    domain: varchar("domain", { length: 255 }),
+    website: varchar("website", { length: 500 }),
+    segment: varchar("segment", { length: 100 }),
+    size: varchar("size", { length: 50 }),
+    industry: varchar("industry", { length: 100 }),
+    organizationId: integer("organization_id").notNull(),
+    ownerId: varchar("owner_id"),
+    customFields: jsonb("custom_fields").$type<Record<string, unknown>>(),
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+  },
+  (table) => [
+    index("idx_companies_organization").on(table.organizationId),
+    index("idx_companies_domain").on(table.domain),
+  ]
+);
 
 // Contacts table
-export const contacts = pgTable("contacts", {
-  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-  firstName: varchar("first_name", { length: 100 }).notNull(),
-  lastName: varchar("last_name", { length: 100 }),
-  email: varchar("email", { length: 255 }),
-  phone: varchar("phone", { length: 50 }),
-  jobTitle: varchar("job_title", { length: 100 }),
-  companyId: integer("company_id"),
-  organizationId: integer("organization_id").notNull(),
-  ownerId: varchar("owner_id"),
-  tags: text("tags").array(),
-  source: varchar("source", { length: 100 }),
-  customFields: jsonb("custom_fields").$type<Record<string, unknown>>(),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
+export const contacts = pgTable(
+  "contacts",
+  {
+    id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+    firstName: varchar("first_name", { length: 100 }).notNull(),
+    lastName: varchar("last_name", { length: 100 }),
+    email: varchar("email", { length: 255 }),
+    phone: varchar("phone", { length: 50 }),
+    jobTitle: varchar("job_title", { length: 100 }),
+    companyId: integer("company_id"),
+    organizationId: integer("organization_id").notNull(),
+    ownerId: varchar("owner_id"),
+    tags: text("tags").array(),
+    source: varchar("source", { length: 100 }),
+    customFields: jsonb("custom_fields").$type<Record<string, unknown>>(),
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+  },
+  (table) => [
+    index("idx_contacts_organization").on(table.organizationId),
+    index("idx_contacts_email").on(table.email),
+    index("idx_contacts_phone").on(table.phone),
+    index("idx_contacts_company").on(table.companyId),
+  ]
+);
 
 // Pipelines table
 export const pipelines = pgTable("pipelines", {
@@ -115,67 +131,92 @@ export const pipelineStages = pgTable("pipeline_stages", {
 });
 
 // Deals table
-export const deals = pgTable("deals", {
-  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-  title: varchar("title", { length: 255 }).notNull(),
-  value: decimal("value", { precision: 15, scale: 2 }),
-  currency: varchar("currency", { length: 3 }).default("BRL"),
-  pipelineId: integer("pipeline_id").notNull(),
-  stageId: integer("stage_id").notNull(),
-  contactId: integer("contact_id"),
-  companyId: integer("company_id"),
-  organizationId: integer("organization_id").notNull(),
-  ownerId: varchar("owner_id"),
-  probability: integer("probability").default(0),
-  expectedCloseDate: timestamp("expected_close_date"),
-  status: varchar("status", { length: 20 }).default("open"),
-  lostReason: varchar("lost_reason", { length: 255 }),
-  source: varchar("source", { length: 100 }),
-  notes: text("notes"),
-  customFields: jsonb("custom_fields").$type<Record<string, unknown>>(),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
+export const deals = pgTable(
+  "deals",
+  {
+    id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+    title: varchar("title", { length: 255 }).notNull(),
+    value: decimal("value", { precision: 15, scale: 2 }),
+    currency: varchar("currency", { length: 3 }).default("BRL"),
+    pipelineId: integer("pipeline_id").notNull(),
+    stageId: integer("stage_id").notNull(),
+    contactId: integer("contact_id"),
+    companyId: integer("company_id"),
+    organizationId: integer("organization_id").notNull(),
+    ownerId: varchar("owner_id"),
+    probability: integer("probability").default(0),
+    expectedCloseDate: timestamp("expected_close_date"),
+    status: varchar("status", { length: 20 }).default("open"),
+    lostReason: varchar("lost_reason", { length: 255 }),
+    source: varchar("source", { length: 100 }),
+    notes: text("notes"),
+    customFields: jsonb("custom_fields").$type<Record<string, unknown>>(),
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+  },
+  (table) => [
+    index("idx_deals_organization").on(table.organizationId),
+    index("idx_deals_pipeline").on(table.pipelineId),
+    index("idx_deals_stage").on(table.stageId),
+    index("idx_deals_status").on(table.status),
+  ]
+);
 
 // Channel types for conversations
 export const channelTypes = ["email", "whatsapp", "sms", "internal", "phone"] as const;
 export type ChannelType = (typeof channelTypes)[number];
 
 // Conversations table
-export const conversations = pgTable("conversations", {
-  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-  subject: varchar("subject", { length: 500 }),
-  channel: varchar("channel", { length: 20 }).$type<ChannelType>().notNull(),
-  status: varchar("status", { length: 20 }).default("open"),
-  contactId: integer("contact_id"),
-  dealId: integer("deal_id"),
-  organizationId: integer("organization_id").notNull(),
-  assignedToId: varchar("assigned_to_id"),
-  lastMessageAt: timestamp("last_message_at"),
-  unreadCount: integer("unread_count").default(0),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
+export const conversations = pgTable(
+  "conversations",
+  {
+    id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+    subject: varchar("subject", { length: 500 }),
+    channel: varchar("channel", { length: 20 }).$type<ChannelType>().notNull(),
+    status: varchar("status", { length: 20 }).default("open"),
+    contactId: integer("contact_id"),
+    dealId: integer("deal_id"),
+    organizationId: integer("organization_id").notNull(),
+    assignedToId: varchar("assigned_to_id"),
+    lastMessageAt: timestamp("last_message_at"),
+    unreadCount: integer("unread_count").default(0),
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+  },
+  (table) => [
+    index("idx_conversations_organization").on(table.organizationId),
+    index("idx_conversations_contact").on(table.contactId),
+    index("idx_conversations_status").on(table.status),
+    index("idx_conversations_last_message").on(table.lastMessageAt),
+  ]
+);
 
 // Message content types
 export const messageContentTypes = ["text", "audio", "image", "file", "video"] as const;
 export type MessageContentType = (typeof messageContentTypes)[number];
 
 // Messages table
-export const messages = pgTable("messages", {
-  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-  conversationId: integer("conversation_id").notNull(),
-  senderId: varchar("sender_id"),
-  senderType: varchar("sender_type", { length: 20 }),
-  content: text("content").notNull(),
-  contentType: varchar("content_type", { length: 20 }).$type<MessageContentType>().default("text"),
-  isInternal: boolean("is_internal").default(false),
-  attachments: jsonb("attachments").$type<Array<{ name: string; url: string; type: string }>>(),
-  metadata: jsonb("metadata").$type<{ transcription?: string; duration?: number; waveform?: number[] }>(),
-  mentions: text("mentions").array(),
-  readBy: text("read_by").array(),
-  createdAt: timestamp("created_at").defaultNow(),
-});
+export const messages = pgTable(
+  "messages",
+  {
+    id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+    conversationId: integer("conversation_id").notNull(),
+    senderId: varchar("sender_id"),
+    senderType: varchar("sender_type", { length: 20 }),
+    content: text("content").notNull(),
+    contentType: varchar("content_type", { length: 20 }).$type<MessageContentType>().default("text"),
+    isInternal: boolean("is_internal").default(false),
+    attachments: jsonb("attachments").$type<Array<{ name: string; url: string; type: string }>>(),
+    metadata: jsonb("metadata").$type<{ transcription?: string; duration?: number; waveform?: number[] }>(),
+    mentions: text("mentions").array(),
+    readBy: text("read_by").array(),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => [
+    index("idx_messages_conversation").on(table.conversationId),
+    index("idx_messages_created_at").on(table.createdAt),
+  ]
+);
 
 // Activity types
 export const activityTypes = ["call", "email", "meeting", "note", "task"] as const;

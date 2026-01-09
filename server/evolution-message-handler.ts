@@ -5,6 +5,7 @@
 
 import { storage } from './storage';
 import type { WebSocket } from 'ws';
+import { whatsappLogger } from './logger';
 
 // Evolution API webhook event types
 export interface EvolutionWebhookEvent {
@@ -88,7 +89,7 @@ export class EvolutionMessageHandler {
     organizationId: number
   ): Promise<void> {
     const normalizedEvent = String(event.event || "").toUpperCase().replace(/\./g, "_");
-    console.log(`[Evolution Handler] Received event: ${normalizedEvent} for instance: ${event.instance}`);
+    whatsappLogger.info(`[Evolution Handler] Received event: ${normalizedEvent} for instance: ${event.instance}`);
 
     switch (normalizedEvent) {
       case 'MESSAGES_UPSERT':
@@ -104,7 +105,7 @@ export class EvolutionMessageHandler {
         break;
 
       default:
-        console.log(`[Evolution Handler] Unhandled event: ${event.event}`);
+        whatsappLogger.info(`[Evolution Handler] Unhandled event: ${event.event}`);
     }
   }
 
@@ -145,11 +146,11 @@ export class EvolutionMessageHandler {
       const contentType = this.getContentType(msg);
       const senderName = msg.pushName || phoneNumber;
 
-      console.log(`[Evolution Handler] New message from ${phoneNumber}: ${content.substring(0, 50)}...`);
+      whatsappLogger.info(`[Evolution Handler] New message from ${phoneNumber}: ${content.substring(0, 50)}...`);
 
       try {
-        // Find or create contact by phone number
-        let contact = await this.findContactByPhone(phoneNumber, organizationId);
+        // Find or create contact by phone number (optimized: direct DB query)
+        let contact = await storage.getContactByPhone(phoneNumber, organizationId);
 
         if (!contact) {
           // Create new contact
@@ -160,11 +161,11 @@ export class EvolutionMessageHandler {
             organizationId,
             source: 'whatsapp',
           });
-          console.log(`[Evolution Handler] Created new contact: ${contact.id}`);
+          whatsappLogger.info(`[Evolution Handler] Created new contact: ${contact.id}`);
         }
 
-        // Find or create conversation
-        let conversation = await this.findConversationByContact(contact.id, organizationId);
+        // Find or create conversation (optimized: direct DB query)
+        let conversation = await storage.getConversationByContactAndChannel(contact.id, 'whatsapp', organizationId);
 
         if (!conversation) {
           // Create new conversation
@@ -175,7 +176,7 @@ export class EvolutionMessageHandler {
             contactId: contact.id,
             organizationId,
           });
-          console.log(`[Evolution Handler] Created new conversation: ${conversation.id}`);
+          whatsappLogger.info(`[Evolution Handler] Created new conversation: ${conversation.id}`);
         } else if (conversation.status === 'closed') {
           // Reopen conversation
           await storage.updateConversation(conversation.id, { status: 'open' });
@@ -191,7 +192,7 @@ export class EvolutionMessageHandler {
           isInternal: false,
         });
 
-        console.log(`[Evolution Handler] Created message: ${message.id}`);
+        whatsappLogger.info(`[Evolution Handler] Created message: ${message.id}`);
 
         // Broadcast to connected clients
         if (this.broadcast) {
@@ -202,7 +203,9 @@ export class EvolutionMessageHandler {
           });
         }
       } catch (error) {
-        console.error('[Evolution Handler] Error processing message:', error);
+        whatsappLogger.error('[Evolution Handler] Error processing message', {
+          error: error instanceof Error ? error.message : String(error),
+        });
       }
     }
   }
@@ -225,7 +228,7 @@ export class EvolutionMessageHandler {
 
     const connectionStatus = statusMap[data.state] || 'disconnected';
 
-    console.log(`[Evolution Handler] Connection update: ${data.state} -> ${connectionStatus}`);
+    whatsappLogger.info(`[Evolution Handler] Connection update: ${data.state} -> ${connectionStatus}`);
 
     try {
       // Update channel config with new status
@@ -252,7 +255,9 @@ export class EvolutionMessageHandler {
         });
       }
     } catch (error) {
-      console.error('[Evolution Handler] Error updating connection status:', error);
+      whatsappLogger.error('[Evolution Handler] Error updating connection status', {
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   }
 
@@ -266,7 +271,7 @@ export class EvolutionMessageHandler {
   ): Promise<void> {
     const data = event.data as EvolutionQRCodeUpdate;
 
-    console.log(`[Evolution Handler] QR code updated for channel ${channelConfigId}`);
+    whatsappLogger.info(`[Evolution Handler] QR code updated for channel ${channelConfigId}`);
 
     try {
       // Update channel config with new QR code
@@ -289,7 +294,9 @@ export class EvolutionMessageHandler {
         });
       }
     } catch (error) {
-      console.error('[Evolution Handler] Error updating QR code:', error);
+      whatsappLogger.error('[Evolution Handler] Error updating QR code', {
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   }
 
@@ -338,29 +345,6 @@ export class EvolutionMessageHandler {
     return 'text';
   }
 
-  /**
-   * Find contact by phone number
-   */
-  private async findContactByPhone(phone: string, organizationId: number) {
-    const contacts = await storage.getContacts(organizationId);
-
-    // Normalize phone for comparison
-    const normalizedPhone = phone.replace(/\D/g, '');
-
-    return contacts.find((c) => {
-      if (!c.phone) return false;
-      const contactPhone = c.phone.replace(/\D/g, '');
-      return contactPhone === normalizedPhone || contactPhone.endsWith(normalizedPhone) || normalizedPhone.endsWith(contactPhone);
-    });
-  }
-
-  /**
-   * Find conversation by contact
-   */
-  private async findConversationByContact(contactId: number, organizationId: number) {
-    const conversations = await storage.getConversations(organizationId);
-    return conversations.find((c) => c.contactId === contactId && c.channel === 'whatsapp');
-  }
 }
 
 // Singleton instance

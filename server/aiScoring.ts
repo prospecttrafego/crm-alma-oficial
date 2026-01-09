@@ -1,4 +1,8 @@
 import OpenAI from "openai";
+import { openaiLogger } from "./logger";
+
+// Timeout padrao para chamadas OpenAI (30 segundos)
+const OPENAI_TIMEOUT_MS = 30000;
 
 /**
  * Cliente OpenAI para funcionalidades de AI (lead scoring, recomendacoes)
@@ -6,11 +10,12 @@ import OpenAI from "openai";
  */
 function getOpenAIClient(): OpenAI | null {
   if (!process.env.OPENAI_API_KEY) {
-    console.warn("OPENAI_API_KEY nao configurada. Funcionalidades de AI estarao desabilitadas.");
+    openaiLogger.warn("OPENAI_API_KEY nao configurada. Funcionalidades de AI estarao desabilitadas.");
     return null;
   }
   return new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
+    timeout: OPENAI_TIMEOUT_MS,
   });
 }
 
@@ -356,7 +361,10 @@ Provide a JSON response with:
       };
     }
   } catch (error) {
-    console.error("AI recommendation error:", error);
+    openaiLogger.error("AI recommendation error", {
+      error: error instanceof Error ? error.message : String(error),
+      entityType,
+    });
   }
 
   return {

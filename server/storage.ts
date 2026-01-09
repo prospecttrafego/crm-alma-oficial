@@ -65,8 +65,40 @@ import {
   type InsertGoogleOAuthToken,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, desc, sql, count, gte, lte, lt, asc, not } from "drizzle-orm";
+import { eq, and, desc, sql, count, gte, lte, lt, asc, not, ilike, or } from "drizzle-orm";
 import { getSingleTenantOrganizationId } from "./tenant";
+
+// ========== PAGINACAO ==========
+
+export interface PaginationParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+  sortBy?: string;
+  sortOrder?: "asc" | "desc";
+}
+
+export interface PaginatedResult<T> {
+  data: T[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+    hasMore: boolean;
+  };
+}
+
+const DEFAULT_PAGE = 1;
+const DEFAULT_LIMIT = 20;
+const MAX_LIMIT = 100;
+
+function normalizePagination(params: PaginationParams): { page: number; limit: number; offset: number } {
+  const page = Math.max(1, params.page || DEFAULT_PAGE);
+  const limit = Math.min(MAX_LIMIT, Math.max(1, params.limit || DEFAULT_LIMIT));
+  const offset = (page - 1) * limit;
+  return { page, limit, offset };
+}
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -327,6 +359,57 @@ export class DatabaseStorage implements IStorage {
       .where(eq(companies.organizationId, tenantOrganizationId));
   }
 
+  async getCompaniesPaginated(
+    organizationId: number,
+    params: PaginationParams
+  ): Promise<PaginatedResult<Company>> {
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    const { page, limit, offset } = normalizePagination(params);
+
+    // Build search condition
+    const searchCondition = params.search
+      ? or(
+          ilike(companies.name, `%${params.search}%`),
+          ilike(companies.domain, `%${params.search}%`),
+          ilike(companies.industry, `%${params.search}%`)
+        )
+      : undefined;
+
+    const whereCondition = searchCondition
+      ? and(eq(companies.organizationId, tenantOrganizationId), searchCondition)
+      : eq(companies.organizationId, tenantOrganizationId);
+
+    // Get total count
+    const [countResult] = await db
+      .select({ count: count() })
+      .from(companies)
+      .where(whereCondition);
+    const total = Number(countResult?.count || 0);
+
+    // Get paginated data
+    const sortOrder = params.sortOrder === "asc" ? asc : desc;
+    const data = await db
+      .select()
+      .from(companies)
+      .where(whereCondition)
+      .orderBy(sortOrder(companies.createdAt))
+      .limit(limit)
+      .offset(offset);
+
+    const totalPages = Math.ceil(total / limit);
+
+    return {
+      data,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+        hasMore: page < totalPages,
+      },
+    };
+  }
+
   async getCompany(id: number): Promise<Company | undefined> {
     const tenantOrganizationId = await this.tenantOrganizationId();
     const [company] = await db
@@ -373,6 +456,58 @@ export class DatabaseStorage implements IStorage {
       .where(eq(contacts.organizationId, tenantOrganizationId));
   }
 
+  async getContactsPaginated(
+    organizationId: number,
+    params: PaginationParams
+  ): Promise<PaginatedResult<Contact>> {
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    const { page, limit, offset } = normalizePagination(params);
+
+    // Build search condition
+    const searchCondition = params.search
+      ? or(
+          ilike(contacts.firstName, `%${params.search}%`),
+          ilike(contacts.lastName, `%${params.search}%`),
+          ilike(contacts.email, `%${params.search}%`),
+          ilike(contacts.phone, `%${params.search}%`)
+        )
+      : undefined;
+
+    const whereCondition = searchCondition
+      ? and(eq(contacts.organizationId, tenantOrganizationId), searchCondition)
+      : eq(contacts.organizationId, tenantOrganizationId);
+
+    // Get total count
+    const [countResult] = await db
+      .select({ count: count() })
+      .from(contacts)
+      .where(whereCondition);
+    const total = Number(countResult?.count || 0);
+
+    // Get paginated data
+    const sortOrder = params.sortOrder === "asc" ? asc : desc;
+    const data = await db
+      .select()
+      .from(contacts)
+      .where(whereCondition)
+      .orderBy(sortOrder(contacts.createdAt))
+      .limit(limit)
+      .offset(offset);
+
+    const totalPages = Math.ceil(total / limit);
+
+    return {
+      data,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+        hasMore: page < totalPages,
+      },
+    };
+  }
+
   async getContact(id: number): Promise<Contact | undefined> {
     const tenantOrganizationId = await this.tenantOrganizationId();
     const [contact] = await db
@@ -380,6 +515,48 @@ export class DatabaseStorage implements IStorage {
       .from(contacts)
       .where(and(eq(contacts.id, id), eq(contacts.organizationId, tenantOrganizationId)));
     return contact;
+  }
+
+  /**
+   * Find contact by phone number (optimized for WhatsApp handler)
+   * Searches for exact match or suffix match (to handle different formats)
+   */
+  async getContactByPhone(phone: string, organizationId: number): Promise<Contact | undefined> {
+    const tenantOrganizationId = await this.tenantOrganizationId();
+
+    // Normalize phone (remove non-digits)
+    const normalizedPhone = phone.replace(/\D/g, '');
+
+    // First try exact match
+    const [exactMatch] = await db
+      .select()
+      .from(contacts)
+      .where(
+        and(
+          eq(contacts.organizationId, tenantOrganizationId),
+          sql`REGEXP_REPLACE(${contacts.phone}, '[^0-9]', '', 'g') = ${normalizedPhone}`
+        )
+      )
+      .limit(1);
+
+    if (exactMatch) return exactMatch;
+
+    // Try suffix match (for numbers with/without country code)
+    const [suffixMatch] = await db
+      .select()
+      .from(contacts)
+      .where(
+        and(
+          eq(contacts.organizationId, tenantOrganizationId),
+          or(
+            sql`REGEXP_REPLACE(${contacts.phone}, '[^0-9]', '', 'g') LIKE ${'%' + normalizedPhone}`,
+            sql`${normalizedPhone} LIKE '%' || REGEXP_REPLACE(${contacts.phone}, '[^0-9]', '', 'g')`
+          )
+        )
+      )
+      .limit(1);
+
+    return suffixMatch;
   }
 
   async createContact(contact: InsertContact): Promise<Contact> {
@@ -572,6 +749,62 @@ export class DatabaseStorage implements IStorage {
       .where(eq(deals.organizationId, tenantOrganizationId));
   }
 
+  async getDealsPaginated(
+    organizationId: number,
+    params: PaginationParams & { pipelineId?: number; stageId?: number; status?: string }
+  ): Promise<PaginatedResult<Deal>> {
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    const { page, limit, offset } = normalizePagination(params);
+
+    // Build conditions
+    const conditions = [eq(deals.organizationId, tenantOrganizationId)];
+
+    if (params.search) {
+      conditions.push(ilike(deals.title, `%${params.search}%`));
+    }
+    if (params.pipelineId) {
+      conditions.push(eq(deals.pipelineId, params.pipelineId));
+    }
+    if (params.stageId) {
+      conditions.push(eq(deals.stageId, params.stageId));
+    }
+    if (params.status) {
+      conditions.push(eq(deals.status, params.status as "open" | "won" | "lost"));
+    }
+
+    const whereCondition = and(...conditions);
+
+    // Get total count
+    const [countResult] = await db
+      .select({ count: count() })
+      .from(deals)
+      .where(whereCondition);
+    const total = Number(countResult?.count || 0);
+
+    // Get paginated data
+    const sortOrder = params.sortOrder === "asc" ? asc : desc;
+    const data = await db
+      .select()
+      .from(deals)
+      .where(whereCondition)
+      .orderBy(sortOrder(deals.createdAt))
+      .limit(limit)
+      .offset(offset);
+
+    const totalPages = Math.ceil(total / limit);
+
+    return {
+      data,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+        hasMore: page < totalPages,
+      },
+    };
+  }
+
   async getDealsByPipeline(pipelineId: number): Promise<Deal[]> {
     const tenantOrganizationId = await this.tenantOrganizationId();
     return await db
@@ -699,12 +932,91 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(conversations.lastMessageAt));
   }
 
+  async getConversationsPaginated(
+    organizationId: number,
+    params: PaginationParams & { status?: string; channel?: string; assignedToId?: string }
+  ): Promise<PaginatedResult<Conversation>> {
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    const { page, limit, offset } = normalizePagination(params);
+
+    // Build conditions
+    const conditions = [eq(conversations.organizationId, tenantOrganizationId)];
+
+    if (params.search) {
+      conditions.push(ilike(conversations.subject, `%${params.search}%`));
+    }
+    if (params.status) {
+      conditions.push(eq(conversations.status, params.status as "open" | "closed" | "pending"));
+    }
+    if (params.channel) {
+      conditions.push(eq(conversations.channel, params.channel as "email" | "whatsapp" | "sms" | "internal" | "phone"));
+    }
+    if (params.assignedToId) {
+      conditions.push(eq(conversations.assignedToId, params.assignedToId));
+    }
+
+    const whereCondition = and(...conditions);
+
+    // Get total count
+    const [countResult] = await db
+      .select({ count: count() })
+      .from(conversations)
+      .where(whereCondition);
+    const total = Number(countResult?.count || 0);
+
+    // Get paginated data (ordered by lastMessageAt)
+    const data = await db
+      .select()
+      .from(conversations)
+      .where(whereCondition)
+      .orderBy(desc(conversations.lastMessageAt))
+      .limit(limit)
+      .offset(offset);
+
+    const totalPages = Math.ceil(total / limit);
+
+    return {
+      data,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+        hasMore: page < totalPages,
+      },
+    };
+  }
+
   async getConversation(id: number): Promise<Conversation | undefined> {
     const tenantOrganizationId = await this.tenantOrganizationId();
     const [conversation] = await db
       .select()
       .from(conversations)
       .where(and(eq(conversations.id, id), eq(conversations.organizationId, tenantOrganizationId)));
+    return conversation;
+  }
+
+  /**
+   * Find conversation by contact ID and channel (optimized for WhatsApp handler)
+   */
+  async getConversationByContactAndChannel(
+    contactId: number,
+    channel: string,
+    organizationId: number
+  ): Promise<Conversation | undefined> {
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    const [conversation] = await db
+      .select()
+      .from(conversations)
+      .where(
+        and(
+          eq(conversations.organizationId, tenantOrganizationId),
+          eq(conversations.contactId, contactId),
+          eq(conversations.channel, channel as any)
+        )
+      )
+      .orderBy(desc(conversations.lastMessageAt))
+      .limit(1);
     return conversation;
   }
 
@@ -865,6 +1177,61 @@ export class DatabaseStorage implements IStorage {
       .from(activities)
       .where(eq(activities.organizationId, tenantOrganizationId))
       .orderBy(desc(activities.createdAt));
+  }
+
+  async getActivitiesPaginated(
+    organizationId: number,
+    params: PaginationParams & { type?: string; status?: string; userId?: string }
+  ): Promise<PaginatedResult<Activity>> {
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    const { page, limit, offset } = normalizePagination(params);
+
+    // Build conditions
+    const conditions = [eq(activities.organizationId, tenantOrganizationId)];
+
+    if (params.search) {
+      conditions.push(ilike(activities.title, `%${params.search}%`));
+    }
+    if (params.type) {
+      conditions.push(eq(activities.type, params.type as "call" | "email" | "meeting" | "note" | "task"));
+    }
+    if (params.status) {
+      conditions.push(eq(activities.status, params.status as "pending" | "completed" | "cancelled"));
+    }
+    if (params.userId) {
+      conditions.push(eq(activities.userId, params.userId));
+    }
+
+    const whereCondition = and(...conditions);
+
+    // Get total count
+    const [countResult] = await db
+      .select({ count: count() })
+      .from(activities)
+      .where(whereCondition);
+    const total = Number(countResult?.count || 0);
+
+    // Get paginated data
+    const data = await db
+      .select()
+      .from(activities)
+      .where(whereCondition)
+      .orderBy(desc(activities.createdAt))
+      .limit(limit)
+      .offset(offset);
+
+    const totalPages = Math.ceil(total / limit);
+
+    return {
+      data,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+        hasMore: page < totalPages,
+      },
+    };
   }
 
   async getActivity(id: number): Promise<Activity | undefined> {

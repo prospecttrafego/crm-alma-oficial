@@ -2,6 +2,7 @@ import "dotenv/config";
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
+import { requestIdMiddleware, requestLoggingMiddleware, logger } from "./logger";
 
 const app = express();
 
@@ -21,42 +22,16 @@ app.use(
 
 app.use(express.urlencoded({ extended: false }));
 
+// Middleware de requestId (antes de tudo para rastreabilidade)
+app.use(requestIdMiddleware);
+
+// Middleware de logging estruturado
+app.use(requestLoggingMiddleware);
+
 export function log(message: string, source = "express") {
-  const formattedTime = new Date().toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: true,
-  });
-
-  console.log(`${formattedTime} [${source}] ${message}`);
+  // Manter funcao legada para compatibilidade, mas usar logger estruturado
+  logger.info(message, { service: source });
 }
-
-app.use((req, res, next) => {
-  const start = Date.now();
-  const path = req.path;
-  let capturedJsonResponse: Record<string, any> | undefined = undefined;
-
-  const originalResJson = res.json;
-  res.json = function (bodyJson, ...args) {
-    capturedJsonResponse = bodyJson;
-    return originalResJson.apply(res, [bodyJson, ...args]);
-  };
-
-	  res.on("finish", () => {
-	    const duration = Date.now() - start;
-	    if (path.startsWith("/api")) {
-	      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-	      if (process.env.NODE_ENV !== "production" && capturedJsonResponse) {
-	        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
-	      }
-
-	      log(logLine);
-	    }
-	  });
-
-  next();
-});
 
 (async () => {
   const httpServer = await registerRoutes(app);

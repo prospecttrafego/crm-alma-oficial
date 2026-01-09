@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
-import { setupAuth, isAuthenticated, getSession } from "./auth";
+import { setupAuth, isAuthenticated, getSession, requireRole, rateLimitMiddleware } from "./auth";
 import { createHmac, timingSafeEqual } from "crypto";
 import { z } from "zod";
 import {
@@ -32,6 +32,7 @@ import {
 import { ObjectStorageService, ObjectNotFoundError, ObjectPermission } from "./storage.supabase";
 import { evolutionApi } from "./evolution-api";
 import { evolutionHandler, type EvolutionWebhookEvent } from "./evolution-message-handler";
+import { performHealthCheck } from "./health";
 
 const clients = new Set<WebSocket>();
 
@@ -110,6 +111,21 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
   await setupAuth(app);
+
+  // Health check endpoint (publico, sem autenticacao)
+  app.get("/api/health", async (_req, res) => {
+    try {
+      const health = await performHealthCheck();
+      const statusCode = health.status === "healthy" ? 200 : health.status === "degraded" ? 200 : 503;
+      res.status(statusCode).json(health);
+    } catch (error) {
+      res.status(503).json({
+        status: "unhealthy",
+        timestamp: new Date().toISOString(),
+        error: "Health check failed",
+      });
+    }
+  });
 
 	  app.get("/api/auth/user", isAuthenticated, async (req: any, res) => {
 	    try {
@@ -228,7 +244,8 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/pipelines", isAuthenticated, async (req: any, res) => {
+  // Pipeline management - admin only
+  app.post("/api/pipelines", isAuthenticated, requireRole("admin"), async (req: any, res) => {
     try {
       const org = await storage.getDefaultOrganization();
       if (!org) return res.status(400).json({ message: "No organization" });
@@ -269,7 +286,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/pipelines/:id", isAuthenticated, async (req: any, res) => {
+  app.patch("/api/pipelines/:id", isAuthenticated, requireRole("admin"), async (req: any, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
@@ -302,7 +319,7 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/pipelines/:id", isAuthenticated, async (req: any, res) => {
+  app.delete("/api/pipelines/:id", isAuthenticated, requireRole("admin"), async (req: any, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
@@ -340,7 +357,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/pipelines/:id/set-default", isAuthenticated, async (req: any, res) => {
+  app.post("/api/pipelines/:id/set-default", isAuthenticated, requireRole("admin"), async (req: any, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
@@ -357,7 +374,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/pipelines/:id/stages", isAuthenticated, async (req: any, res) => {
+  app.post("/api/pipelines/:id/stages", isAuthenticated, requireRole("admin"), async (req: any, res) => {
     try {
       const pipelineId = parseInt(req.params.id);
       if (isNaN(pipelineId)) return res.status(400).json({ message: "Invalid pipeline ID" });
@@ -376,7 +393,7 @@ export async function registerRoutes(
     }
   });
 
-	  app.patch("/api/pipelines/:pipelineId/stages/:id", isAuthenticated, async (req: any, res) => {
+	  app.patch("/api/pipelines/:pipelineId/stages/:id", isAuthenticated, requireRole("admin"), async (req: any, res) => {
 	    try {
 	      const id = parseInt(req.params.id);
 	      if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
@@ -396,7 +413,7 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/pipelines/:pipelineId/stages/:id", isAuthenticated, async (req: any, res) => {
+  app.delete("/api/pipelines/:pipelineId/stages/:id", isAuthenticated, requireRole("admin"), async (req: any, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
@@ -410,10 +427,29 @@ export async function registerRoutes(
     }
   });
 
+  // Deals - supports pagination via query params (?page=1&limit=20&search=...&pipelineId=...&status=...)
   app.get("/api/deals", isAuthenticated, async (req: any, res) => {
     try {
       const org = await storage.getDefaultOrganization();
-      if (!org) return res.json([]);
+      if (!org) return res.json({ data: [], pagination: { page: 1, limit: 20, total: 0, totalPages: 0, hasMore: false } });
+
+      // Check if pagination is requested
+      const { page, limit, search, sortBy, sortOrder, pipelineId, stageId, status } = req.query;
+      if (page || limit || search || pipelineId || status) {
+        const result = await storage.getDealsPaginated(org.id, {
+          page: page ? parseInt(page) : undefined,
+          limit: limit ? parseInt(limit) : undefined,
+          search: search as string,
+          sortBy: sortBy as string,
+          sortOrder: sortOrder as "asc" | "desc",
+          pipelineId: pipelineId ? parseInt(pipelineId) : undefined,
+          stageId: stageId ? parseInt(stageId) : undefined,
+          status: status as string,
+        });
+        return res.json(result);
+      }
+
+      // Fallback to non-paginated (for backward compatibility)
       const allDeals = await storage.getDeals(org.id);
       res.json(allDeals);
     } catch (error) {
@@ -565,10 +601,26 @@ export async function registerRoutes(
     }
   });
 
+  // Contacts - supports pagination via query params (?page=1&limit=20&search=...)
   app.get("/api/contacts", isAuthenticated, async (req: any, res) => {
     try {
       const org = await storage.getDefaultOrganization();
-      if (!org) return res.json([]);
+      if (!org) return res.json({ data: [], pagination: { page: 1, limit: 20, total: 0, totalPages: 0, hasMore: false } });
+
+      // Check if pagination is requested
+      const { page, limit, search, sortBy, sortOrder } = req.query;
+      if (page || limit || search) {
+        const result = await storage.getContactsPaginated(org.id, {
+          page: page ? parseInt(page) : undefined,
+          limit: limit ? parseInt(limit) : undefined,
+          search: search as string,
+          sortBy: sortBy as string,
+          sortOrder: sortOrder as "asc" | "desc",
+        });
+        return res.json(result);
+      }
+
+      // Fallback to non-paginated (for backward compatibility)
       const allContacts = await storage.getContacts(org.id);
       res.json(allContacts);
     } catch (error) {
@@ -685,10 +737,26 @@ export async function registerRoutes(
     }
   });
 
+  // Companies - supports pagination via query params (?page=1&limit=20&search=...)
   app.get("/api/companies", isAuthenticated, async (req: any, res) => {
     try {
       const org = await storage.getDefaultOrganization();
-      if (!org) return res.json([]);
+      if (!org) return res.json({ data: [], pagination: { page: 1, limit: 20, total: 0, totalPages: 0, hasMore: false } });
+
+      // Check if pagination is requested
+      const { page, limit, search, sortBy, sortOrder } = req.query;
+      if (page || limit || search) {
+        const result = await storage.getCompaniesPaginated(org.id, {
+          page: page ? parseInt(page) : undefined,
+          limit: limit ? parseInt(limit) : undefined,
+          search: search as string,
+          sortBy: sortBy as string,
+          sortOrder: sortOrder as "asc" | "desc",
+        });
+        return res.json(result);
+      }
+
+      // Fallback to non-paginated (for backward compatibility)
       const allCompanies = await storage.getCompanies(org.id);
       res.json(allCompanies);
     } catch (error) {
@@ -805,47 +873,66 @@ export async function registerRoutes(
     }
   });
 
+  // Conversations - supports pagination via query params (?page=1&limit=20&search=...&status=...&channel=...)
   app.get("/api/conversations", isAuthenticated, async (req: any, res) => {
     try {
       const org = await storage.getDefaultOrganization();
-      if (!org) return res.json([]);
+      if (!org) return res.json({ data: [], pagination: { page: 1, limit: 20, total: 0, totalPages: 0, hasMore: false } });
+
+      // Helper function to enrich conversations
+      const enrichConversations = async (convList: any[]) => {
+        return Promise.all(
+          convList.map(async (conv) => {
+            let contact = null;
+            let company = null;
+            let deal = null;
+            let assignedTo = null;
+
+            if (conv.contactId) {
+              contact = await storage.getContact(conv.contactId);
+              if (contact?.companyId) {
+                company = await storage.getCompany(contact.companyId);
+              }
+            }
+            if (conv.dealId) {
+              deal = await storage.getDeal(conv.dealId);
+              if (!company && deal?.companyId) {
+                company = await storage.getCompany(deal.companyId);
+              }
+            }
+            if (conv.assignedToId) {
+              assignedTo = await storage.getUser(conv.assignedToId);
+            }
+
+            return {
+              ...conv,
+              contact: contact ? { ...contact, company } : null,
+              deal,
+              company,
+              assignedTo,
+            };
+          })
+        );
+      };
+
+      // Check if pagination is requested
+      const { page, limit, search, status, channel, assignedToId } = req.query;
+      if (page || limit || search || status || channel) {
+        const result = await storage.getConversationsPaginated(org.id, {
+          page: page ? parseInt(page) : undefined,
+          limit: limit ? parseInt(limit) : undefined,
+          search: search as string,
+          status: status as string,
+          channel: channel as string,
+          assignedToId: assignedToId as string,
+        });
+        const enrichedData = await enrichConversations(result.data);
+        return res.json({ ...result, data: enrichedData });
+      }
+
+      // Fallback to non-paginated (for backward compatibility)
       const allConversations = await storage.getConversations(org.id);
-      
-      // Enrich with contact (including company), deal, and assignedTo relations
-      const enrichedConversations = await Promise.all(
-        allConversations.map(async (conv) => {
-          let contact = null;
-          let company = null;
-          let deal = null;
-          let assignedTo = null;
-          
-          if (conv.contactId) {
-            contact = await storage.getContact(conv.contactId);
-            if (contact?.companyId) {
-              company = await storage.getCompany(contact.companyId);
-            }
-          }
-          if (conv.dealId) {
-            deal = await storage.getDeal(conv.dealId);
-            // If no company from contact, try to get from deal
-            if (!company && deal?.companyId) {
-              company = await storage.getCompany(deal.companyId);
-            }
-          }
-          if (conv.assignedToId) {
-            assignedTo = await storage.getUser(conv.assignedToId);
-          }
-          
-          return {
-            ...conv,
-            contact: contact ? { ...contact, company } : null,
-            deal,
-            company,
-            assignedTo,
-          };
-        })
-      );
-      
+      const enrichedConversations = await enrichConversations(allConversations);
       res.json(enrichedConversations);
     } catch (error) {
       console.error("Error fetching conversations:", error);
@@ -1010,10 +1097,27 @@ export async function registerRoutes(
     }
   });
 
+  // Activities - supports pagination via query params (?page=1&limit=20&search=...&type=...&status=...)
   app.get("/api/activities", isAuthenticated, async (req: any, res) => {
     try {
       const org = await storage.getDefaultOrganization();
-      if (!org) return res.json([]);
+      if (!org) return res.json({ data: [], pagination: { page: 1, limit: 20, total: 0, totalPages: 0, hasMore: false } });
+
+      // Check if pagination is requested
+      const { page, limit, search, type, status, userId } = req.query;
+      if (page || limit || search || type || status) {
+        const result = await storage.getActivitiesPaginated(org.id, {
+          page: page ? parseInt(page) : undefined,
+          limit: limit ? parseInt(limit) : undefined,
+          search: search as string,
+          type: type as string,
+          status: status as string,
+          userId: userId as string,
+        });
+        return res.json(result);
+      }
+
+      // Fallback to non-paginated (for backward compatibility)
       const allActivities = await storage.getActivities(org.id);
       res.json(allActivities);
     } catch (error) {

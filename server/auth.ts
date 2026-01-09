@@ -7,14 +7,127 @@ import { Strategy as LocalStrategy } from "passport-local";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
 import bcrypt from "bcryptjs";
-import type { Express, RequestHandler } from "express";
+import type { Express, RequestHandler, Request, Response, NextFunction } from "express";
 import { storage } from "./storage";
 import { db } from "./db";
 import { users, pipelines, pipelineStages } from "@shared/schema";
 import { and, count, eq } from "drizzle-orm";
 import { getSingleTenantOrganizationId } from "./tenant";
+import { checkRateLimit } from "./redis";
 
 const BCRYPT_ROUNDS = 12;
+
+// ========== RATE LIMITING ==========
+
+/**
+ * Rate limiting para login: 5 tentativas por minuto por IP
+ * Mais restritivo que o rate limit geral para proteger contra brute force
+ */
+const loginAttempts = new Map<string, { count: number; resetAt: number }>();
+const LOGIN_MAX_ATTEMPTS = 5;
+const LOGIN_WINDOW_MS = 60 * 1000; // 1 minuto
+
+function getClientIp(req: Request): string {
+  const forwarded = req.headers["x-forwarded-for"];
+  if (typeof forwarded === "string") {
+    return forwarded.split(",")[0].trim();
+  }
+  return req.ip || req.socket.remoteAddress || "unknown";
+}
+
+function checkLoginRateLimit(ip: string): { allowed: boolean; retryAfter?: number } {
+  const now = Date.now();
+  const record = loginAttempts.get(ip);
+
+  if (!record || now > record.resetAt) {
+    loginAttempts.set(ip, { count: 1, resetAt: now + LOGIN_WINDOW_MS });
+    return { allowed: true };
+  }
+
+  if (record.count >= LOGIN_MAX_ATTEMPTS) {
+    const retryAfter = Math.ceil((record.resetAt - now) / 1000);
+    return { allowed: false, retryAfter };
+  }
+
+  record.count++;
+  return { allowed: true };
+}
+
+function resetLoginAttempts(ip: string): void {
+  loginAttempts.delete(ip);
+}
+
+// Limpar registros antigos periodicamente
+setInterval(() => {
+  const now = Date.now();
+  const entries = Array.from(loginAttempts.entries());
+  for (const [ip, record] of entries) {
+    if (now > record.resetAt) {
+      loginAttempts.delete(ip);
+    }
+  }
+}, 60 * 1000); // A cada minuto
+
+// ========== POLITICA DE SENHA ==========
+
+interface PasswordValidationResult {
+  valid: boolean;
+  errors: string[];
+}
+
+/**
+ * Valida senha com regras robustas:
+ * - Minimo 8 caracteres
+ * - Pelo menos 1 letra maiuscula
+ * - Pelo menos 1 numero
+ */
+export function validatePassword(password: string): PasswordValidationResult {
+  const errors: string[] = [];
+
+  if (password.length < 8) {
+    errors.push("Senha deve ter no minimo 8 caracteres");
+  }
+
+  if (!/[A-Z]/.test(password)) {
+    errors.push("Senha deve conter pelo menos 1 letra maiuscula");
+  }
+
+  if (!/[0-9]/.test(password)) {
+    errors.push("Senha deve conter pelo menos 1 numero");
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+  };
+}
+
+// ========== MIDDLEWARE DE RATE LIMITING GERAL ==========
+
+/**
+ * Middleware de rate limiting usando Redis (100 req/min por usuario)
+ * Funciona sem Redis (permite todas as requisicoes)
+ */
+export const rateLimitMiddleware: RequestHandler = async (req, res, next) => {
+  const user = req.user as any;
+  const identifier = user?.id || getClientIp(req);
+
+  const result = await checkRateLimit(identifier);
+
+  // Adicionar headers de rate limit
+  res.setHeader("X-RateLimit-Limit", result.limit);
+  res.setHeader("X-RateLimit-Remaining", result.remaining);
+  res.setHeader("X-RateLimit-Reset", result.reset);
+
+  if (!result.success) {
+    return res.status(429).json({
+      message: "Muitas requisicoes. Tente novamente em alguns segundos.",
+      retryAfter: Math.ceil((result.reset - Date.now()) / 1000),
+    });
+  }
+
+  next();
+};
 
 /**
  * Configura middleware de sessao com PostgreSQL
@@ -107,15 +220,30 @@ export async function setupAuth(app: Express) {
     }
   });
 
-  // Endpoint: Login
+  // Endpoint: Login (com rate limiting anti-brute-force)
   app.post("/api/login", (req, res, next) => {
+    const clientIp = getClientIp(req);
+    const rateLimitCheck = checkLoginRateLimit(clientIp);
+
+    if (!rateLimitCheck.allowed) {
+      return res.status(429).json({
+        message: `Muitas tentativas de login. Tente novamente em ${rateLimitCheck.retryAfter} segundos.`,
+        retryAfter: rateLimitCheck.retryAfter,
+      });
+    }
+
     passport.authenticate("local", (err: any, user: any, info: any) => {
       if (err) {
         return res.status(500).json({ message: "Erro interno do servidor" });
       }
       if (!user) {
+        // Nao resetar contador em caso de falha (brute force protection)
         return res.status(401).json({ message: info?.message || "Credenciais invalidas" });
       }
+
+      // Login bem-sucedido: resetar contador de tentativas
+      resetLoginAttempts(clientIp);
+
       req.logIn(user, (loginErr) => {
         if (loginErr) {
           return res.status(500).json({ message: "Erro ao iniciar sessao" });
@@ -127,9 +255,20 @@ export async function setupAuth(app: Express) {
     })(req, res, next);
   });
 
-  // Endpoint: Registro (configuravel via env)
+  // Endpoint: Registro (configuravel via env, com rate limiting)
   app.post("/api/register", async (req, res) => {
     try {
+      // Rate limiting para registro (mesmo mecanismo do login)
+      const clientIp = getClientIp(req);
+      const rateLimitCheck = checkLoginRateLimit(clientIp);
+
+      if (!rateLimitCheck.allowed) {
+        return res.status(429).json({
+          message: `Muitas tentativas. Tente novamente em ${rateLimitCheck.retryAfter} segundos.`,
+          retryAfter: rateLimitCheck.retryAfter,
+        });
+      }
+
       const allowRegistration = process.env.ALLOW_REGISTRATION === "true";
       if (!allowRegistration) {
         return res.status(403).json({ message: "Registro desabilitado. Contate o administrador." });
@@ -141,8 +280,13 @@ export async function setupAuth(app: Express) {
         return res.status(400).json({ message: "Email e senha sao obrigatorios" });
       }
 
-      if (password.length < 6) {
-        return res.status(400).json({ message: "Senha deve ter no minimo 6 caracteres" });
+      // Validacao de senha robusta
+      const passwordValidation = validatePassword(password);
+      if (!passwordValidation.valid) {
+        return res.status(400).json({
+          message: "Senha invalida",
+          errors: passwordValidation.errors,
+        });
       }
 
       // Verificar se usuario ja existe

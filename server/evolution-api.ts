@@ -4,6 +4,11 @@
  * Documentation: https://doc.evolution-api.com/
  */
 
+import { whatsappLogger } from './logger';
+
+// Timeout padrao para chamadas externas (30 segundos)
+const DEFAULT_TIMEOUT_MS = 30000;
+
 export interface EvolutionInstance {
   instanceName: string;
   instanceId?: string;
@@ -61,46 +66,74 @@ export class EvolutionApiService {
   }
 
   /**
-   * Make a request to Evolution API
+   * Make a request to Evolution API with timeout
    */
   private async request<T>(
     method: string,
     endpoint: string,
-    body?: Record<string, unknown>
+    body?: Record<string, unknown>,
+    timeoutMs: number = DEFAULT_TIMEOUT_MS
   ): Promise<T> {
     if (!this.isConfigured()) {
       throw new Error('Evolution API is not configured');
     }
 
     const url = `${this.baseUrl}${endpoint}`;
+    const start = Date.now();
+
     const options: RequestInit = {
       method,
       headers: {
         'Content-Type': 'application/json',
         'apikey': this.apiKey,
       },
+      signal: AbortSignal.timeout(timeoutMs),
     };
 
     if (body) {
       options.body = JSON.stringify(body);
     }
 
-    const response = await fetch(url, options);
+    try {
+      const response = await fetch(url, options);
+      const duration = Date.now() - start;
 
-    if (!response.ok) {
-      const error = await response.text();
-      console.error(`[Evolution API] Error: ${response.status} - ${error}`);
-      throw new Error(`Evolution API error: ${response.status}`);
+      if (!response.ok) {
+        const error = await response.text();
+        whatsappLogger.error(`Evolution API error: ${response.status}`, {
+          endpoint,
+          statusCode: response.status,
+          error,
+          duration,
+        });
+        throw new Error(`Evolution API error: ${response.status}`);
+      }
+
+      whatsappLogger.info(`Evolution API ${method} ${endpoint}`, {
+        statusCode: response.status,
+        duration,
+      });
+
+      return response.json() as T;
+    } catch (error) {
+      const duration = Date.now() - start;
+      if (error instanceof Error && error.name === 'TimeoutError') {
+        whatsappLogger.error(`Evolution API timeout: ${endpoint}`, {
+          endpoint,
+          timeout: timeoutMs,
+          duration,
+        });
+        throw new Error(`Evolution API timeout after ${timeoutMs}ms`);
+      }
+      throw error;
     }
-
-    return response.json() as T;
   }
 
   /**
    * Create a new WhatsApp instance
    */
   async createInstance(instanceName: string): Promise<EvolutionInstance> {
-    console.log(`[Evolution API] Creating instance: ${instanceName}`);
+    whatsappLogger.info(`[Evolution API] Creating instance: ${instanceName}`);
 
     const result = await this.request<{ instance: EvolutionInstance }>(
       'POST',
@@ -119,7 +152,7 @@ export class EvolutionApiService {
    * Get QR code for an instance
    */
   async getQrCode(instanceName: string): Promise<EvolutionQRCode> {
-    console.log(`[Evolution API] Getting QR code for: ${instanceName}`);
+    whatsappLogger.info(`[Evolution API] Getting QR code for: ${instanceName}`);
 
     const result = await this.request<EvolutionQRCode>(
       'GET',
@@ -133,7 +166,7 @@ export class EvolutionApiService {
    * Get connection status for an instance
    */
   async getConnectionStatus(instanceName: string): Promise<EvolutionConnectionState> {
-    console.log(`[Evolution API] Getting connection status for: ${instanceName}`);
+    whatsappLogger.info(`[Evolution API] Getting connection status for: ${instanceName}`);
 
     const result = await this.request<EvolutionConnectionState>(
       'GET',
@@ -148,7 +181,7 @@ export class EvolutionApiService {
    */
   async getInstanceInfo(instanceName: string): Promise<EvolutionInstanceInfo | null> {
     try {
-      console.log(`[Evolution API] Getting instance info for: ${instanceName}`);
+      whatsappLogger.info(`[Evolution API] Getting instance info for: ${instanceName}`);
 
       const result = await this.request<EvolutionInstanceInfo>(
         'GET',
@@ -157,7 +190,7 @@ export class EvolutionApiService {
 
       return result;
     } catch (error) {
-      console.log(`[Evolution API] Instance not found: ${instanceName}`);
+      whatsappLogger.info(`[Evolution API] Instance not found: ${instanceName}`);
       return null;
     }
   }
@@ -166,7 +199,7 @@ export class EvolutionApiService {
    * Disconnect (logout) an instance
    */
   async disconnectInstance(instanceName: string): Promise<void> {
-    console.log(`[Evolution API] Disconnecting instance: ${instanceName}`);
+    whatsappLogger.info(`[Evolution API] Disconnecting instance: ${instanceName}`);
 
     await this.request<void>(
       'DELETE',
@@ -178,7 +211,7 @@ export class EvolutionApiService {
    * Delete an instance
    */
   async deleteInstance(instanceName: string): Promise<void> {
-    console.log(`[Evolution API] Deleting instance: ${instanceName}`);
+    whatsappLogger.info(`[Evolution API] Deleting instance: ${instanceName}`);
 
     await this.request<void>(
       'DELETE',
@@ -194,7 +227,7 @@ export class EvolutionApiService {
     to: string,
     text: string
   ): Promise<unknown> {
-    console.log(`[Evolution API] Sending message to ${to} from ${instanceName}`);
+    whatsappLogger.info(`[Evolution API] Sending message to ${to} from ${instanceName}`);
 
     // Normalize phone number (remove non-digits except +)
     const normalizedTo = to.replace(/[^\d+]/g, '');
@@ -222,7 +255,7 @@ export class EvolutionApiService {
     caption?: string,
     fileName?: string
   ): Promise<unknown> {
-    console.log(`[Evolution API] Sending ${mediaType} to ${to} from ${instanceName}`);
+    whatsappLogger.info(`[Evolution API] Sending ${mediaType} to ${to} from ${instanceName}`);
 
     const normalizedTo = to.replace(/[^\d+]/g, '');
 
@@ -252,7 +285,7 @@ export class EvolutionApiService {
     } catch {
       // ignore
     }
-    console.log(`[Evolution API] Setting webhook for ${instanceName}: ${safeUrl}`);
+    whatsappLogger.info(`[Evolution API] Setting webhook for ${instanceName}: ${safeUrl}`);
 
     await this.request<void>(
       'POST',

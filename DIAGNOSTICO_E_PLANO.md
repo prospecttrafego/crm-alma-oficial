@@ -378,7 +378,7 @@ Obs: o **Milestone 0** abaixo não é “MVP”. Ele é o “ambiente local de v
 
 Vou organizar por **prioridade** e por **milestones**.
 
-### Milestone 0 — Ambiente local de validação (para testar “como empresa”)
+### Milestone 0 — Ambiente local de validação (para testar "como empresa")
 Objetivo: ter um ambiente local que reproduz a operação real para validar regras, integrações e volume.
 
 - [ ] Criar `.env` a partir de `.env.example`
@@ -386,35 +386,37 @@ Objetivo: ter um ambiente local que reproduz a operação real para validar regr
 - [ ] Rodar `npm run db:push` (criar/atualizar tabelas)
 - [ ] Garantir que existe uma organizacao em `organizations` e definir `DEFAULT_ORGANIZATION_ID` corretamente
 - [ ] Subir com `npm run dev` e validar login/registro (conforme `ALLOW_REGISTRATION`)
-- [ ] Criar um “dataset de teste” (contatos, empresas, deals, conversas e mensagens) para simular volume
+- [ ] Criar um "dataset de teste" (contatos, empresas, deals, conversas e mensagens) para simular volume
 - [ ] Validar features principais manualmente: pipeline (drag), inbox (mensagens), anexos, notificacoes, relatorios
-- [ ] Rodar rotinas de qualidade: `npm run check`, `npm run lint`, `npm run build`
+- [x] Rodar rotinas de qualidade: `npm run check`, `npm run lint`, `npm run build` ✅ (2026-01-09)
 
 ### Milestone 1 (P0) — Segurança de acesso (login, sessões e permissões)
 Objetivo: reduzir risco de invasão, vazamento e ações indevidas.
 
-- [ ] Rate limit e proteção anti brute force no login e endpoints sensíveis (reaproveitar `server/redis.ts` ou outra estratégia)
-- [ ] Política de senha (mínimo, bloqueio de senhas fracas) e fluxo de “esqueci minha senha”
-- [ ] Revisar sessões/cookies: duração real, renovação, logout em todos os dispositivos, e parâmetros seguros (sem “surpresas”)
-- [ ] Definir claramente o que cada perfil pode fazer (admin/sales/cs/support) e aplicar isso nas rotas (RBAC de verdade)
+- [x] Rate limit e proteção anti brute force no login e endpoints sensíveis ✅ (2026-01-09) — 5 tentativas/min por IP no login/registro
+- [x] Política de senha (mínimo 8 chars, 1 maiúscula, 1 número) ✅ (2026-01-09)
+- [ ] Fluxo de "esqueci minha senha" (pendente)
+- [ ] Revisar sessões/cookies: duração real, renovação, logout em todos os dispositivos, e parâmetros seguros (sem "surpresas")
+- [x] Definir claramente o que cada perfil pode fazer (admin/sales/cs/support) e aplicar isso nas rotas (RBAC de verdade) ✅ (2026-01-09) — `requireRole("admin")` aplicado em pipelines
 - [ ] Revisar dados expostos nos endpoints (por exemplo: listas de usuários, auditoria, arquivos) para garantir que só sai o necessário
 - [ ] Revisar segurança de webhooks (WhatsApp): segredo obrigatório, logs de falha, e idempotência (não duplicar mensagens)
 
 ### Milestone 2 (P0) — Performance e escalabilidade (principalmente backend + banco)
 Objetivo: o CRM continuar rápido com muito dado.
 
-- [ ] Paginação + busca + ordenação nas listagens grandes (contatos, empresas, deals, conversas, atividades, notificações, auditoria)
-- [ ] Índices no Postgres para os filtros reais (email/telefone, pipeline/stage, datas de mensagem, etc.)
-- [ ] Corrigir/definir a regra de “não lidas” (evitar contar a própria mensagem; decidir se é por usuário/responsável)
-- [ ] Otimizar WhatsApp: buscar contato/conversa direto no banco (sem carregar tudo em memória)
+- [x] Paginação + busca + ordenação nas listagens grandes ✅ (2026-01-09) — contacts, companies, deals, conversations, activities
+- [x] Índices no Postgres para os filtros reais ✅ (2026-01-09) — contacts (org, email, phone, company), companies (org, domain), deals (org, pipeline, stage, status), conversations (org, contact, status, lastMessage), messages (conversation, createdAt)
+- [ ] Corrigir/definir a regra de "não lidas" (evitar contar a própria mensagem; decidir se é por usuário/responsável)
+- [x] Otimizar WhatsApp: buscar contato/conversa direto no banco ✅ (2026-01-09) — `getContactByPhone()` e `getConversationByContactAndChannel()` criados
 - [ ] Melhorar consistência de dados (ex.: normalizar e indexar telefone para busca rápida)
 
 ### Milestone 3 (P0) — Observabilidade e confiabilidade
-Objetivo: você “enxergar” problemas antes de virarem crise e evitar travar o app.
+Objetivo: você "enxergar" problemas antes de virarem crise e evitar travar o app.
 
-- [ ] Logs estruturados (com `requestId`) e logs específicos de integrações (WhatsApp, Google, OpenAI, Supabase)
-- [ ] Endpoint de health/status interno (DB ok? Supabase ok? Redis ok? Evolution ok?) para diagnosticar rapidamente
-- [ ] Timeouts e retries controlados nas chamadas externas (hoje a maioria das chamadas é “best effort”)
+- [x] Logs estruturados (com `requestId`) e logs específicos de integrações ✅ (2026-01-09) — `server/logger.ts` com whatsappLogger, googleLogger, openaiLogger, supabaseLogger
+- [x] Endpoint de health/status interno ✅ (2026-01-09) — `GET /api/health` verifica DB, Redis, Supabase, Evolution API
+- [x] Timeouts nas chamadas externas ✅ (2026-01-09) — Evolution API (30s), OpenAI (30s), Whisper (120s), download audio (60s)
+- [ ] Retries controlados nas chamadas externas (pendente)
 - [ ] Tirar tarefas pesadas do request (ex.: transcrição/sync/score) e rodar em job/background quando fizer sentido
 - [ ] Política de erros: o que retorna pro usuário, o que fica no log, e como alertar quando algo cair
 
@@ -453,14 +455,14 @@ Objetivo: transformar “multicanal” em realidade (além do WhatsApp).
 
 ## 11) Checklist de maturidade (empresa com alto volume)
 
-Use isso como “lista de pronto” para operar com confiança:
+Use isso como "lista de pronto" para operar com confiança:
 
-- [ ] Listagens com paginação + busca (não carregar tudo)
-- [ ] Índices e queries revisados (principalmente contatos, conversas, deals, mensagens)
-- [ ] Regra clara e correta de “não lidas” (por usuário ou por responsável)
-- [ ] Rate limit e proteção no login
-- [ ] Permissões por perfil aplicadas (RBAC)
-- [ ] Logs e alertas (saber quando algo quebrou)
-- [ ] Integrações com timeout/retry e status visível
-- [ ] Rotina de migrações e bootstrap (sem “mexer no banco na mão”)
+- [x] Listagens com paginação + busca (não carregar tudo) ✅
+- [x] Índices e queries revisados (principalmente contatos, conversas, deals, mensagens) ✅
+- [ ] Regra clara e correta de "não lidas" (por usuário ou por responsável)
+- [x] Rate limit e proteção no login ✅
+- [x] Permissões por perfil aplicadas (RBAC) ✅
+- [x] Logs e alertas (saber quando algo quebrou) ✅
+- [x] Integrações com timeout e status visível ✅ (retries pendente)
+- [ ] Rotina de migrações e bootstrap (sem "mexer no banco na mão")
 - [ ] Política mínima de retenção e ações LGPD (exportar/remover quando necessário)
