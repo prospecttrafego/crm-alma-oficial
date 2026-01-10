@@ -19,8 +19,11 @@ import {
   channelConfigs,
   pushTokens,
   googleOAuthTokens,
+  passwordResetTokens,
   type User,
   type UpsertUser,
+  type PasswordResetToken,
+  type InsertPasswordResetToken,
   type Organization,
   type InsertOrganization,
   type Company,
@@ -557,6 +560,29 @@ export class DatabaseStorage implements IStorage {
       .limit(1);
 
     return suffixMatch;
+  }
+
+  /**
+   * Find contact by email address
+   */
+  async getContactByEmail(email: string, organizationId: number): Promise<Contact | undefined> {
+    const tenantOrganizationId = await this.tenantOrganizationId();
+
+    // Case-insensitive email search
+    const normalizedEmail = email.toLowerCase().trim();
+
+    const [contact] = await db
+      .select()
+      .from(contacts)
+      .where(
+        and(
+          eq(contacts.organizationId, tenantOrganizationId),
+          sql`LOWER(${contacts.email}) = ${normalizedEmail}`
+        )
+      )
+      .limit(1);
+
+    return contact;
   }
 
   async createContact(contact: InsertContact): Promise<Contact> {
@@ -1109,6 +1135,18 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
+  /**
+   * Check if a message with the given externalId already exists (for idempotency)
+   */
+  async getMessageByExternalId(externalId: string): Promise<Message | undefined> {
+    const [message] = await db
+      .select()
+      .from(messages)
+      .where(eq(messages.externalId, externalId))
+      .limit(1);
+    return message;
+  }
+
   async createMessage(message: InsertMessage): Promise<Message> {
     const tenantOrganizationId = await this.tenantOrganizationId();
     const [conversation] = await db
@@ -1121,10 +1159,25 @@ export class DatabaseStorage implements IStorage {
       throw new Error("Conversation not found");
     }
 
-    const [created] = await db.insert(messages).values(message).returning();
+    // If message is from a user, pre-populate readBy with the sender
+    // This prevents the sender's own message from counting as unread for them
+    const messageData = { ...message };
+    if (message.senderType === 'user' && message.senderId) {
+      messageData.readBy = [message.senderId];
+    }
+
+    const [created] = await db.insert(messages).values(messageData).returning();
+
+    // Only increment unreadCount for messages from contacts (not from users)
+    // This ensures user-sent messages don't inflate the unread counter
+    const shouldIncrementUnread = message.senderType === 'contact';
+
     await db
       .update(conversations)
-      .set({ lastMessageAt: new Date(), unreadCount: sql`${conversations.unreadCount} + 1` })
+      .set({
+        lastMessageAt: new Date(),
+        ...(shouldIncrementUnread ? { unreadCount: sql`${conversations.unreadCount} + 1` } : {}),
+      })
       .where(and(eq(conversations.id, message.conversationId), eq(conversations.organizationId, tenantOrganizationId)));
     return created;
   }
@@ -2195,6 +2248,189 @@ export class DatabaseStorage implements IStorage {
         ),
       )
       .orderBy(desc(calendarEvents.startTime));
+  }
+
+  // ========== PASSWORD RESET TOKENS ==========
+
+  /**
+   * Create a password reset token
+   */
+  async createPasswordResetToken(token: InsertPasswordResetToken): Promise<PasswordResetToken> {
+    // Delete any existing tokens for this user first
+    await db.delete(passwordResetTokens).where(eq(passwordResetTokens.userId, token.userId));
+
+    const [created] = await db.insert(passwordResetTokens).values(token).returning();
+    return created;
+  }
+
+  /**
+   * Get a valid (not expired, not used) password reset token
+   */
+  async getValidPasswordResetToken(token: string): Promise<PasswordResetToken | undefined> {
+    const [resetToken] = await db
+      .select()
+      .from(passwordResetTokens)
+      .where(
+        and(
+          eq(passwordResetTokens.token, token),
+          gte(passwordResetTokens.expiresAt, new Date()),
+          sql`${passwordResetTokens.usedAt} IS NULL`
+        )
+      )
+      .limit(1);
+    return resetToken;
+  }
+
+  /**
+   * Mark a password reset token as used
+   */
+  async markPasswordResetTokenUsed(token: string): Promise<void> {
+    await db
+      .update(passwordResetTokens)
+      .set({ usedAt: new Date() })
+      .where(eq(passwordResetTokens.token, token));
+  }
+
+  /**
+   * Delete expired password reset tokens (cleanup)
+   */
+  async cleanupExpiredPasswordResetTokens(): Promise<number> {
+    const result = await db
+      .delete(passwordResetTokens)
+      .where(lt(passwordResetTokens.expiresAt, new Date()))
+      .returning({ token: passwordResetTokens.token });
+    return result.length;
+  }
+
+  // ========== LGPD COMPLIANCE ==========
+
+  /**
+   * Get all conversations for a contact
+   */
+  async getConversationsByContact(contactId: number): Promise<Conversation[]> {
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    return await db
+      .select()
+      .from(conversations)
+      .where(
+        and(
+          eq(conversations.contactId, contactId),
+          eq(conversations.organizationId, tenantOrganizationId)
+        )
+      );
+  }
+
+  /**
+   * Get all activities for a contact
+   */
+  async getActivitiesByContact(contactId: number): Promise<Activity[]> {
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    return await db
+      .select()
+      .from(activities)
+      .where(
+        and(
+          eq(activities.contactId, contactId),
+          eq(activities.organizationId, tenantOrganizationId)
+        )
+      );
+  }
+
+  /**
+   * Get all deals for a contact
+   */
+  async getDealsByContact(contactId: number): Promise<Deal[]> {
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    return await db
+      .select()
+      .from(deals)
+      .where(
+        and(
+          eq(deals.contactId, contactId),
+          eq(deals.organizationId, tenantOrganizationId)
+        )
+      );
+  }
+
+  /**
+   * Delete all messages in a conversation
+   */
+  async deleteMessagesByConversation(conversationId: number): Promise<number> {
+    const result = await db
+      .delete(messages)
+      .where(eq(messages.conversationId, conversationId))
+      .returning({ id: messages.id });
+    return result.length;
+  }
+
+  /**
+   * Delete all conversations for a contact
+   */
+  async deleteConversationsByContact(contactId: number): Promise<number> {
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    const result = await db
+      .delete(conversations)
+      .where(
+        and(
+          eq(conversations.contactId, contactId),
+          eq(conversations.organizationId, tenantOrganizationId)
+        )
+      )
+      .returning({ id: conversations.id });
+    return result.length;
+  }
+
+  /**
+   * Delete all activities for a contact
+   */
+  async deleteActivitiesByContact(contactId: number): Promise<number> {
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    const result = await db
+      .delete(activities)
+      .where(
+        and(
+          eq(activities.contactId, contactId),
+          eq(activities.organizationId, tenantOrganizationId)
+        )
+      )
+      .returning({ id: activities.id });
+    return result.length;
+  }
+
+  /**
+   * Unlink deals from a contact (preserve deal history but remove contact reference)
+   */
+  async unlinkDealsFromContact(contactId: number): Promise<number> {
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    const result = await db
+      .update(deals)
+      .set({ contactId: null, updatedAt: new Date() })
+      .where(
+        and(
+          eq(deals.contactId, contactId),
+          eq(deals.organizationId, tenantOrganizationId)
+        )
+      )
+      .returning({ id: deals.id });
+    return result.length;
+  }
+
+  /**
+   * Delete files by entity type and ID
+   */
+  async deleteFilesByEntity(entityType: FileEntityType, entityId: number): Promise<number> {
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    const result = await db
+      .delete(files)
+      .where(
+        and(
+          eq(files.entityType, entityType),
+          eq(files.entityId, entityId),
+          eq(files.organizationId, tenantOrganizationId)
+        )
+      )
+      .returning({ id: files.id });
+    return result.length;
   }
 }
 

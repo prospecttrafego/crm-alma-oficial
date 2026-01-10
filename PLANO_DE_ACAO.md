@@ -27,11 +27,11 @@ Objetivo: reduzir risco de invasão, vazamento e ações indevidas.
 - [x] Rate limit e proteção anti brute force no login e endpoints sensíveis ✅ (2026-01-09) — 5 tentativas/min por IP no login/registro
 - [x] Rate limit geral para rotas autenticadas ✅ (2026-01-09) — exige Upstash Redis configurado
 - [x] Política de senha (mínimo 8 chars, 1 maiúscula, 1 número) ✅ (2026-01-09)
-- [ ] Fluxo de "esqueci minha senha" (pendente)
+- [x] Fluxo de "esqueci minha senha" ✅ (2026-01-09) — `POST /api/forgot-password` e `POST /api/reset-password` com token de 1h
 - [ ] Revisar sessões/cookies: duração real, renovação, logout em todos os dispositivos, e parâmetros seguros (sem "surpresas")
 - [x] Definir claramente o que cada perfil pode fazer (admin/sales/cs/support) e aplicar isso nas rotas (RBAC de verdade) ✅ (2026-01-09) — `requireRole("admin")` aplicado em pipelines
 - [ ] Revisar dados expostos nos endpoints (por exemplo: listas de usuários, auditoria, arquivos) para garantir que só sai o necessário
-- [ ] Revisar segurança de webhooks (WhatsApp): segredo obrigatório, logs de falha, e idempotência (não duplicar mensagens)
+- [x] Revisar segurança de webhooks (WhatsApp): segredo obrigatório, logs de falha, e idempotência ✅ (2026-01-09) — campo `externalId` em mensagens + validação de token
 
 ---
 
@@ -41,7 +41,7 @@ Objetivo: o CRM continuar rápido com muito dado.
 - [x] Paginação + busca + ordenação nas listagens grandes ✅ (2026-01-09) — contacts, companies, deals, conversations, activities
 - [x] Índices no Postgres para os filtros reais ✅ (2026-01-09) — contacts (org, email, phone, company), companies (org, domain), deals (org, pipeline, stage, status), conversations (org, contact, status, lastMessage), messages (conversation, createdAt)
 - [x] Reutilizar pool do Postgres (queries + sessões) ✅ (2026-01-09) — reduz conexões duplicadas no banco
-- [ ] Corrigir/definir a regra de "não lidas" (evitar contar a própria mensagem; decidir se é por usuário/responsável)
+- [x] Corrigir/definir a regra de "não lidas" ✅ (2026-01-09) — mensagens de usuário não incrementam unreadCount; sender já é adicionado ao readBy
 - [x] Otimizar WhatsApp: buscar contato/conversa direto no banco ✅ (2026-01-09) — `getContactByPhone()` e `getConversationByContactAndChannel()` criados
 - [ ] Melhorar consistência de dados (ex.: normalizar e indexar telefone para busca rápida)
 
@@ -53,7 +53,7 @@ Objetivo: você "enxergar" problemas antes de virarem crise e evitar travar o ap
 - [x] Logs estruturados (com `requestId`) e logs específicos de integrações ✅ (2026-01-09) — `server/logger.ts` com whatsappLogger, googleLogger, openaiLogger, supabaseLogger
 - [x] Endpoint de health/status interno ✅ (2026-01-09) — `GET /api/health` verifica DB, Redis, Supabase, Evolution API
 - [x] Timeouts nas chamadas externas ✅ (2026-01-09) — Evolution API (30s), OpenAI (30s), Whisper (120s), download audio (60s)
-- [ ] Retries controlados nas chamadas externas (pendente)
+- [x] Retries controlados nas chamadas externas ✅ (2026-01-09) — `server/retry.ts` com exponential backoff + jitter; aplicado em Evolution API
 - [ ] Tirar tarefas pesadas do request (ex.: transcrição/sync/score) e rodar em job/background quando fizer sentido
 - [ ] Política de erros: o que retorna pro usuário, o que fica no log, e como alertar quando algo cair
 
@@ -63,7 +63,7 @@ Objetivo: você "enxergar" problemas antes de virarem crise e evitar travar o ap
 Objetivo: as integrações serem estáveis e completas.
 
 - [ ] Email: implementar sincronização IMAP + envio SMTP usando `channel_configs.emailConfig` (com segurança e proteção de credenciais)
-- [ ] WhatsApp: suportar mídia/anexos recebidos (baixar mídia, registrar em `files`, vincular na mensagem)
+- [x] WhatsApp: suportar mídia/anexos recebidos ✅ (2026-01-09) — baixa mídia da Evolution API, salva no Supabase Storage, registra em `files`, adiciona attachment na mensagem
 - [ ] Google Calendar: sincronização incremental e tratamento robusto de refresh token/expiração
 - [ ] Firebase push: fluxo de tokens (registrar/atualizar/remover) e testes reais em múltiplos dispositivos
 
@@ -113,10 +113,10 @@ Use isso como "lista de pronto" para operar com confiança:
 
 - [x] Listagens com paginação + busca (não carregar tudo) ✅
 - [x] Índices e queries revisados (principalmente contatos, conversas, deals, mensagens) ✅
-- [ ] Regra clara e correta de "não lidas" (por usuário ou por responsável)
+- [x] Regra clara e correta de "não lidas" ✅ (2026-01-09)
 - [x] Rate limit e proteção no login ✅
 - [x] Permissões por perfil aplicadas (RBAC) ✅
 - [x] Logs e alertas (saber quando algo quebrou) ✅
-- [x] Integrações com timeout e status visível ✅ (retries pendente)
+- [x] Integrações com timeout e status visível ✅ (retries implementado 2026-01-09)
 - [ ] Rotina de migrações e bootstrap (sem "mexer no banco na mão")
 - [ ] Política mínima de retenção e ações LGPD (exportar/remover quando necessário)

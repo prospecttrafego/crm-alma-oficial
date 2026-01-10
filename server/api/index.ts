@@ -14,6 +14,7 @@ import { registerFileRoutes } from "./files";
 import { registerGoogleCalendarRoutes } from "./googleCalendar";
 import { registerHealthRoutes } from "./health";
 import { registerLeadScoreRoutes } from "./leadScores";
+import { registerLgpdRoutes } from "./lgpd";
 import { registerNotificationRoutes } from "./notifications";
 import { registerObjectRoutes } from "./objects";
 import { registerPipelineRoutes } from "./pipelines";
@@ -45,5 +46,6 @@ export function registerApiRoutes(app: Express) {
   registerPushTokenRoutes(app);
   registerGoogleCalendarRoutes(app);
   registerObjectRoutes(app);
+  registerLgpdRoutes(app);
 }
 

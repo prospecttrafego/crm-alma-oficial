@@ -10,6 +10,8 @@ import {
   Users,
   Kanban,
   Shield,
+  Download,
+  UserX,
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
@@ -33,12 +35,16 @@ const actionIcons: Record<AuditLogAction, typeof Plus> = {
   create: Plus,
   update: Pencil,
   delete: Trash2,
+  lgpd_export: Download,
+  lgpd_delete: UserX,
 };
 
 const actionColors: Record<AuditLogAction, string> = {
   create: "bg-green-500/10 text-green-500",
   update: "bg-blue-500/10 text-blue-500",
   delete: "bg-red-500/10 text-red-500",
+  lgpd_export: "bg-purple-500/10 text-purple-500",
+  lgpd_delete: "bg-orange-500/10 text-orange-500",
 };
 
 const entityIcons: Record<AuditLogEntityType, typeof Kanban> = {

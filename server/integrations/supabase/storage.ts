@@ -7,8 +7,8 @@ import { Response } from "express";
 import { randomUUID } from "crypto";
 import { and, eq } from "drizzle-orm";
 import { files, users } from "@shared/schema";
-import { db } from "./db";
-import { getSingleTenantOrganizationId } from "./tenant";
+import { db } from "../../db";
+import { getSingleTenantOrganizationId } from "../../tenant";
 
 // Cliente Supabase com service_role key para acesso administrativo
 let supabaseClient: SupabaseClient | null = null;
@@ -286,6 +286,71 @@ export class ObjectStorageService {
     // Esta funcao existe para compatibilidade com o codigo antigo
     // A configuracao de acesso deve ser feita via politicas RLS no Supabase
     return normalizedPath;
+  }
+
+  /**
+   * Download media from URL and upload to Supabase Storage
+   * Returns the object path and public URL
+   */
+  async downloadAndUploadFromUrl(
+    sourceUrl: string,
+    mimeType: string,
+    fileName?: string,
+    folder: string = "whatsapp-media"
+  ): Promise<{ objectPath: string; publicUrl: string }> {
+    try {
+      // Fetch the media from the source URL
+      const response = await fetch(sourceUrl, {
+        headers: {
+          'User-Agent': 'CRM-Alma/1.0',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to download media: ${response.status}`);
+      }
+
+      const arrayBuffer = await response.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+
+      // Generate file name if not provided
+      const extension = this.getExtensionFromMimeType(mimeType);
+      const finalFileName = fileName || `media_${Date.now()}${extension}`;
+
+      // Upload to Supabase
+      const objectPath = await this.uploadFile(buffer, finalFileName, mimeType, folder);
+      const publicUrl = this.getPublicUrl(objectPath);
+
+      return { objectPath, publicUrl };
+    } catch (error) {
+      console.error("Error downloading/uploading media:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get file extension from MIME type
+   */
+  private getExtensionFromMimeType(mimeType: string): string {
+    const mimeToExt: Record<string, string> = {
+      'image/jpeg': '.jpg',
+      'image/png': '.png',
+      'image/gif': '.gif',
+      'image/webp': '.webp',
+      'audio/ogg': '.ogg',
+      'audio/opus': '.opus',
+      'audio/mpeg': '.mp3',
+      'audio/mp4': '.m4a',
+      'video/mp4': '.mp4',
+      'video/3gpp': '.3gp',
+      'application/pdf': '.pdf',
+      'application/msword': '.doc',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
+      'application/vnd.ms-excel': '.xls',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '.xlsx',
+    };
+
+    return mimeToExt[mimeType] || '';
   }
 
   /**

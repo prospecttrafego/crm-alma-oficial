@@ -3,9 +3,126 @@ import { insertChannelConfigSchema } from "@shared/schema";
 import { isAuthenticated } from "../auth";
 import { storage } from "../storage";
 import { broadcast } from "../ws/index";
-import { evolutionApi } from "../evolution-api";
+import { evolutionApi } from "../integrations/evolution/api";
+import {
+  verifySmtpConnection,
+  verifyImapConnection,
+  sendEmail,
+  syncEmails,
+  type EmailConfig,
+  type ParsedEmail,
+} from "../integrations/email";
+import { logger } from "../logger";
 
 const updateChannelConfigSchema = insertChannelConfigSchema.partial().omit({ organizationId: true, type: true });
+
+/**
+ * Process an incoming email and create/update conversation and message
+ */
+async function processIncomingEmail(
+  email: ParsedEmail,
+  channelConfigId: number,
+  organizationId: number,
+  defaultUserId: string
+): Promise<void> {
+  // Extract sender email
+  const senderEmail = email.from[0]?.address;
+  if (!senderEmail) {
+    logger.warn("[Email] Skipping email without sender", { messageId: email.messageId });
+    return;
+  }
+
+  // Try to find existing contact by email
+  let contact = await storage.getContactByEmail(senderEmail, organizationId);
+
+  // Create contact if not found
+  if (!contact) {
+    const senderName = email.from[0]?.name || senderEmail.split("@")[0];
+    const nameParts = senderName.split(" ");
+    const firstName = nameParts[0] || senderName;
+    const lastName = nameParts.slice(1).join(" ") || "";
+
+    contact = await storage.createContact({
+      firstName,
+      lastName,
+      email: senderEmail,
+      organizationId,
+      source: "email",
+    });
+
+    logger.info("[Email] Created new contact from email", {
+      contactId: contact.id,
+      email: senderEmail,
+    });
+  }
+
+  // Try to find existing conversation by references/inReplyTo or create new
+  let conversation = null;
+
+  // Look for existing conversation by subject + contact (simplified threading)
+  const existingConversations = await storage.getConversationsByContact(contact.id);
+  for (const conv of existingConversations) {
+    if (conv.channel === "email" && conv.subject === email.subject) {
+      conversation = conv;
+      break;
+    }
+  }
+
+  // Create new conversation if not found
+  if (!conversation) {
+    conversation = await storage.createConversation({
+      subject: email.subject,
+      channel: "email",
+      status: "open",
+      contactId: contact.id,
+      organizationId,
+      assignedToId: defaultUserId,
+    });
+
+    logger.info("[Email] Created new conversation", {
+      conversationId: conversation.id,
+      subject: email.subject,
+    });
+
+    broadcast("conversation:created", conversation);
+  }
+
+  // Build message content (prefer text, fallback to stripped HTML)
+  const content = email.text || (email.html ? email.html.replace(/<[^>]*>/g, " ").trim() : "(Sem conteúdo)");
+
+  // Create the message
+  const message = await storage.createMessage({
+    conversationId: conversation.id,
+    content,
+    contentType: "text",
+    senderType: "contact",
+    isInternal: false,
+    // Store email-specific metadata (schema allows any JSON)
+    metadata: {
+      emailMessageId: email.messageId,
+      emailFrom: email.from,
+      emailTo: email.to,
+      emailCc: email.cc,
+      emailDate: email.date.toISOString(),
+      hasAttachments: email.attachments.length > 0,
+    } as any,
+  });
+
+  // Update conversation with last message timestamp
+  await storage.updateConversation(conversation.id, {
+    lastMessageAt: new Date(),
+    unreadCount: (conversation.unreadCount || 0) + 1,
+    status: "open",
+  });
+
+  broadcast("message:created", { ...message, conversation });
+
+  logger.info("[Email] Processed incoming email", {
+    messageId: email.messageId,
+    conversationId: conversation.id,
+    contactId: contact.id,
+  });
+}
 
 function redactChannelConfigSecrets(config: any) {
   const redacted = { ...config };
@@ -124,7 +241,27 @@ export function registerChannelConfigRoutes(app: Express) {
       if (!config) return res.status(404).json({ message: "Channel config not found" });
 
       if (config.type === "email") {
-        res.json({ success: true, message: "Email configuration validated successfully" });
+        const emailConfig = config.emailConfig as EmailConfig | undefined;
+        if (!emailConfig) {
+          return res.status(400).json({ message: "Email configuration is missing" });
+        }
+
+        // Test both IMAP and SMTP connections
+        const [imapOk, smtpOk] = await Promise.all([
+          verifyImapConnection(emailConfig),
+          verifySmtpConnection(emailConfig),
+        ]);
+
+        if (imapOk && smtpOk) {
+          res.json({ success: true, message: "Email configuration validated successfully", imap: true, smtp: true });
+        } else {
+          res.status(400).json({
+            success: false,
+            message: "Email configuration validation failed",
+            imap: imapOk,
+            smtp: smtpOk,
+          });
+        }
       } else if (config.type === "whatsapp") {
         res.json({ success: true, message: "WhatsApp configuration validated successfully" });
       } else {
@@ -133,6 +270,111 @@ export function registerChannelConfigRoutes(app: Express) {
     } catch (error) {
       console.error("Error testing channel config:", error);
       res.status(500).json({ message: "Failed to test channel config" });
+    }
+  });
+
+  // ========== EMAIL ROUTES ==========
+
+  // Sync emails from IMAP
+  app.post("/api/channel-configs/:id/email/sync", isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+
+      const config = await storage.getChannelConfig(id);
+      if (!config) return res.status(404).json({ message: "Channel config not found" });
+      if (config.type !== "email") return res.status(400).json({ message: "Not an email channel" });
+
+      const emailConfig = config.emailConfig as EmailConfig | undefined;
+      if (!emailConfig) {
+        return res.status(400).json({ message: "Email configuration is missing" });
+      }
+
+      const user = req.user as any;
+      const organizationId = config.organizationId;
+
+      // Get last sync UID from config metadata
+      const lastSyncUid = (config as any).lastSyncUid as number | undefined;
+
+      // Sync emails and create conversations/messages
+      const result = await syncEmails(emailConfig, lastSyncUid, async (email: ParsedEmail) => {
+        await processIncomingEmail(email, config.id, organizationId, user.id);
+      });
+
+      // Update last sync timestamp and UID
+      if (result.lastUid) {
+        await storage.updateChannelConfig(id, {
+          lastSyncAt: new Date(),
+        });
+        // Store lastSyncUid in a way that doesn't conflict with the schema
+        // For now, we'll rely on lastSyncAt and fetch all recent emails
+      }
+
+      logger.info("[Email] Sync completed", {
+        channelId: id,
+        newEmails: result.newEmails,
+        errors: result.errors.length,
+      });
+
+      res.json({
+        success: true,
+        newEmails: result.newEmails,
+        totalProcessed: result.totalProcessed,
+        errors: result.errors,
+      });
+    } catch (error) {
+      console.error("Error syncing emails:", error);
+      res.status(500).json({ message: "Failed to sync emails" });
+    }
+  });
+
+  // Send email via SMTP
+  app.post("/api/channel-configs/:id/email/send", isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+
+      const { to, cc, bcc, subject, text, html, inReplyTo, references } = req.body;
+
+      if (!to) return res.status(400).json({ message: "Recipient (to) is required" });
+      if (!subject) return res.status(400).json({ message: "Subject is required" });
+      if (!text && !html) return res.status(400).json({ message: "Either text or html body is required" });
+
+      const config = await storage.getChannelConfig(id);
+      if (!config) return res.status(404).json({ message: "Channel config not found" });
+      if (config.type !== "email") return res.status(400).json({ message: "Not an email channel" });
+
+      const emailConfig = config.emailConfig as EmailConfig | undefined;
+      if (!emailConfig) {
+        return res.status(400).json({ message: "Email configuration is missing" });
+      }
+
+      const result = await sendEmail(emailConfig, {
+        to,
+        cc,
+        bcc,
+        subject,
+        text,
+        html,
+        inReplyTo,
+        references,
+      });
+
+      logger.info("[Email] Message sent", {
+        channelId: id,
+        messageId: result.messageId,
+        to,
+      });
+
+      res.json({
+        success: true,
+        messageId: result.messageId,
+        accepted: result.accepted,
+        rejected: result.rejected,
+      });
+    } catch (error) {
+      console.error("Error sending email:", error);
+      res.status(500).json({ message: "Failed to send email" });
     }
   });
 

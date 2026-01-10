@@ -51,7 +51,7 @@ function verifyOAuthState(state: string): { userId: string; timestamp: number } 
 export function registerGoogleCalendarRoutes(app: Express) {
   // Check if Google Calendar is configured
   app.get("/api/integrations/google-calendar/configured", isAuthenticated, async (_req: any, res) => {
-    const { googleCalendarService } = await import("../google-calendar");
+    const { googleCalendarService } = await import("../integrations/google/calendar");
     res.json({ configured: googleCalendarService.isConfigured() });
   });
 
@@ -86,7 +86,7 @@ export function registerGoogleCalendarRoutes(app: Express) {
   // Initiate OAuth flow - returns authorization URL
   app.get("/api/auth/google/authorize", isAuthenticated, async (req: any, res) => {
     try {
-      const { googleCalendarService } = await import("../google-calendar");
+      const { googleCalendarService } = await import("../integrations/google/calendar");
 
       if (!googleCalendarService.isConfigured()) {
         return res.status(503).json({ message: "Google Calendar integration is not configured" });
@@ -132,7 +132,7 @@ export function registerGoogleCalendarRoutes(app: Express) {
         return res.redirect("/settings?google_calendar=error&message=invalid_user");
       }
 
-      const { googleCalendarService, encryptToken } = await import("../google-calendar");
+      const { googleCalendarService, encryptToken } = await import("../integrations/google/calendar");
 
       // Exchange code for tokens
       const tokens = await googleCalendarService.exchangeCode(String(code));
@@ -171,7 +171,7 @@ export function registerGoogleCalendarRoutes(app: Express) {
       if (token) {
         // Try to revoke the token
         try {
-          const { googleCalendarService, decryptToken } = await import("../google-calendar");
+          const { googleCalendarService, decryptToken } = await import("../integrations/google/calendar");
           const accessToken = decryptToken(token.accessToken);
           await googleCalendarService.revokeTokens(accessToken);
         } catch (revokeError) {
@@ -189,7 +189,7 @@ export function registerGoogleCalendarRoutes(app: Express) {
     }
   });
 
-  // Trigger manual sync
+  // Trigger manual sync (supports incremental sync)
   app.post("/api/integrations/google-calendar/sync", isAuthenticated, async (req: any, res) => {
     try {
       const userId = (req.user as any).id;
@@ -203,7 +203,7 @@ export function registerGoogleCalendarRoutes(app: Express) {
         return res.status(400).json({ message: "Google Calendar not connected" });
       }
 
-      const { googleCalendarService, decryptToken, encryptToken } = await import("../google-calendar");
+      const { googleCalendarService, decryptToken, encryptToken } = await import("../integrations/google/calendar");
 
       // Update sync status
       await storage.updateGoogleOAuthToken(userId, { syncStatus: "syncing", syncError: null });
@@ -227,38 +227,79 @@ export function registerGoogleCalendarRoutes(app: Express) {
           });
         }
 
-        // Import events from Google Calendar
-        const { events } = await googleCalendarService.listEvents(accessToken, token.calendarId || "primary");
-
+        const calendarId = token.calendarId || "primary";
         let imported = 0;
-        for (const googleEvent of events) {
-          // Check if event already exists
+        let updated = 0;
+        let deleted = 0;
+        let nextSyncToken: string | undefined;
+
+        // Try incremental sync if we have a syncToken
+        let result = await googleCalendarService.listEvents(accessToken, calendarId, {
+          syncToken: token.syncToken || undefined,
+        });
+
+        // If syncToken is invalid, do a full sync
+        if (result.syncTokenInvalid) {
+          console.log("[Google Calendar] SyncToken invalid, performing full sync");
+          result = await googleCalendarService.listEvents(accessToken, calendarId);
+        }
+
+        nextSyncToken = result.nextSyncToken;
+
+        // Process events
+        for (const googleEvent of result.events) {
           const existingEvent = await storage.getCalendarEventByGoogleId(googleEvent.id, userId);
 
-          if (!existingEvent) {
+          if (googleEvent.cancelled) {
+            // Event was deleted in Google Calendar
+            if (existingEvent) {
+              await storage.deleteCalendarEvent(existingEvent.id);
+              deleted++;
+            }
+          } else if (existingEvent) {
+            // Update existing event
+            await storage.updateCalendarEvent(existingEvent.id, {
+              title: googleEvent.summary,
+              description: googleEvent.description || null,
+              location: googleEvent.location || null,
+              startTime: googleEvent.start,
+              endTime: googleEvent.end,
+              allDay: googleEvent.allDay,
+              attendees: googleEvent.attendees || null,
+              lastSyncedAt: new Date(),
+            });
+            updated++;
+          } else {
             // Create new event
             const crmEvent = googleCalendarService.googleEventToCrmEvent(
               googleEvent,
               userId,
               user.organizationId,
-              token.calendarId || "primary",
+              calendarId
             );
             await storage.createCalendarEvent(crmEvent);
             imported++;
           }
         }
 
-        // Update sync status
+        // Update sync status and store the new syncToken
         await storage.updateGoogleOAuthToken(userId, {
           syncStatus: "idle",
           lastSyncAt: new Date(),
           syncError: null,
+          syncToken: nextSyncToken || null,
         });
 
         // Broadcast sync complete via WebSocket
-        broadcast("google_calendar:sync_complete", { userId, imported });
+        broadcast("google_calendar:sync_complete", { userId, imported, updated, deleted });
 
-        res.json({ success: true, imported });
+        res.json({
+          success: true,
+          imported,
+          updated,
+          deleted,
+          incremental: !!token.syncToken && !result.syncTokenInvalid,
+        });
       } catch (syncError: any) {
         await storage.updateGoogleOAuthToken(userId, {
           syncStatus: "error",

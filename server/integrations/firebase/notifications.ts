@@ -97,17 +97,22 @@ export async function sendPushNotification(
  * Send push notification to multiple devices
  * @param tokens - Array of FCM device tokens
  * @param payload - Notification content
+ * @returns Object with success/failure counts and list of invalid tokens
  */
 export async function sendPushNotificationBatch(
   tokens: string[],
   payload: PushNotificationPayload
-): Promise<{ successCount: number; failureCount: number }> {
+): Promise<{
+  successCount: number;
+  failureCount: number;
+  invalidTokens: string[];
+}> {
   if (!firebaseInitialized) {
-    return { successCount: 0, failureCount: tokens.length };
+    return { successCount: 0, failureCount: tokens.length, invalidTokens: [] };
   }
 
   if (tokens.length === 0) {
-    return { successCount: 0, failureCount: 0 };
+    return { successCount: 0, failureCount: 0, invalidTokens: [] };
   }
 
   try {
@@ -133,16 +138,35 @@ export async function sendPushNotificationBatch(
     };
 
     const response = await admin.messaging().sendEachForMulticast(message);
+
+    // Collect invalid tokens for cleanup
+    const invalidTokens: string[] = [];
+    response.responses.forEach((resp, idx) => {
+      if (!resp.success && resp.error) {
+        const errorCode = resp.error.code;
+        // These error codes indicate the token is permanently invalid
+        if (
+          errorCode === "messaging/invalid-registration-token" ||
+          errorCode === "messaging/registration-token-not-registered" ||
+          errorCode === "messaging/invalid-argument"
+        ) {
+          invalidTokens.push(tokens[idx]);
+        }
+      }
+    });
+
     console.log(
-      `[FCM] Batch sent: ${response.successCount} success, ${response.failureCount} failures`
+      `[FCM] Batch sent: ${response.successCount} success, ${response.failureCount} failures, ${invalidTokens.length} invalid tokens`
     );
+
     return {
       successCount: response.successCount,
       failureCount: response.failureCount,
+      invalidTokens,
     };
   } catch (error) {
     console.error("[FCM] Error sending batch message:", error);
-    return { successCount: 0, failureCount: tokens.length };
+    return { successCount: 0, failureCount: tokens.length, invalidTokens: [] };
   }
 }
 
@@ -245,5 +269,68 @@ export function createNotificationPayload(
         body: data.message || "Você tem uma nova notificação",
         clickAction: "/",
       };
+  }
+}
+
+/**
+ * High-level function to send notification to a user
+ * Handles token lookup, sending, and cleanup of invalid tokens
+ */
+export async function sendNotificationToUser(
+  userId: string,
+  type: NotificationType,
+  data: Record<string, any>,
+  options: {
+    getPushTokens: (userId: string) => Promise<Array<{ token: string }>>;
+    deletePushToken: (token: string) => Promise<void>;
+  }
+): Promise<{
+  sent: boolean;
+  successCount: number;
+  failureCount: number;
+  tokensRemoved: number;
+}> {
+  if (!firebaseInitialized) {
+    return { sent: false, successCount: 0, failureCount: 0, tokensRemoved: 0 };
+  }
+
+  try {
+    // Get user's push tokens
+    const pushTokenRecords = await options.getPushTokens(userId);
+
+    if (pushTokenRecords.length === 0) {
+      return { sent: false, successCount: 0, failureCount: 0, tokensRemoved: 0 };
+    }
+
+    // Create notification payload
+    const payload = createNotificationPayload(type, data);
+
+    // Send notifications
+    const tokens = pushTokenRecords.map((t) => t.token);
+    const result = await sendPushNotificationBatch(tokens, payload);
+
+    // Clean up invalid tokens
+    let tokensRemoved = 0;
+    if (result.invalidTokens.length > 0) {
+      for (const invalidToken of result.invalidTokens) {
+        try {
+          await options.deletePushToken(invalidToken);
+          tokensRemoved++;
+        } catch (err) {
+          console.error("[FCM] Error removing invalid token:", err);
+        }
+      }
+      console.log(`[FCM] Removed ${tokensRemoved} invalid tokens for user ${userId}`);
+    }
+
+    return {
+      sent: result.successCount > 0,
+      successCount: result.successCount,
+      failureCount: result.failureCount,
+      tokensRemoved,
+    };
+  } catch (error) {
+    console.error("[FCM] Error sending notification to user:", error);
+    return { sent: false, successCount: 0, failureCount: 0, tokensRemoved: 0 };
   }
 }

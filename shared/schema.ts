@@ -48,6 +48,22 @@ export const users = pgTable("users", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Password reset tokens table
+export const passwordResetTokens = pgTable(
+  "password_reset_tokens",
+  {
+    token: varchar("token", { length: 64 }).primaryKey(),
+    userId: varchar("user_id").notNull(),
+    expiresAt: timestamp("expires_at").notNull(),
+    usedAt: timestamp("used_at"),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => [
+    index("idx_password_reset_tokens_user").on(table.userId),
+    index("idx_password_reset_tokens_expires").on(table.expiresAt),
+  ]
+);
+
 // Organizations table
 export const organizations = pgTable("organizations", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
@@ -210,11 +226,14 @@ export const messages = pgTable(
     metadata: jsonb("metadata").$type<{ transcription?: string; duration?: number; waveform?: number[] }>(),
     mentions: text("mentions").array(),
     readBy: text("read_by").array(),
+    // External ID for idempotency (e.g., WhatsApp message ID)
+    externalId: varchar("external_id", { length: 255 }),
     createdAt: timestamp("created_at").defaultNow(),
   },
   (table) => [
     index("idx_messages_conversation").on(table.conversationId),
     index("idx_messages_created_at").on(table.createdAt),
+    index("idx_messages_external_id").on(table.externalId),
   ]
 );
 
@@ -306,7 +325,7 @@ export const activities = pgTable("activities", {
 });
 
 // Audit log action types
-export const auditLogActions = ["create", "update", "delete"] as const;
+export const auditLogActions = ["create", "update", "delete", "lgpd_export", "lgpd_delete"] as const;
 export type AuditLogAction = (typeof auditLogActions)[number];
 
 // Audit log entity types
@@ -322,7 +341,7 @@ export const auditLogs = pgTable("audit_logs", {
   entityId: integer("entity_id").notNull(),
   entityName: varchar("entity_name", { length: 255 }),
   organizationId: integer("organization_id").notNull(),
-  changes: jsonb("changes").$type<{ before?: Record<string, unknown>; after?: Record<string, unknown> }>(),
+  changes: jsonb("changes").$type<Record<string, unknown>>(),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -435,6 +454,7 @@ export const googleOAuthTokens = pgTable("google_oauth_tokens", {
   lastSyncAt: timestamp("last_sync_at"),
   syncStatus: varchar("sync_status", { length: 20 }).$type<GoogleCalendarSyncStatus>().default("idle"),
   syncError: text("sync_error"),
+  syncToken: text("sync_token"), // For Google Calendar incremental sync
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -774,6 +794,8 @@ export const insertGoogleOAuthTokenSchema = createInsertSchema(googleOAuthTokens
 // Types - usamos z.infer para schemas com enum estendidos e $inferSelect para select types
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
+export type InsertPasswordResetToken = typeof passwordResetTokens.$inferInsert;
+export type PasswordResetToken = typeof passwordResetTokens.$inferSelect;
 export type InsertOrganization = z.infer<typeof insertOrganizationSchema>;
 export type Organization = typeof organizations.$inferSelect;
 export type InsertCompany = z.infer<typeof insertCompanySchema>;

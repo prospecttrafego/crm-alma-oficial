@@ -3,7 +3,7 @@
  * Transcribes audio files to text using OpenAI's Whisper API
  */
 import OpenAI from "openai";
-import { openaiLogger } from "./logger";
+import { openaiLogger } from "../../logger";
 
 // Timeout para download de audio (60 segundos - arquivos podem ser grandes)
 const AUDIO_FETCH_TIMEOUT_MS = 60000;

@@ -1,6 +1,6 @@
 import type { Express } from "express";
 import { isAuthenticated } from "../auth";
-import { ObjectStorageService, ObjectNotFoundError, ObjectPermission } from "../storage.supabase";
+import { ObjectStorageService, ObjectNotFoundError, ObjectPermission } from "../integrations/supabase/storage";
 
 export function registerObjectRoutes(app: Express) {
   // Serve object files

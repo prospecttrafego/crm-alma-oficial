@@ -40,7 +40,7 @@ export function registerLeadScoreRoutes(app: Express) {
         return res.status(404).json({ message: "Organization not found" });
       }
 
-      const { scoreContact, scoreDeal } = await import("../aiScoring");
+      const { scoreContact, scoreDeal } = await import("../integrations/openai/scoring");
 
       if (entityType === "contact") {
         const contact = await storage.getContact(id);

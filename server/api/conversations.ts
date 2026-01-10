@@ -175,29 +175,30 @@ export function registerConversationRoutes(app: Express) {
           const isOnline = await isUserOnline(conversation.assignedToId);
 
           if (!isOnline) {
-            const { sendPushNotificationBatch, createNotificationPayload, isFcmAvailable } = await import(
-              "../notifications"
+            const { sendNotificationToUser, isFcmAvailable } = await import(
+              "../integrations/firebase/notifications"
             );
 
             if (isFcmAvailable()) {
-              const tokens = await storage.getPushTokensForUser(conversation.assignedToId);
-              if (tokens.length > 0) {
-                const sender = await storage.getUser(senderId);
-                const senderName = sender ? `${sender.firstName} ${sender.lastName}` : "Usuário";
-                const preview = message.content?.substring(0, 100) || "Nova mensagem";
+              const sender = await storage.getUser(senderId);
+              const senderName = sender ? `${sender.firstName} ${sender.lastName}` : "Usuário";
+              const preview = message.content?.substring(0, 100) || "Nova mensagem";
 
-                const payload = createNotificationPayload("message:new", {
+              // Use the high-level function that handles token lookup and cleanup
+              await sendNotificationToUser(
+                conversation.assignedToId,
+                "message:new",
+                {
                   senderName,
                   preview,
                   conversationId,
                   senderAvatar: sender?.profileImageUrl,
-                });
-
-                await sendPushNotificationBatch(
-                  tokens.map((t) => t.token),
-                  payload,
-                );
-              }
+                },
+                {
+                  getPushTokens: storage.getPushTokensForUser.bind(storage),
+                  deletePushToken: storage.deletePushToken.bind(storage),
+                }
+              );
             }
           }
         } catch (pushError) {

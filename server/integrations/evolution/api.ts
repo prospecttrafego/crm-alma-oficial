@@ -4,10 +4,19 @@
  * Documentation: https://doc.evolution-api.com/
  */
 
-import { whatsappLogger } from './logger';
+import { whatsappLogger } from '../../logger';
+import { withRetry } from '../../retry';
 
 // Timeout padrao para chamadas externas (30 segundos)
 const DEFAULT_TIMEOUT_MS = 30000;
+
+// Retry options for Evolution API calls
+const RETRY_OPTIONS = {
+  maxRetries: 2,
+  initialDelayMs: 1000,
+  maxDelayMs: 10000,
+  label: 'Evolution API',
+};
 
 export interface EvolutionInstance {
   instanceName: string;
@@ -66,7 +75,7 @@ export class EvolutionApiService {
   }
 
   /**
-   * Make a request to Evolution API with timeout
+   * Make a request to Evolution API with timeout and retry
    */
   private async request<T>(
     method: string,
@@ -79,54 +88,75 @@ export class EvolutionApiService {
     }
 
     const url = `${this.baseUrl}${endpoint}`;
-    const start = Date.now();
 
-    const options: RequestInit = {
-      method,
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': this.apiKey,
-      },
-      signal: AbortSignal.timeout(timeoutMs),
-    };
+    return withRetry(async () => {
+      const start = Date.now();
 
-    if (body) {
-      options.body = JSON.stringify(body);
-    }
+      const options: RequestInit = {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': this.apiKey,
+        },
+        signal: AbortSignal.timeout(timeoutMs),
+      };
 
-    try {
-      const response = await fetch(url, options);
-      const duration = Date.now() - start;
+      if (body) {
+        options.body = JSON.stringify(body);
+      }
 
-      if (!response.ok) {
-        const error = await response.text();
-        whatsappLogger.error(`Evolution API error: ${response.status}`, {
-          endpoint,
+      try {
+        const response = await fetch(url, options);
+        const duration = Date.now() - start;
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          // 5xx errors are retryable, 4xx errors are not (except 429)
+          const isRetryable = response.status >= 500 || response.status === 429;
+          whatsappLogger.error(`Evolution API error: ${response.status}`, {
+            endpoint,
+            statusCode: response.status,
+            error: errorText,
+            duration,
+            retryable: isRetryable,
+          });
+          const err = new Error(`Evolution API error: ${response.status}`);
+          (err as any).statusCode = response.status;
+          (err as any).retryable = isRetryable;
+          throw err;
+        }
+
+        whatsappLogger.info(`Evolution API ${method} ${endpoint}`, {
           statusCode: response.status,
-          error,
           duration,
         });
-        throw new Error(`Evolution API error: ${response.status}`);
-      }
 
-      whatsappLogger.info(`Evolution API ${method} ${endpoint}`, {
-        statusCode: response.status,
-        duration,
-      });
-
-      return response.json() as T;
-    } catch (error) {
-      const duration = Date.now() - start;
-      if (error instanceof Error && error.name === 'TimeoutError') {
-        whatsappLogger.error(`Evolution API timeout: ${endpoint}`, {
-          endpoint,
-          timeout: timeoutMs,
-          duration,
-        });
-        throw new Error(`Evolution API timeout after ${timeoutMs}ms`);
+        return response.json() as T;
+      } catch (error) {
+        const duration = Date.now() - start;
+        if (error instanceof Error && error.name === 'TimeoutError') {
+          whatsappLogger.error(`Evolution API timeout: ${endpoint}`, {
+            endpoint,
+            timeout: timeoutMs,
+            duration,
+          });
+          throw new Error(`Evolution API timeout after ${timeoutMs}ms`);
+        }
+        throw error;
       }
-      throw error;
-    }
+    }, {
+      ...RETRY_OPTIONS,
+      isRetryable: (error) => {
+        // Only retry on network errors, timeouts, 5xx errors, or 429
+        if (error instanceof Error) {
+          if ((error as any).retryable === false) return false;
+          if ((error as any).retryable === true) return true;
+          const msg = error.message.toLowerCase();
+          return msg.includes('timeout') || msg.includes('network') || msg.includes('fetch failed');
+        }
+        return true;
+      },
+    });
   }
 
   /**

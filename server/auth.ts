@@ -7,6 +7,7 @@ import { Strategy as LocalStrategy } from "passport-local";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
 import type { Express, RequestHandler, Request, Response, NextFunction } from "express";
 import { storage } from "./storage";
 import { db, pool } from "./db";
@@ -14,8 +15,20 @@ import { users, pipelines, pipelineStages } from "@shared/schema";
 import { and, count, eq } from "drizzle-orm";
 import { getSingleTenantOrganizationId } from "./tenant";
 import { checkRateLimit } from "./redis";
+import { logger } from "./logger";
 
 const BCRYPT_ROUNDS = 12;
+
+// Password reset token configuration
+const PASSWORD_RESET_TOKEN_BYTES = 32; // 32 bytes = 64 hex characters
+const PASSWORD_RESET_TOKEN_EXPIRY_HOURS = 1; // Token expires in 1 hour
+
+/**
+ * Generate a secure random token for password reset
+ */
+function generateSecureToken(): string {
+  return crypto.randomBytes(PASSWORD_RESET_TOKEN_BYTES).toString("hex");
+}
 
 // ========== RATE LIMITING ==========
 
@@ -370,6 +383,130 @@ export async function setupAuth(app: Express) {
     } catch (error) {
       console.error("Erro no registro:", error);
       res.status(500).json({ message: "Erro ao criar conta" });
+    }
+  });
+
+  // Endpoint: Forgot Password (request password reset)
+  app.post("/api/forgot-password", async (req, res) => {
+    try {
+      // Rate limiting (same as login to prevent enumeration)
+      const clientIp = getClientIp(req);
+      const rateLimitCheck = checkLoginRateLimit(clientIp);
+
+      if (!rateLimitCheck.allowed) {
+        return res.status(429).json({
+          message: `Muitas tentativas. Tente novamente em ${rateLimitCheck.retryAfter} segundos.`,
+          retryAfter: rateLimitCheck.retryAfter,
+        });
+      }
+
+      const { email } = req.body;
+
+      if (!email) {
+        return res.status(400).json({ message: "Email e obrigatorio" });
+      }
+
+      // Always return success to prevent email enumeration attacks
+      const successResponse = {
+        message: "Se o email estiver cadastrado, voce recebera instrucoes para redefinir sua senha.",
+      };
+
+      // Find user by email
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(eq(users.email, email.toLowerCase()));
+
+      if (!user) {
+        // Don't reveal that user doesn't exist
+        logger.info(`Password reset requested for non-existent email: ${email}`);
+        return res.json(successResponse);
+      }
+
+      // Generate token and expiry
+      const token = generateSecureToken();
+      const expiresAt = new Date(Date.now() + PASSWORD_RESET_TOKEN_EXPIRY_HOURS * 60 * 60 * 1000);
+
+      // Store token
+      await storage.createPasswordResetToken({
+        token,
+        userId: user.id,
+        expiresAt,
+      });
+
+      // In production, you would send an email here
+      // For now, log the reset URL (for development/testing)
+      const appUrl = process.env.APP_URL || `http://localhost:${process.env.PORT || 5000}`;
+      const resetUrl = `${appUrl}/reset-password?token=${token}`;
+
+      if (process.env.NODE_ENV !== "production") {
+        logger.info(`Password reset URL for ${email}: ${resetUrl}`);
+      }
+
+      // TODO: Send email with resetUrl when email service is configured
+      // await sendPasswordResetEmail(user.email, resetUrl);
+
+      logger.info(`Password reset token generated for user: ${user.id}`);
+      return res.json(successResponse);
+    } catch (error) {
+      logger.error("Erro no forgot-password:", { error: error instanceof Error ? error.message : String(error) });
+      res.status(500).json({ message: "Erro ao processar solicitacao" });
+    }
+  });
+
+  // Endpoint: Reset Password (apply new password with token)
+  app.post("/api/reset-password", async (req, res) => {
+    try {
+      // Rate limiting
+      const clientIp = getClientIp(req);
+      const rateLimitCheck = checkLoginRateLimit(clientIp);
+
+      if (!rateLimitCheck.allowed) {
+        return res.status(429).json({
+          message: `Muitas tentativas. Tente novamente em ${rateLimitCheck.retryAfter} segundos.`,
+          retryAfter: rateLimitCheck.retryAfter,
+        });
+      }
+
+      const { token, password } = req.body;
+
+      if (!token || !password) {
+        return res.status(400).json({ message: "Token e nova senha sao obrigatorios" });
+      }
+
+      // Validate password
+      const passwordValidation = validatePassword(password);
+      if (!passwordValidation.valid) {
+        return res.status(400).json({
+          message: "Senha invalida",
+          errors: passwordValidation.errors,
+        });
+      }
+
+      // Find valid token
+      const resetToken = await storage.getValidPasswordResetToken(token);
+      if (!resetToken) {
+        return res.status(400).json({ message: "Token invalido ou expirado" });
+      }
+
+      // Hash new password
+      const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
+
+      // Update user password
+      await db
+        .update(users)
+        .set({ passwordHash, updatedAt: new Date() })
+        .where(eq(users.id, resetToken.userId));
+
+      // Mark token as used
+      await storage.markPasswordResetTokenUsed(token);
+
+      logger.info(`Password reset completed for user: ${resetToken.userId}`);
+
+      return res.json({ message: "Senha alterada com sucesso" });
+    } catch (error) {
+      logger.error("Erro no reset-password:", { error: error instanceof Error ? error.message : String(error) });
+      res.status(500).json({ message: "Erro ao redefinir senha" });
     }
   });
 

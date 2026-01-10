@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { fileEntityTypes, type FileEntityType } from "@shared/schema";
 import { isAuthenticated } from "../auth";
 import { storage } from "../storage";
-import { ObjectStorageService } from "../storage.supabase";
+import { ObjectStorageService } from "../integrations/supabase/storage";
 
 export function registerFileRoutes(app: Express) {
   // File upload - get presigned URL
@@ -120,7 +120,7 @@ export function registerFileRoutes(app: Express) {
         return res.status(400).json({ message: "Audio URL is required" });
       }
 
-      const { transcribeAudio, isWhisperAvailable } = await import("../whisper");
+      const { transcribeAudio, isWhisperAvailable } = await import("../integrations/openai/whisper");
 
       if (!isWhisperAvailable()) {
         return res.status(503).json({ message: "Transcription service not available" });
@@ -159,7 +159,7 @@ export function registerFileRoutes(app: Express) {
         return res.status(400).json({ message: "File is not an audio file" });
       }
 
-      const { transcribeAudio, isWhisperAvailable } = await import("../whisper");
+      const { transcribeAudio, isWhisperAvailable } = await import("../integrations/openai/whisper");
 
       if (!isWhisperAvailable()) {
         return res.status(503).json({ message: "Transcription service not available" });

@@ -1,6 +1,6 @@
 import { google, calendar_v3 } from 'googleapis';
 import crypto from 'crypto';
-import type { CalendarEvent, GoogleOAuthToken, InsertGoogleOAuthToken } from '../shared/schema';
+import type { CalendarEvent, GoogleOAuthToken, InsertGoogleOAuthToken } from '@shared/schema';
 
 // OAuth2 scopes for Google Calendar
 const SCOPES = [
@@ -152,7 +152,7 @@ export class GoogleCalendarService {
   }
 
   /**
-   * List events from Google Calendar
+   * List events from Google Calendar (supports incremental sync)
    */
   async listEvents(
     accessToken: string,
@@ -174,41 +174,56 @@ export class GoogleCalendarService {
       allDay: boolean;
       attendees?: string[];
       updated: Date;
+      cancelled: boolean;
     }>;
     nextSyncToken?: string;
+    syncTokenInvalid?: boolean;
   }> {
     const calendar = this.getCalendarClient(accessToken);
 
     const params: calendar_v3.Params$Resource$Events$List = {
       calendarId,
       singleEvents: true,
-      orderBy: 'startTime',
       maxResults: options.maxResults || 250,
+      showDeleted: options.syncToken ? true : false, // Show deleted events when using syncToken
     };
 
     if (options.syncToken) {
       params.syncToken = options.syncToken;
     } else {
+      params.orderBy = 'startTime';
       params.timeMin = (options.timeMin || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)).toISOString();
       params.timeMax = (options.timeMax || new Date(Date.now() + 90 * 24 * 60 * 60 * 1000)).toISOString();
     }
 
-    const response = await calendar.events.list(params);
+    try {
+      const response = await calendar.events.list(params);
 
-    return {
-      events: (response.data.items || []).map(event => ({
-        id: event.id || '',
-        summary: event.summary || '(No title)',
-        description: event.description || undefined,
-        location: event.location || undefined,
-        start: new Date(event.start?.dateTime || event.start?.date || ''),
-        end: new Date(event.end?.dateTime || event.end?.date || ''),
-        allDay: !event.start?.dateTime,
-        attendees: event.attendees?.map(a => a.email || '').filter(Boolean),
-        updated: new Date(event.updated || ''),
-      })),
-      nextSyncToken: response.data.nextSyncToken || undefined,
-    };
+      return {
+        events: (response.data.items || []).map(event => ({
+          id: event.id || '',
+          summary: event.summary || '(No title)',
+          description: event.description || undefined,
+          location: event.location || undefined,
+          start: new Date(event.start?.dateTime || event.start?.date || ''),
+          end: new Date(event.end?.dateTime || event.end?.date || ''),
+          allDay: !event.start?.dateTime,
+          attendees: event.attendees?.map(a => a.email || '').filter(Boolean),
+          updated: new Date(event.updated || ''),
+          cancelled: event.status === 'cancelled',
+        })),
+        nextSyncToken: response.data.nextSyncToken || undefined,
+      };
+    } catch (error: any) {
+      // Handle 410 GONE - syncToken is invalid, need full sync
+      if (error?.code === 410 || error?.response?.status === 410) {
+        return {
+          events: [],
+          syncTokenInvalid: true,
+        };
+      }
+      throw error;
+    }
   }
 
   /**

@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { enUS, ptBR } from "date-fns/locale";
-import { Plus, Pencil, Trash2, User, Clock } from "lucide-react";
+import { Plus, Pencil, Trash2, User, Clock, Download, UserX } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { AuditLog, AuditLogAction, AuditLogEntityType } from "@shared/schema";
@@ -20,12 +20,16 @@ const actionIcons: Record<AuditLogAction, typeof Plus> = {
   create: Plus,
   update: Pencil,
   delete: Trash2,
+  lgpd_export: Download,
+  lgpd_delete: UserX,
 };
 
 const actionColors: Record<AuditLogAction, string> = {
   create: "text-green-500",
   update: "text-blue-500",
   delete: "text-red-500",
+  lgpd_export: "text-purple-500",
+  lgpd_delete: "text-orange-500",
 };
 
 export function EntityHistory({ entityType, entityId }: EntityHistoryProps) {

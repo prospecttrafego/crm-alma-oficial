@@ -3,9 +3,10 @@
  * Processes incoming webhook events from Evolution API
  */
 
-import { storage } from './storage';
+import { storage } from '../../storage';
 import type { WebSocket } from 'ws';
-import { whatsappLogger } from './logger';
+import { whatsappLogger } from '../../logger';
+import { ObjectStorageService } from '../supabase/storage';
 
 // Evolution API webhook event types
 export interface EvolutionWebhookEvent {
@@ -70,14 +71,116 @@ export interface EvolutionQRCodeUpdate {
 // WebSocket broadcast function type
 type BroadcastFn = (organizationId: number, event: string, data: unknown) => void;
 
+// Attachment structure for messages
+interface MessageAttachment {
+  name: string;
+  url: string;
+  type: string;
+  mimeType?: string;
+  size?: number;
+}
+
 export class EvolutionMessageHandler {
   private broadcast: BroadcastFn | null = null;
+  private objectStorage: ObjectStorageService;
+
+  constructor() {
+    this.objectStorage = new ObjectStorageService();
+  }
 
   /**
    * Set the broadcast function for WebSocket notifications
    */
   setBroadcast(fn: BroadcastFn) {
     this.broadcast = fn;
+  }
+
+  /**
+   * Extract media info from Evolution message
+   */
+  private getMediaInfo(msg: EvolutionMessage): { url: string; mimeType: string; fileName?: string } | null {
+    if (!msg.message) return null;
+
+    if (msg.message.imageMessage?.url) {
+      return {
+        url: msg.message.imageMessage.url,
+        mimeType: msg.message.imageMessage.mimetype || 'image/jpeg',
+      };
+    }
+
+    if (msg.message.audioMessage?.url) {
+      return {
+        url: msg.message.audioMessage.url,
+        mimeType: msg.message.audioMessage.mimetype || 'audio/ogg',
+      };
+    }
+
+    if (msg.message.videoMessage?.url) {
+      return {
+        url: msg.message.videoMessage.url,
+        mimeType: msg.message.videoMessage.mimetype || 'video/mp4',
+      };
+    }
+
+    if (msg.message.documentMessage?.url) {
+      return {
+        url: msg.message.documentMessage.url,
+        mimeType: msg.message.documentMessage.mimetype || 'application/octet-stream',
+        fileName: msg.message.documentMessage.fileName,
+      };
+    }
+
+    return null;
+  }
+
+  /**
+   * Download and store media from Evolution API
+   */
+  private async processMedia(
+    msg: EvolutionMessage,
+    organizationId: number
+  ): Promise<MessageAttachment | null> {
+    const mediaInfo = this.getMediaInfo(msg);
+    if (!mediaInfo) return null;
+
+    try {
+      whatsappLogger.info(`[Evolution Handler] Downloading media: ${mediaInfo.mimeType}`);
+
+      const { objectPath, publicUrl } = await this.objectStorage.downloadAndUploadFromUrl(
+        mediaInfo.url,
+        mediaInfo.mimeType,
+        mediaInfo.fileName
+      );
+
+      // Register file in database
+      const contentType = this.getContentType(msg);
+      const fileName = mediaInfo.fileName || `whatsapp_${contentType}_${Date.now()}`;
+
+      const file = await storage.createFile({
+        name: fileName,
+        objectPath: `/objects/${objectPath}`,
+        mimeType: mediaInfo.mimeType,
+        entityType: 'message',
+        entityId: 0, // Will be updated after message creation
+        organizationId,
+        uploadedBy: undefined, // Contact upload (no user)
+      });
+
+      whatsappLogger.info(`[Evolution Handler] Media stored: ${file.id}`);
+
+      return {
+        name: fileName,
+        url: publicUrl,
+        type: contentType,
+        mimeType: mediaInfo.mimeType,
+      };
+    } catch (error) {
+      whatsappLogger.error('[Evolution Handler] Error processing media', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      // Continue without media - don't fail the entire message
+      return null;
+    }
   }
 
   /**
@@ -143,6 +246,18 @@ export class EvolutionMessageHandler {
       const content = this.extractMessageContent(msg);
       if (!content) continue;
 
+      // Generate external ID for idempotency (WhatsApp message ID)
+      const externalId = msg.key.id ? `whatsapp:${msg.key.id}` : null;
+
+      // Check for duplicate message (idempotency)
+      if (externalId) {
+        const existingMessage = await storage.getMessageByExternalId(externalId);
+        if (existingMessage) {
+          whatsappLogger.info(`[Evolution Handler] Skipping duplicate message: ${externalId}`);
+          continue;
+        }
+      }
+
       const contentType = this.getContentType(msg);
       const senderName = msg.pushName || phoneNumber;
 
@@ -182,7 +297,11 @@ export class EvolutionMessageHandler {
           await storage.updateConversation(conversation.id, { status: 'open' });
         }
 
-        // Create message
+        // Process media if present
+        const mediaAttachment = await this.processMedia(msg, organizationId);
+        const attachments = mediaAttachment ? [mediaAttachment] : undefined;
+
+        // Create message with external ID for idempotency
         const message = await storage.createMessage({
           conversationId: conversation.id,
           senderId: null,
@@ -190,9 +309,11 @@ export class EvolutionMessageHandler {
           content,
           contentType,
           isInternal: false,
+          externalId: externalId || undefined,
+          attachments: attachments as any,
         });
 
-        whatsappLogger.info(`[Evolution Handler] Created message: ${message.id}`);
+        whatsappLogger.info(`[Evolution Handler] Created message: ${message.id}${mediaAttachment ? ' with media' : ''}`);
 
         // Broadcast to connected clients
         if (this.broadcast) {

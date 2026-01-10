@@ -1,5 +1,5 @@
 import OpenAI from "openai";
-import { openaiLogger } from "./logger";
+import { openaiLogger } from "../../logger";
 
 // Timeout padrao para chamadas OpenAI (30 segundos)
 const OPENAI_TIMEOUT_MS = 30000;
