@@ -295,7 +295,6 @@ export function registerGoogleCalendarRoutes(app: Express) {
         let imported = 0;
         let updated = 0;
         let deleted = 0;
-        let nextSyncToken: string | undefined;
 
         // Try incremental sync if we have a syncToken
         let result = await googleCalendarService.listEvents(accessToken, calendarId, {
@@ -308,7 +307,7 @@ export function registerGoogleCalendarRoutes(app: Express) {
           result = await googleCalendarService.listEvents(accessToken, calendarId);
         }
 
-        nextSyncToken = result.nextSyncToken;
+        const nextSyncToken = result.nextSyncToken;
 
         // Process events
         for (const googleEvent of result.events) {

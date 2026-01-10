@@ -219,7 +219,7 @@ export function registerLgpdRoutes(app: Express) {
         };
 
         // Delete related data
-        let deletedCounts = {
+        const deletedCounts = {
           messages: 0,
           conversations: 0,
           activities: 0,
