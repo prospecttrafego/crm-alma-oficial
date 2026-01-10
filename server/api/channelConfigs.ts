@@ -423,7 +423,10 @@ export function registerChannelConfigRoutes(app: Express) {
       }
 
       const organizationId = config.organizationId;
-      const instanceName = `crm-org-${organizationId}-channel-${id}`;
+      const baseInstanceName = `crm-org-${organizationId}-channel-${id}`;
+      const rawInstancePrefix = process.env.EVOLUTION_INSTANCE_PREFIX?.trim();
+      const instancePrefix = rawInstancePrefix ? rawInstancePrefix.replace(/-+$/, "") : undefined;
+      const instanceName = instancePrefix ? `${instancePrefix}-${baseInstanceName}` : baseInstanceName;
 
       // Check if instance already exists
       const existingInstance = await evolutionApi.getInstanceInfo(instanceName);
@@ -653,4 +656,3 @@ export function registerChannelConfigRoutes(app: Express) {
     }
   });
 }
-

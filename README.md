@@ -149,6 +149,7 @@ npm start
 | `GOOGLE_TOKEN_ENCRYPTION_KEY` | Nao | Chave base64 (32 bytes) para criptografar tokens |
 | `EVOLUTION_API_URL` | Nao | URL base da Evolution API V2 |
 | `EVOLUTION_API_KEY` | Nao | API key da Evolution API |
+| `EVOLUTION_INSTANCE_PREFIX` | Nao | Prefixo unico por deploy para evitar colisao de instancias (quando varios CRMs compartilham a mesma Evolution API) |
 | `EVOLUTION_WEBHOOK_SECRET` | Nao | Segredo para validar webhooks da Evolution API |
 
 ## Comandos Disponiveis

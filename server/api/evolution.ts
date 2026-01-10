@@ -50,10 +50,11 @@ export function registerEvolutionRoutes(app: Express) {
 
       // Parse instance name to get channel config ID.
       // Known formats:
+      // - {prefix}-crm-org-{orgId}-channel-{configId}
       // - crm-org-{orgId}-channel-{configId}
+      // - {prefix}-crm-channel-{configId}
       // - crm-channel-{configId}
-      const channelMatch =
-        event.instance?.match(/crm-org-\d+-channel-(\d+)/) || event.instance?.match(/crm-channel-(\d+)/);
+      const channelMatch = event.instance?.match(/(?:^|-)crm-(?:org-\d+-)?channel-(\d+)$/);
       if (!channelMatch) {
         whatsappLogger.info("[Evolution Webhook] Unknown instance format", { instance: event.instance });
         return res.status(200).json({ received: true });

@@ -667,6 +667,9 @@ VITE_FIREBASE_VAPID_KEY=sua-vapid-key-aqui
 
 EVOLUTION_API_URL=https://seu-evolution-api.com
 EVOLUTION_API_KEY=sua-api-key-aqui
+# Prefixo opcional (unico por deploy) para evitar colisao de instanceName quando multiplos CRMs usam a mesma Evolution API
+# Ex.: alma-crm-a, alma-crm-b
+EVOLUTION_INSTANCE_PREFIX=alma-crm-a
 # Recomendado em producao (o backend valida o webhook quando setado)
 EVOLUTION_WEBHOOK_SECRET=sua-webhook-secret-aqui
 

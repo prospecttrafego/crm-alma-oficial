@@ -240,6 +240,7 @@ Integração implementada para WhatsApp via Evolution API (Baileys).
 O que você fornece:
 - `EVOLUTION_API_URL=...`
 - `EVOLUTION_API_KEY=...`
+- `EVOLUTION_INSTANCE_PREFIX=...` (opcional; recomendado quando múltiplos deploys compartilham a mesma Evolution API para evitar colisão de instâncias)
 - `APP_URL=https://seu-dominio.com` (URL pública do CRM)
 - `EVOLUTION_WEBHOOK_SECRET=...` (recomendado; em produção o código exige para processar webhooks com segurança)
 
