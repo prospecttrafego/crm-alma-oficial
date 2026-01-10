@@ -1,0 +1,15 @@
+node_modules
+dist
+.env
+.env.*
+.local
+.analysis
+.git
+.github
+.vscode
+.idea
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+

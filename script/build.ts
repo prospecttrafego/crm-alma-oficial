@@ -41,25 +41,47 @@ async function buildAll() {
 
   console.log("building server...");
   const pkg = JSON.parse(await readFile("package.json", "utf-8"));
-  const allDeps = [
-    ...Object.keys(pkg.dependencies || {}),
-    ...Object.keys(pkg.devDependencies || {}),
-  ];
-  const externals = allDeps.filter((dep) => !allowlist.includes(dep));
 
-  await esbuild({
-    entryPoints: ["server/index.ts"],
-    platform: "node",
+  // IMPORTANT (production): only treat runtime deps as externals.
+  // devDependencies must not be required at runtime.
+  const runtimeDeps = [
+    ...Object.keys(pkg.dependencies || {}),
+    ...Object.keys(pkg.optionalDependencies || {}),
+  ];
+  const externals = runtimeDeps.filter((dep) => !allowlist.includes(dep));
+
+  const commonEsbuildOptions = {
+    platform: "node" as const,
     bundle: true,
-    format: "cjs",
-    outfile: "dist/index.cjs",
+    format: "cjs" as const,
     define: {
       "process.env.NODE_ENV": '"production"',
     },
     minify: true,
+    sourcemap: true,
     external: externals,
-    logLevel: "info",
+    logLevel: "info" as const,
+  };
+
+  await esbuild({
+    entryPoints: ["server/index.ts"],
+    outfile: "dist/index.cjs",
+    ...commonEsbuildOptions,
   });
+
+  console.log("building operational scripts...");
+  await Promise.all([
+    esbuild({
+      entryPoints: ["scripts/seed.ts"],
+      outfile: "dist/seed.cjs",
+      ...commonEsbuildOptions,
+    }),
+    esbuild({
+      entryPoints: ["scripts/migrate.ts"],
+      outfile: "dist/migrate.cjs",
+      ...commonEsbuildOptions,
+    }),
+  ]);
 }
 
 buildAll().catch((err) => {

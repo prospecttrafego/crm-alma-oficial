@@ -113,7 +113,7 @@ export const requestLoggingMiddleware: RequestHandler = (req, res, next) => {
     const user = req.user as any;
 
     // Nao logar health checks em producao para evitar ruido
-    if (req.path === "/api/health" && process.env.NODE_ENV === "production") {
+    if ((req.path === "/api/health" || req.path === "/api/healthz") && process.env.NODE_ENV === "production") {
       return;
     }
 

@@ -2,6 +2,15 @@ import type { Express } from "express";
 import { performHealthCheck } from "../health";
 
 export function registerHealthRoutes(app: Express) {
+  // Liveness check (publico, sem autenticacao). Nao depende do banco.
+  app.get("/api/healthz", (_req, res) => {
+    res.status(200).json({
+      status: "ok",
+      timestamp: new Date().toISOString(),
+      uptime: Math.floor(process.uptime()),
+    });
+  });
+
   // Health check endpoint (publico, sem autenticacao)
   app.get("/api/health", async (_req, res) => {
     try {
@@ -17,4 +26,3 @@ export function registerHealthRoutes(app: Express) {
     }
   });
 }
-
