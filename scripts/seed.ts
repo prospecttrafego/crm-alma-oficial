@@ -11,8 +11,9 @@
  * - SEED_ORG_NAME: Organization name (default: Alma Digital)
  */
 
-import { drizzle } from "drizzle-orm/postgres-js";
-import postgres from "postgres";
+import "dotenv/config";
+import { drizzle } from "drizzle-orm/node-postgres";
+import pg from "pg";
 import { eq, count } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import {
@@ -21,6 +22,8 @@ import {
   pipelines,
   pipelineStages,
 } from "../shared/schema";
+
+const { Pool } = pg;
 
 const BCRYPT_ROUNDS = 12;
 
@@ -34,8 +37,8 @@ async function seed() {
 
   console.log("🌱 Iniciando seed do banco de dados...\n");
 
-  const client = postgres(databaseUrl);
-  const db = drizzle(client);
+  const pool = new Pool({ connectionString: databaseUrl });
+  const db = drizzle(pool);
 
   try {
     // Configuration from environment or defaults
@@ -158,7 +161,7 @@ async function seed() {
     console.error("\n❌ Erro durante o seed:", error);
     process.exit(1);
   } finally {
-    await client.end();
+    await pool.end();
   }
 }
 

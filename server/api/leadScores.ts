@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { isAuthenticated } from "../auth";
 import { storage } from "../storage";
-import { enqueueJob, getJob } from "../jobs/queue";
+import { enqueueJob } from "../jobs/queue";
 import { JobTypes, type CalculateLeadScorePayload } from "../jobs/handlers";
 
 export function registerLeadScoreRoutes(app: Express) {

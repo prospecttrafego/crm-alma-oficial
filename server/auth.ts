@@ -8,7 +8,7 @@ import session from "express-session";
 import connectPg from "connect-pg-simple";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
-import type { Express, RequestHandler, Request, Response, NextFunction } from "express";
+import type { Express, RequestHandler, Request } from "express";
 import { storage } from "./storage";
 import { db, pool } from "./db";
 import { users, pipelines, pipelineStages } from "@shared/schema";
@@ -161,6 +161,7 @@ export function getSession() {
     store: sessionStore,
     resave: false,
     saveUninitialized: false,
+    rolling: true, // Renova sessao a cada requisicao (evita expirar durante uso ativo)
     cookie: {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
@@ -263,7 +264,7 @@ export async function setupAuth(app: Express) {
           return res.status(500).json({ message: "Erro ao iniciar sessao" });
         }
         // Nao retornar passwordHash na resposta
-        const { passwordHash, ...safeUser } = user;
+        const { passwordHash: _passwordHash, ...safeUser } = user;
         return res.json(safeUser);
       });
     })(req, res, next);
@@ -525,7 +526,7 @@ export async function setupAuth(app: Express) {
     if (!req.isAuthenticated() || !req.user) {
       return res.status(401).json({ message: "Nao autenticado" });
     }
-    const { passwordHash, ...safeUser } = req.user as any;
+    const { passwordHash: _passwordHash, ...safeUser } = req.user as any;
     res.json(safeUser);
   });
 }

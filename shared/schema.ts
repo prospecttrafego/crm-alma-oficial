@@ -106,6 +106,7 @@ export const contacts = pgTable(
     lastName: varchar("last_name", { length: 100 }),
     email: varchar("email", { length: 255 }),
     phone: varchar("phone", { length: 50 }),
+    phoneNormalized: varchar("phone_normalized", { length: 50 }), // Apenas digitos para busca rapida
     jobTitle: varchar("job_title", { length: 100 }),
     companyId: integer("company_id"),
     organizationId: integer("organization_id").notNull(),
@@ -120,6 +121,7 @@ export const contacts = pgTable(
     index("idx_contacts_organization").on(table.organizationId),
     index("idx_contacts_email").on(table.email),
     index("idx_contacts_phone").on(table.phone),
+    index("idx_contacts_phone_normalized").on(table.phoneNormalized),
     index("idx_contacts_company").on(table.companyId),
   ]
 );

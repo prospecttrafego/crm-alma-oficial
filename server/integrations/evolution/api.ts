@@ -219,7 +219,7 @@ export class EvolutionApiService {
       );
 
       return result;
-    } catch (error) {
+    } catch (_error) {
       whatsappLogger.info(`[Evolution API] Instance not found: ${instanceName}`);
       return null;
     }

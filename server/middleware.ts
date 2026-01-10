@@ -3,9 +3,10 @@
  * Re-exports all middleware for consistent usage across the app
  */
 
-import type { RequestHandler } from "express";
+import type { RequestHandler, ErrorRequestHandler, Request, Response, NextFunction } from "express";
 import { z } from "zod";
-import { sendValidationError, sendUnauthorized, sendForbidden, sendRateLimited } from "./response";
+import { sendValidationError, sendError, sendNotFound, ErrorCodes, type ErrorCode } from "./response";
+import { logger } from "./logger";
 
 // Re-export existing middlewares
 export { isAuthenticated, requireRole, rateLimitMiddleware } from "./auth";
@@ -95,7 +96,7 @@ export function requireIntegration(
         });
       }
       next();
-    } catch (error) {
+    } catch (_error) {
       return res.status(503).json({
         success: false,
         error: {
@@ -135,3 +136,91 @@ export function getOrganizationId(req: any): number | null {
   const user = getCurrentUser(req);
   return user?.organizationId ?? null;
 }
+
+function isErrorCode(value: unknown): value is ErrorCode {
+  return typeof value === "string" && Object.values(ErrorCodes).includes(value as ErrorCode);
+}
+
+function getErrorCodeForStatus(statusCode: number): ErrorCode {
+  switch (statusCode) {
+    case 400:
+      return ErrorCodes.INVALID_INPUT;
+    case 401:
+      return ErrorCodes.UNAUTHORIZED;
+    case 403:
+      return ErrorCodes.FORBIDDEN;
+    case 404:
+      return ErrorCodes.NOT_FOUND;
+    case 409:
+      return ErrorCodes.CONFLICT;
+    case 429:
+      return ErrorCodes.RATE_LIMITED;
+    case 503:
+      return ErrorCodes.SERVICE_UNAVAILABLE;
+    default:
+      return ErrorCodes.INTERNAL_ERROR;
+  }
+}
+
+/**
+ * Global error handler middleware
+ * Catches all unhandled errors and returns a consistent response
+ * - Logs full error details on the server
+ * - Returns user-friendly message without stack traces
+ */
+export const globalErrorHandler: ErrorRequestHandler = (
+  err: Error & { status?: number; statusCode?: number; code?: string },
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  if (res.headersSent) {
+    return next(err);
+  }
+
+  // Log the full error with context
+  const errorContext = {
+    requestId: (req as any).requestId,
+    method: req.method,
+    path: req.path,
+    userId: (req.user as any)?.id,
+    userAgent: req.get("User-Agent"),
+    ip: req.ip,
+    error: {
+      name: err.name,
+      message: err.message,
+      stack: err.stack,
+      code: err.code,
+    },
+  };
+
+  // Determine if this is a known/handled error or unexpected
+  const statusCode = err.statusCode || err.status || 500;
+  const isInternalError = statusCode >= 500;
+
+  if (isInternalError) {
+    // Log as error for 500s
+    logger.error("Unhandled error", errorContext);
+  } else {
+    // Log as warning for 4xx (these are usually client errors)
+    logger.warn("Request error", errorContext);
+  }
+
+  // Don't expose internal details in production
+  const isProduction = process.env.NODE_ENV === "production";
+  const userMessage =
+    isProduction && isInternalError
+      ? "Ocorreu um erro interno. Por favor, tente novamente mais tarde."
+      : err.message || "Erro interno do servidor";
+
+  const code = isErrorCode(err.code) ? err.code : getErrorCodeForStatus(statusCode);
+  sendError(res, code, userMessage, statusCode);
+};
+
+/**
+ * 404 Not Found handler
+ * Should be registered after all routes
+ */
+export const notFoundHandler: RequestHandler = (req, res) => {
+  sendNotFound(res, `Rota não encontrada: ${req.method} ${req.path}`);
+};

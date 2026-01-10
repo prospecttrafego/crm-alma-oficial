@@ -34,6 +34,12 @@ export function registerAuditLogRoutes(app: Express) {
 
   app.get("/api/audit-logs/entity/:entityType/:entityId", isAuthenticated, async (req: any, res) => {
     try {
+      // Audit logs require admin access
+      const user = await storage.getUser((req.user as any).id);
+      if (!user || user.role !== "admin") {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+
       const entityType = req.params.entityType as AuditLogEntityType;
       const entityId = parseInt(req.params.entityId);
       if (!auditLogEntityTypes.includes(entityType)) {

@@ -103,6 +103,16 @@ function normalizePagination(params: PaginationParams): { page: number; limit: n
   return { page, limit, offset };
 }
 
+/**
+ * Normaliza telefone removendo todos os caracteres nao numericos
+ * Exemplo: "+55 (11) 99999-9999" -> "5511999999999"
+ */
+export function normalizePhone(phone: string | null | undefined): string | null {
+  if (!phone) return null;
+  const normalized = phone.replace(/\D/g, "");
+  return normalized.length > 0 ? normalized : null;
+}
+
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUsers(organizationId: number): Promise<User[]>;
@@ -528,16 +538,17 @@ export class DatabaseStorage implements IStorage {
     const tenantOrganizationId = await this.tenantOrganizationId();
 
     // Normalize phone (remove non-digits)
-    const normalizedPhone = phone.replace(/\D/g, '');
+    const normalizedPhone = normalizePhone(phone);
+    if (!normalizedPhone) return undefined;
 
-    // First try exact match
+    // First try exact match using indexed phoneNormalized field
     const [exactMatch] = await db
       .select()
       .from(contacts)
       .where(
         and(
           eq(contacts.organizationId, tenantOrganizationId),
-          sql`REGEXP_REPLACE(${contacts.phone}, '[^0-9]', '', 'g') = ${normalizedPhone}`
+          eq(contacts.phoneNormalized, normalizedPhone)
         )
       )
       .limit(1);
@@ -545,6 +556,7 @@ export class DatabaseStorage implements IStorage {
     if (exactMatch) return exactMatch;
 
     // Try suffix match (for numbers with/without country code)
+    // Uses LIKE with index (suffix search is less efficient but still faster than REGEXP)
     const [suffixMatch] = await db
       .select()
       .from(contacts)
@@ -552,14 +564,42 @@ export class DatabaseStorage implements IStorage {
         and(
           eq(contacts.organizationId, tenantOrganizationId),
           or(
-            sql`REGEXP_REPLACE(${contacts.phone}, '[^0-9]', '', 'g') LIKE ${'%' + normalizedPhone}`,
+            sql`${contacts.phoneNormalized} LIKE ${'%' + normalizedPhone}`,
+            sql`${normalizedPhone} LIKE '%' || ${contacts.phoneNormalized}`
+          )
+        )
+      )
+      .limit(1);
+
+    if (suffixMatch) return suffixMatch;
+
+    // Legacy fallback: handle existing rows created before phoneNormalized existed
+    const [legacyMatch] = await db
+      .select()
+      .from(contacts)
+      .where(
+        and(
+          eq(contacts.organizationId, tenantOrganizationId),
+          sql`${contacts.phoneNormalized} IS NULL`,
+          or(
+            sql`REGEXP_REPLACE(${contacts.phone}, '[^0-9]', '', 'g') = ${normalizedPhone}`,
+            sql`REGEXP_REPLACE(${contacts.phone}, '[^0-9]', '', 'g') LIKE ${"%" + normalizedPhone}`,
             sql`${normalizedPhone} LIKE '%' || REGEXP_REPLACE(${contacts.phone}, '[^0-9]', '', 'g')`
           )
         )
       )
       .limit(1);
 
-    return suffixMatch;
+    if (!legacyMatch) return undefined;
+
+    const phoneNormalizedToSet = normalizePhone(legacyMatch.phone) || normalizedPhone;
+    const [updatedLegacy] = await db
+      .update(contacts)
+      .set({ phoneNormalized: phoneNormalizedToSet, updatedAt: new Date() })
+      .where(and(eq(contacts.id, legacyMatch.id), eq(contacts.organizationId, tenantOrganizationId)))
+      .returning();
+
+    return updatedLegacy || legacyMatch;
   }
 
   /**
@@ -587,9 +627,10 @@ export class DatabaseStorage implements IStorage {
 
   async createContact(contact: InsertContact): Promise<Contact> {
     const tenantOrganizationId = await this.tenantOrganizationId();
+    const phoneNormalized = normalizePhone(contact.phone);
     const [created] = await db
       .insert(contacts)
-      .values({ ...contact, organizationId: tenantOrganizationId })
+      .values({ ...contact, phoneNormalized, organizationId: tenantOrganizationId })
       .returning();
     return created;
   }
@@ -599,9 +640,14 @@ export class DatabaseStorage implements IStorage {
     const { organizationId: _organizationId, ...updateData } = contact as Partial<
       InsertContact & { organizationId?: number }
     >;
+    // Se phone foi alterado, atualizar phoneNormalized tambem
+    const dataToUpdate: Record<string, unknown> = { ...updateData, updatedAt: new Date() };
+    if ("phone" in contact) {
+      dataToUpdate.phoneNormalized = normalizePhone(contact.phone);
+    }
     const [updated] = await db
       .update(contacts)
-      .set({ ...updateData, updatedAt: new Date() })
+      .set(dataToUpdate)
       .where(and(eq(contacts.id, id), eq(contacts.organizationId, tenantOrganizationId)))
       .returning();
     return updated;

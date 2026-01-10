@@ -1,6 +1,6 @@
 import { google, calendar_v3 } from 'googleapis';
 import crypto from 'crypto';
-import type { CalendarEvent, GoogleOAuthToken, InsertGoogleOAuthToken } from '@shared/schema';
+import type { CalendarEvent } from '@shared/schema';
 
 // OAuth2 scopes for Google Calendar
 const SCOPES = [

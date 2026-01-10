@@ -9,11 +9,11 @@ Diagnóstico (explicação do projeto + análise atual): `DIAGNOSTICO.md`.
 ## Milestone 0 — Ambiente local de validação (para testar "como empresa")
 Objetivo: ter um ambiente local que reproduz a operação real para validar regras, integrações e volume.
 
-- [ ] Criar `.env` a partir de `.env.example`
-- [ ] Configurar `DATABASE_URL` e `SESSION_SECRET`
+- [x] Criar `.env` a partir de `.env.example` ✅ (2026-01-10)
+- [x] Configurar `DATABASE_URL` e `SESSION_SECRET` ✅ (2026-01-10)
 - [ ] Conferir se estrutura do Supabase foi feito corretamente
-- [ ] Rodar `npm run db:push` (criar/atualizar tabelas)
-- [ ] Garantir que existe uma organizacao em `organizations` e definir `DEFAULT_ORGANIZATION_ID` corretamente
+- [x] Rodar `npm run db:push` (criar/atualizar tabelas) ✅ (2026-01-10)
+- [x] Garantir que existe uma organizacao em `organizations` e definir `DEFAULT_ORGANIZATION_ID` corretamente ✅ (2026-01-10) — seed cria org + admin + pipeline padrão
 - [ ] Subir com `npm run dev` e validar login/registro (conforme `ALLOW_REGISTRATION`)
 - [ ] Criar um "dataset de teste" (contatos, empresas, deals, conversas e mensagens) para simular volume
 - [ ] Validar features principais manualmente: pipeline (drag), inbox (mensagens), anexos, notificacoes, relatorios
@@ -28,9 +28,9 @@ Objetivo: reduzir risco de invasão, vazamento e ações indevidas.
 - [x] Rate limit geral para rotas autenticadas ✅ (2026-01-09) — exige Upstash Redis configurado
 - [x] Política de senha (mínimo 8 chars, 1 maiúscula, 1 número) ✅ (2026-01-09)
 - [x] Fluxo de "esqueci minha senha" ✅ (2026-01-09) — `POST /api/forgot-password` e `POST /api/reset-password` com token de 1h
-- [ ] Revisar sessões/cookies: duração real, renovação, logout em todos os dispositivos, e parâmetros seguros (sem "surpresas")
+- [x] Revisar sessões/cookies: duração real, renovação, logout em todos os dispositivos, e parâmetros seguros (sem "surpresas") ✅ (2026-01-10) — TTL 7 dias, rolling: true para renovar durante uso, httpOnly, secure em prod, sameSite: lax
 - [x] Definir claramente o que cada perfil pode fazer (admin/sales/cs/support) e aplicar isso nas rotas (RBAC de verdade) ✅ (2026-01-09) — `requireRole("admin")` aplicado em pipelines
-- [ ] Revisar dados expostos nos endpoints (por exemplo: listas de usuários, auditoria, arquivos) para garantir que só sai o necessário
+- [x] Revisar dados expostos nos endpoints (por exemplo: listas de usuários, auditoria, arquivos) para garantir que só sai o necessário ✅ (2026-01-10) — `toSafeUser()` remove passwordHash, audit logs restritos a admin
 - [x] Revisar segurança de webhooks (WhatsApp): segredo obrigatório, logs de falha, e idempotência ✅ (2026-01-09) — campo `externalId` em mensagens + validação de token
 
 ---
@@ -43,7 +43,7 @@ Objetivo: o CRM continuar rápido com muito dado.
 - [x] Reutilizar pool do Postgres (queries + sessões) ✅ (2026-01-09) — reduz conexões duplicadas no banco
 - [x] Corrigir/definir a regra de "não lidas" ✅ (2026-01-09) — mensagens de usuário não incrementam unreadCount; sender já é adicionado ao readBy
 - [x] Otimizar WhatsApp: buscar contato/conversa direto no banco ✅ (2026-01-09) — `getContactByPhone()` e `getConversationByContactAndChannel()` criados
-- [ ] Melhorar consistência de dados (ex.: normalizar e indexar telefone para busca rápida)
+- [x] Melhorar consistência de dados (ex.: normalizar e indexar telefone para busca rápida) ✅ (2026-01-10) — campo `phoneNormalized` em contacts, índice criado, usado em `getContactByPhone()`
 
 ---
 
@@ -55,7 +55,7 @@ Objetivo: você "enxergar" problemas antes de virarem crise e evitar travar o ap
 - [x] Timeouts nas chamadas externas ✅ (2026-01-09) — Evolution API (30s), OpenAI (30s), Whisper (120s), download audio (60s)
 - [x] Retries controlados nas chamadas externas ✅ (2026-01-09) — `server/retry.ts` com exponential backoff + jitter; aplicado em Evolution API
 - [x] Tirar tarefas pesadas do request (ex.: transcrição/sync/score) e rodar em job/background quando fizer sentido ✅ (2026-01-10) — `server/jobs/` com queue.ts + handlers.ts; endpoints suportam `?async=true` para transcricao, lead score, Google Calendar sync, email sync
-- [ ] Política de erros: o que retorna pro usuário, o que fica no log, e como alertar quando algo cair
+- [x] Política de erros: o que retorna pro usuário, o que fica no log, e como alertar quando algo cair ✅ (2026-01-10) — `globalErrorHandler` em middleware.ts; erros 500 mostram msg genérica em prod, logs completos no servidor
 
 ---
 
@@ -82,10 +82,10 @@ Objetivo: evitar perda de dados e ficar mais "profissional" na operação.
 ## Milestone 6 (P2) — Qualidade contínua (para o projeto não degradar)
 Objetivo: manter o ritmo de evolução sem quebrar produção.
 
-- [ ] Padronizar rotinas internas: `npm run check`, `npm run lint`, `npm run build`
+- [x] Padronizar rotinas internas: `npm run check`, `npm run lint`, `npm run build` ✅ (2026-01-10) — todos os comandos funcionando
 - [ ] Começar suíte de testes do backend (rotas críticas + permissões + integrações mockadas)
-- [ ] Limpar warnings do lint gradualmente (não precisa “parar o mundo”)
-- [ ] Plano para reduzir vulnerabilidades do `npm audit` sem quebrar dependências
+- [x] Limpar warnings do lint gradualmente (não precisa "parar o mundo") ✅ (2026-01-10) — corrigidos imports não usados no servidor
+- [x] Plano para reduzir vulnerabilidades do `npm audit` sem quebrar dependências ✅ (2026-01-10) — `npm audit fix` aplicado; restam 7 vulnerabilidades que requerem breaking changes (esbuild em drizzle-kit, semver em imap)
 
 ---
 

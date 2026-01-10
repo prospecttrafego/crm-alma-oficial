@@ -4,7 +4,6 @@
  */
 
 import { storage } from '../../storage';
-import type { WebSocket } from 'ws';
 import { whatsappLogger } from '../../logger';
 import { ObjectStorageService } from '../supabase/storage';
 

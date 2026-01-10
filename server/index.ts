@@ -1,8 +1,9 @@
 import "dotenv/config";
-import express, { type Request, Response, NextFunction } from "express";
+import express from "express";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { requestIdMiddleware, requestLoggingMiddleware, logger } from "./logger";
+import { globalErrorHandler, notFoundHandler } from "./middleware";
 
 const app = express();
 
@@ -40,13 +41,8 @@ export function log(message: string, source = "express") {
 
   const httpServer = await registerRoutes(app);
 
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-    const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
-
-    console.error(err);
-    res.status(status).json({ message });
-  });
+  // 404 handler for unmatched API routes (must be after all API routes)
+  app.use("/api", notFoundHandler);
 
   if (process.env.NODE_ENV === "production") {
     serveStatic(app);
@@ -54,6 +50,9 @@ export function log(message: string, source = "express") {
     const { setupVite } = await import("./vite");
     await setupVite(httpServer, app);
   }
+
+  // Global error handler (must be last middleware)
+  app.use(globalErrorHandler);
 
   const port = parseInt(process.env.PORT || "3000", 10);
   httpServer.listen(
