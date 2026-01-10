@@ -3,6 +3,8 @@ import { createHmac, timingSafeEqual } from "crypto";
 import { isAuthenticated } from "../auth";
 import { storage } from "../storage";
 import { broadcast } from "../ws/index";
+import { enqueueJob } from "../jobs/queue";
+import { JobTypes, type SyncGoogleCalendarPayload } from "../jobs/handlers";
 
 function base64UrlEncode(buffer: Buffer): string {
   return buffer
@@ -155,6 +157,25 @@ export function registerGoogleCalendarRoutes(app: Express) {
         syncStatus: "idle",
       });
 
+      // Audit log for Google Calendar connection
+      if (user.organizationId) {
+        await storage.createAuditLog({
+          userId: stateData.userId,
+          action: "create",
+          entityType: "integration",
+          entityId: 0, // No specific entity ID for integrations
+          entityName: "Google Calendar",
+          organizationId: user.organizationId,
+          changes: {
+            after: {
+              type: "google_calendar",
+              email: tokens.email,
+              connectedAt: new Date().toISOString(),
+            },
+          },
+        });
+      }
+
       res.redirect("/settings?google_calendar=success");
     } catch (error) {
       console.error("Error in Google OAuth callback:", error);
@@ -166,9 +187,12 @@ export function registerGoogleCalendarRoutes(app: Express) {
   app.post("/api/integrations/google-calendar/disconnect", isAuthenticated, async (req: any, res) => {
     try {
       const userId = (req.user as any).id;
+      const user = await storage.getUser(userId);
       const token = await storage.getGoogleOAuthToken(userId);
 
       if (token) {
+        const tokenEmail = token.email;
+
         // Try to revoke the token
         try {
           const { googleCalendarService, decryptToken } = await import("../integrations/google/calendar");
@@ -180,6 +204,25 @@ export function registerGoogleCalendarRoutes(app: Express) {
 
         // Delete from database
         await storage.deleteGoogleOAuthToken(userId);
+
+        // Audit log for Google Calendar disconnection
+        if (user?.organizationId) {
+          await storage.createAuditLog({
+            userId,
+            action: "delete",
+            entityType: "integration",
+            entityId: 0,
+            entityName: "Google Calendar",
+            organizationId: user.organizationId,
+            changes: {
+              before: {
+                type: "google_calendar",
+                email: tokenEmail,
+                disconnectedAt: new Date().toISOString(),
+              },
+            },
+          });
+        }
       }
 
       res.json({ success: true });
@@ -193,6 +236,8 @@ export function registerGoogleCalendarRoutes(app: Express) {
   app.post("/api/integrations/google-calendar/sync", isAuthenticated, async (req: any, res) => {
     try {
       const userId = (req.user as any).id;
+      const async = req.query.async === "true";
+
       const user = await storage.getUser(userId);
       if (!user?.organizationId) {
         return res.status(400).json({ message: "User organization not found" });
@@ -201,6 +246,25 @@ export function registerGoogleCalendarRoutes(app: Express) {
       const token = await storage.getGoogleOAuthToken(userId);
       if (!token || !token.isActive) {
         return res.status(400).json({ message: "Google Calendar not connected" });
+      }
+
+      // Async mode: queue the job
+      if (async) {
+        const payload: SyncGoogleCalendarPayload = {
+          userId,
+          organizationId: user.organizationId,
+        };
+
+        const job = enqueueJob(JobTypes.SYNC_GOOGLE_CALENDAR, payload);
+
+        // Mark as syncing
+        await storage.updateGoogleOAuthToken(userId, { syncStatus: "syncing", syncError: null });
+
+        return res.status(202).json({
+          message: "Google Calendar sync queued",
+          jobId: job.id,
+          status: job.status,
+        });
       }
 
       const { googleCalendarService, decryptToken, encryptToken } = await import("../integrations/google/calendar");

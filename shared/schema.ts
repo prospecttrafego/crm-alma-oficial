@@ -329,7 +329,7 @@ export const auditLogActions = ["create", "update", "delete", "lgpd_export", "lg
 export type AuditLogAction = (typeof auditLogActions)[number];
 
 // Audit log entity types
-export const auditLogEntityTypes = ["deal", "contact", "company", "conversation", "activity", "pipeline", "email_template"] as const;
+export const auditLogEntityTypes = ["deal", "contact", "company", "conversation", "activity", "pipeline", "email_template", "file", "integration"] as const;
 export type AuditLogEntityType = (typeof auditLogEntityTypes)[number];
 
 // Audit logs table

@@ -3,6 +3,8 @@ import { fileEntityTypes, type FileEntityType } from "@shared/schema";
 import { isAuthenticated } from "../auth";
 import { storage } from "../storage";
 import { ObjectStorageService } from "../integrations/supabase/storage";
+import { enqueueJob } from "../jobs/queue";
+import { JobTypes, type TranscribeAudioPayload } from "../jobs/handlers";
 
 export function registerFileRoutes(app: Express) {
   // File upload - get presigned URL
@@ -57,6 +59,25 @@ export function registerFileRoutes(app: Express) {
         uploadedBy: userId,
       });
 
+      // Audit log for file upload
+      await storage.createAuditLog({
+        userId,
+        action: "create",
+        entityType: "file",
+        entityId: file.id,
+        entityName: file.name,
+        organizationId: org.id,
+        changes: {
+          after: {
+            id: file.id,
+            name: file.name,
+            mimeType: file.mimeType,
+            size: file.size,
+            linkedTo: `${entityType}:${entityId}`,
+          },
+        },
+      });
+
       res.status(201).json(file);
     } catch (error) {
       console.error("Error registering file:", error);
@@ -85,6 +106,8 @@ export function registerFileRoutes(app: Express) {
   app.delete("/api/files/:id", isAuthenticated, async (req: any, res) => {
     try {
       const id = parseInt(req.params.id);
+      const userId = (req.user as any).id;
+
       if (isNaN(id)) {
         return res.status(400).json({ message: "Invalid file ID" });
       }
@@ -104,6 +127,26 @@ export function registerFileRoutes(app: Express) {
       }
 
       await storage.deleteFile(id);
+
+      // Audit log for file deletion
+      await storage.createAuditLog({
+        userId,
+        action: "delete",
+        entityType: "file",
+        entityId: id,
+        entityName: file.name,
+        organizationId: file.organizationId,
+        changes: {
+          before: {
+            id: file.id,
+            name: file.name,
+            mimeType: file.mimeType,
+            size: file.size,
+            linkedTo: `${file.entityType}:${file.entityId}`,
+          },
+        },
+      });
+
       res.status(204).send();
     } catch (error) {
       console.error("Error deleting file:", error);
@@ -115,12 +158,13 @@ export function registerFileRoutes(app: Express) {
   app.post("/api/audio/transcribe", isAuthenticated, async (req: any, res) => {
     try {
       const { audioUrl, language } = req.body;
+      const async = req.query.async === "true";
 
       if (!audioUrl) {
         return res.status(400).json({ message: "Audio URL is required" });
       }
 
-      const { transcribeAudio, isWhisperAvailable } = await import("../integrations/openai/whisper");
+      const { isWhisperAvailable } = await import("../integrations/openai/whisper");
 
       if (!isWhisperAvailable()) {
         return res.status(503).json({ message: "Transcription service not available" });
@@ -133,6 +177,24 @@ export function registerFileRoutes(app: Express) {
         resolvedUrl = await objectStorageService.getSignedUrl(objectFile.path, 15 * 60);
       }
 
+      // Async mode: queue the job
+      if (async) {
+        const payload: TranscribeAudioPayload = {
+          audioUrl: resolvedUrl,
+          language,
+        };
+
+        const job = enqueueJob(JobTypes.TRANSCRIBE_AUDIO, payload);
+
+        return res.status(202).json({
+          message: "Transcription queued",
+          jobId: job.id,
+          status: job.status,
+        });
+      }
+
+      // Sync mode: transcribe immediately
+      const { transcribeAudio } = await import("../integrations/openai/whisper");
       const result = await transcribeAudio(resolvedUrl, language);
       res.json(result);
     } catch (error) {
@@ -145,6 +207,8 @@ export function registerFileRoutes(app: Express) {
   app.post("/api/files/:id/transcribe", isAuthenticated, async (req: any, res) => {
     try {
       const id = parseInt(req.params.id);
+      const async = req.query.async === "true";
+
       if (isNaN(id)) {
         return res.status(400).json({ message: "Invalid file ID" });
       }
@@ -159,7 +223,7 @@ export function registerFileRoutes(app: Express) {
         return res.status(400).json({ message: "File is not an audio file" });
       }
 
-      const { transcribeAudio, isWhisperAvailable } = await import("../integrations/openai/whisper");
+      const { isWhisperAvailable } = await import("../integrations/openai/whisper");
 
       if (!isWhisperAvailable()) {
         return res.status(503).json({ message: "Transcription service not available" });
@@ -168,10 +232,31 @@ export function registerFileRoutes(app: Express) {
       const objectStorageService = new ObjectStorageService();
       const objectFile = await objectStorageService.getObjectEntityFile(file.objectPath);
       const signedUrl = await objectStorageService.getSignedUrl(objectFile.path, 15 * 60);
+
+      // Async mode: queue the job
+      if (async) {
+        const payload: TranscribeAudioPayload = {
+          audioUrl: signedUrl,
+          language: req.body.language,
+          fileId: id,
+        };
+
+        const job = enqueueJob(JobTypes.TRANSCRIBE_AUDIO, payload);
+
+        return res.status(202).json({
+          message: "Transcription queued",
+          jobId: job.id,
+          status: job.status,
+          fileId: id,
+          fileName: file.name,
+        });
+      }
+
+      // Sync mode: transcribe immediately
+      const { transcribeAudio } = await import("../integrations/openai/whisper");
       const result = await transcribeAudio(signedUrl, req.body.language);
 
       // Return transcription result
-      // Note: To persist transcription, add a 'metadata' jsonb field to the files table
       res.json({
         ...result,
         fileId: id,

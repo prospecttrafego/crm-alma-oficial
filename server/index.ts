@@ -34,6 +34,10 @@ export function log(message: string, source = "express") {
 }
 
 (async () => {
+  // Initialize background job handlers
+  const { initializeJobHandlers } = await import("./jobs");
+  initializeJobHandlers();
+
   const httpServer = await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {

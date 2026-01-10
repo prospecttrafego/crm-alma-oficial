@@ -152,6 +152,10 @@ CRM_Oficial/
 │   │   └── ...                  # Demais domínios (activities, files, etc.)
 │   ├── ws/                      # WebSocket (/ws) + broadcast
 │   │   └── index.ts             # Upgrade handler + presença + "typing"
+│   ├── jobs/                    # Background jobs (tarefas assíncronas)
+│   │   ├── index.ts             # Exports do módulo
+│   │   ├── queue.ts             # Fila em memória com retry
+│   │   └── handlers.ts          # Handlers: transcricao, lead score, sync
 │   ├── storage.ts               # Camada de acesso ao banco (DAL)
 │   ├── auth.ts                  # Passport.js + sessoes
 │   ├── db.ts                    # Drizzle + conexao Postgres (Pool)
@@ -399,6 +403,22 @@ GET    /api/users          # Listar usuarios (para dropdown/filtros; requer logi
 ```
 GET    /api/health         # Health check (DB + integrações opcionais)
 ```
+
+### Background Jobs
+
+```
+GET    /api/jobs/:id           # Status completo do job
+GET    /api/jobs/:id/status    # Status resumido (lightweight)
+GET    /api/jobs/stats         # Estatísticas da fila (admin)
+POST   /api/jobs/cleanup       # Limpar jobs antigos (admin)
+```
+
+Endpoints que suportam modo assíncrono (`?async=true`):
+- `POST /api/lead-scores/:entityType/:entityId/calculate?async=true`
+- `POST /api/audio/transcribe?async=true`
+- `POST /api/files/:id/transcribe?async=true`
+- `POST /api/integrations/google-calendar/sync?async=true`
+- `POST /api/channel-configs/:id/email/sync?async=true`
 
 ### Contatos
 

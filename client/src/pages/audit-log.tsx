@@ -12,6 +12,8 @@ import {
   Shield,
   Download,
   UserX,
+  FileText,
+  Link2,
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
@@ -55,6 +57,8 @@ const entityIcons: Record<AuditLogEntityType, typeof Kanban> = {
   activity: User,
   pipeline: Kanban,
   email_template: User,
+  file: FileText,
+  integration: Link2,
 };
 
 export default function AuditLogPage() {

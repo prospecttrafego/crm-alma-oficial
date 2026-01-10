@@ -13,6 +13,7 @@ import { registerEvolutionRoutes } from "./evolution";
 import { registerFileRoutes } from "./files";
 import { registerGoogleCalendarRoutes } from "./googleCalendar";
 import { registerHealthRoutes } from "./health";
+import { registerJobRoutes } from "./jobs";
 import { registerLeadScoreRoutes } from "./leadScores";
 import { registerLgpdRoutes } from "./lgpd";
 import { registerNotificationRoutes } from "./notifications";
@@ -47,5 +48,6 @@ export function registerApiRoutes(app: Express) {
   registerGoogleCalendarRoutes(app);
   registerObjectRoutes(app);
   registerLgpdRoutes(app);
+  registerJobRoutes(app);
 }
 

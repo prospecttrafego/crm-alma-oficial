@@ -13,6 +13,8 @@ import {
   type ParsedEmail,
 } from "../integrations/email";
 import { logger } from "../logger";
+import { enqueueJob } from "../jobs/queue";
+import { JobTypes, type SyncEmailPayload } from "../jobs/handlers";
 
 const updateChannelConfigSchema = insertChannelConfigSchema.partial().omit({ organizationId: true, type: true });
 
@@ -279,6 +281,8 @@ export function registerChannelConfigRoutes(app: Express) {
   app.post("/api/channel-configs/:id/email/sync", isAuthenticated, async (req: any, res) => {
     try {
       const id = parseInt(req.params.id);
+      const async = req.query.async === "true";
+
       if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
 
       const config = await storage.getChannelConfig(id);
@@ -293,6 +297,24 @@ export function registerChannelConfigRoutes(app: Express) {
       const user = req.user as any;
       const organizationId = config.organizationId;
 
+      // Async mode: queue the job
+      if (async) {
+        const payload: SyncEmailPayload = {
+          channelConfigId: id,
+          organizationId,
+          userId: user.id,
+        };
+
+        const job = enqueueJob(JobTypes.SYNC_EMAIL, payload);
+
+        return res.status(202).json({
+          message: "Email sync queued",
+          jobId: job.id,
+          status: job.status,
+        });
+      }
+
+      // Sync mode: sync immediately
       // Get last sync UID from config metadata
       const lastSyncUid = (config as any).lastSyncUid as number | undefined;
 
@@ -382,6 +404,8 @@ export function registerChannelConfigRoutes(app: Express) {
   app.post("/api/channel-configs/:id/whatsapp/connect", isAuthenticated, async (req: any, res) => {
     try {
       const id = parseInt(req.params.id);
+      const userId = (req.user as any).id;
+
       if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
 
       const config = await storage.getChannelConfig(id);
@@ -429,6 +453,24 @@ export function registerChannelConfigRoutes(app: Express) {
 
       await storage.updateChannelConfig(id, {
         whatsappConfig: whatsappConfig as any,
+      });
+
+      // Audit log for WhatsApp connection initiated
+      await storage.createAuditLog({
+        userId,
+        action: "create",
+        entityType: "integration",
+        entityId: id,
+        entityName: `WhatsApp: ${config.name}`,
+        organizationId,
+        changes: {
+          after: {
+            type: "whatsapp",
+            instanceName,
+            status: "qr_pending",
+            initiatedAt: new Date().toISOString(),
+          },
+        },
       });
 
       res.json({
@@ -513,6 +555,8 @@ export function registerChannelConfigRoutes(app: Express) {
   app.post("/api/channel-configs/:id/whatsapp/disconnect", isAuthenticated, async (req: any, res) => {
     try {
       const id = parseInt(req.params.id);
+      const userId = (req.user as any).id;
+
       if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
 
       const config = await storage.getChannelConfig(id);
@@ -543,6 +587,23 @@ export function registerChannelConfigRoutes(app: Express) {
 
       await storage.updateChannelConfig(id, {
         whatsappConfig: whatsappConfig as any,
+      });
+
+      // Audit log for WhatsApp disconnection
+      await storage.createAuditLog({
+        userId,
+        action: "delete",
+        entityType: "integration",
+        entityId: id,
+        entityName: `WhatsApp: ${config.name}`,
+        organizationId: config.organizationId,
+        changes: {
+          before: {
+            type: "whatsapp",
+            instanceName,
+            disconnectedAt: new Date().toISOString(),
+          },
+        },
       });
 
       res.json({ success: true, message: "WhatsApp disconnected" });

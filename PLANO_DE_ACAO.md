@@ -54,28 +54,28 @@ Objetivo: você "enxergar" problemas antes de virarem crise e evitar travar o ap
 - [x] Endpoint de health/status interno ✅ (2026-01-09) — `GET /api/health` verifica DB, Redis, Supabase, Evolution API
 - [x] Timeouts nas chamadas externas ✅ (2026-01-09) — Evolution API (30s), OpenAI (30s), Whisper (120s), download audio (60s)
 - [x] Retries controlados nas chamadas externas ✅ (2026-01-09) — `server/retry.ts` com exponential backoff + jitter; aplicado em Evolution API
-- [ ] Tirar tarefas pesadas do request (ex.: transcrição/sync/score) e rodar em job/background quando fizer sentido
+- [x] Tirar tarefas pesadas do request (ex.: transcrição/sync/score) e rodar em job/background quando fizer sentido ✅ (2026-01-10) — `server/jobs/` com queue.ts + handlers.ts; endpoints suportam `?async=true` para transcricao, lead score, Google Calendar sync, email sync
 - [ ] Política de erros: o que retorna pro usuário, o que fica no log, e como alertar quando algo cair
 
 ---
 
-## Milestone 4 (P1) — Integrações “de verdade” (não só configuração)
+## Milestone 4 (P1) — Integrações "de verdade" (não só configuração)
 Objetivo: as integrações serem estáveis e completas.
 
-- [ ] Email: implementar sincronização IMAP + envio SMTP usando `channel_configs.emailConfig` (com segurança e proteção de credenciais)
+- [x] Email: implementar sincronização IMAP + envio SMTP usando `channel_configs.emailConfig` ✅ (2026-01-10) — `server/integrations/email/` com imap.ts, smtp.ts; endpoints `/email/sync` e `/email/send`
 - [x] WhatsApp: suportar mídia/anexos recebidos ✅ (2026-01-09) — baixa mídia da Evolution API, salva no Supabase Storage, registra em `files`, adiciona attachment na mensagem
-- [ ] Google Calendar: sincronização incremental e tratamento robusto de refresh token/expiração
-- [ ] Firebase push: fluxo de tokens (registrar/atualizar/remover) e testes reais em múltiplos dispositivos
+- [x] Google Calendar: sincronização incremental e tratamento robusto de refresh token/expiração ✅ (2026-01-10) — `syncToken` no schema, trata 410 GONE, atualiza/deleta eventos
+- [x] Firebase push: fluxo de tokens (registrar/atualizar/remover) ✅ (2026-01-10) — cleanup de tokens inválidos, `sendNotificationToUser()`, endpoints GET/DELETE /push-tokens
 
 ---
 
 ## Milestone 5 (P1) — Governança e dados (empresa de verdade)
-Objetivo: evitar perda de dados e ficar mais “profissional” na operação.
+Objetivo: evitar perda de dados e ficar mais "profissional" na operação.
 
-- [ ] Estratégia de migração (Drizzle migrations) para evoluir schema com segurança
-- [ ] Seed/bootstrap controlado (organização + usuário admin inicial) para não depender de “mexer no banco na mão”
-- [ ] Política de retenção (o que guardar e por quanto tempo) e ações LGPD básicas (exportação/remoção sob demanda)
-- [ ] Auditoria mais completa (cobrir ações críticas: deals, contatos, arquivos, integrações)
+- [x] Estratégia de migração (Drizzle migrations) para evoluir schema com segurança ✅ (2026-01-10) — scripts `db:generate`, `db:migrate`, `db:studio` no package.json
+- [x] Seed/bootstrap controlado (organização + usuário admin inicial) ✅ (2026-01-10) — `scripts/seed.ts` cria org + admin + pipeline padrão; `npm run db:seed`
+- [x] Ações LGPD básicas (exportação/remoção sob demanda) ✅ (2026-01-10) — `server/api/lgpd.ts` com GET/DELETE `/lgpd/export/contact/:id` e `/lgpd/delete/contact/:id`
+- [x] Auditoria mais completa (cobrir ações críticas: deals, contatos, arquivos, integrações) ✅ (2026-01-10) — audit logs expandidos para files (upload/delete) e integracoes (Google Calendar, WhatsApp connect/disconnect); schema atualizado com tipos "file" e "integration"
 
 ---
 
@@ -99,12 +99,12 @@ Objetivo: transformar “multicanal” em realidade (além do WhatsApp).
 ---
 
 ## Milestone 8 (P1) — Manutenibilidade (estrutura do backend)
-Objetivo: facilitar evolução sem “routes.ts gigante” e reduzir risco de regressões.
+Objetivo: facilitar evolução sem "routes.ts gigante" e reduzir risco de regressões.
 
 - [x] Criar `server/api/` e quebrar rotas por domínio (auth, contacts, deals, inbox, etc.)
 - [x] Criar `server/ws/` e extrair WebSocket/broadcast para módulo dedicado
-- [ ] Criar `server/integrations/` e organizar integrações (Evolution/Google/OpenAI/Firebase/Supabase)
-- [ ] Padronizar middlewares (auth, rate limit, validação) e contratos de resposta
+- [x] Criar `server/integrations/` e organizar integrações ✅ (2026-01-10) — subpastas evolution/, google/, openai/, firebase/, supabase/, email/ com index.ts
+- [x] Padronizar middlewares e contratos de resposta ✅ (2026-01-10) — `server/middleware.ts` (validateBody/Query/Params) + `server/response.ts` (ApiResponse, sendSuccess, sendError)
 
 ---
 
@@ -118,5 +118,5 @@ Use isso como "lista de pronto" para operar com confiança:
 - [x] Permissões por perfil aplicadas (RBAC) ✅
 - [x] Logs e alertas (saber quando algo quebrou) ✅
 - [x] Integrações com timeout e status visível ✅ (retries implementado 2026-01-09)
-- [ ] Rotina de migrações e bootstrap (sem "mexer no banco na mão")
-- [ ] Política mínima de retenção e ações LGPD (exportar/remover quando necessário)
+- [x] Rotina de migrações e bootstrap (sem "mexer no banco na mão") ✅ (2026-01-10) — `npm run db:seed`
+- [x] Política mínima de retenção e ações LGPD (exportar/remover quando necessário) ✅ (2026-01-10) — endpoints LGPD

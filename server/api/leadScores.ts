@@ -1,6 +1,8 @@
 import type { Express } from "express";
 import { isAuthenticated } from "../auth";
 import { storage } from "../storage";
+import { enqueueJob, getJob } from "../jobs/queue";
+import { JobTypes, type CalculateLeadScorePayload } from "../jobs/handlers";
 
 export function registerLeadScoreRoutes(app: Express) {
   app.get("/api/lead-scores/:entityType/:entityId", isAuthenticated, async (req: any, res) => {
@@ -27,6 +29,7 @@ export function registerLeadScoreRoutes(app: Express) {
     try {
       const { entityType, entityId } = req.params;
       const id = parseInt(entityId);
+      const async = req.query.async === "true";
 
       if (!["contact", "deal"].includes(entityType)) {
         return res.status(400).json({ message: "Invalid entity type" });
@@ -40,6 +43,37 @@ export function registerLeadScoreRoutes(app: Express) {
         return res.status(404).json({ message: "Organization not found" });
       }
 
+      // Verify entity exists before queueing
+      if (entityType === "contact") {
+        const contact = await storage.getContact(id);
+        if (!contact) {
+          return res.status(404).json({ message: "Contact not found" });
+        }
+      } else {
+        const dealData = await storage.getDealScoringData(id);
+        if (!dealData.deal) {
+          return res.status(404).json({ message: "Deal not found" });
+        }
+      }
+
+      // Async mode: queue the job and return immediately
+      if (async) {
+        const payload: CalculateLeadScorePayload = {
+          entityType: entityType as "contact" | "deal",
+          entityId: id,
+          organizationId: org.id,
+        };
+
+        const job = enqueueJob(JobTypes.CALCULATE_LEAD_SCORE, payload);
+
+        return res.status(202).json({
+          message: "Lead score calculation queued",
+          jobId: job.id,
+          status: job.status,
+        });
+      }
+
+      // Sync mode: calculate immediately
       const { scoreContact, scoreDeal } = await import("../integrations/openai/scoring");
 
       if (entityType === "contact") {
