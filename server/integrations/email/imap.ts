@@ -90,7 +90,7 @@ function createImapConnection(config: EmailConfig): Imap {
     host: config.imapHost,
     port: config.imapPort,
     tls: config.imapSecure,
-    tlsOptions: { rejectUnauthorized: false },
+    tlsOptions: config.imapSecure ? { rejectUnauthorized: true } : undefined,
     connTimeout: IMAP_TIMEOUT,
     authTimeout: IMAP_TIMEOUT,
   });
@@ -182,8 +182,14 @@ export function fetchEmails(
             return;
           }
 
-          // Sort UIDs descending and take the most recent ones
-          const sortedUids = uids.sort((a, b) => b - a).slice(0, limit);
+          // Sort UIDs ascending and take the oldest ones to avoid skipping batches
+          const sortedUids = uids.sort((a, b) => a - b).slice(0, limit);
+          if (sortedUids.length > 0) {
+            const batchMaxUid = sortedUids[sortedUids.length - 1];
+            if (batchMaxUid > lastUid) {
+              lastUid = batchMaxUid;
+            }
+          }
 
           // Track how many we've processed
           let pending = sortedUids.length;

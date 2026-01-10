@@ -64,7 +64,7 @@ export function registerLeadScoreRoutes(app: Express) {
           organizationId: org.id,
         };
 
-        const job = enqueueJob(JobTypes.CALCULATE_LEAD_SCORE, payload);
+        const job = await enqueueJob(JobTypes.CALCULATE_LEAD_SCORE, payload);
 
         return res.status(202).json({
           message: "Lead score calculation queued",
@@ -143,4 +143,3 @@ export function registerLeadScoreRoutes(app: Express) {
     }
   });
 }
-

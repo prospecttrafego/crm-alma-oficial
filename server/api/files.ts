@@ -184,7 +184,7 @@ export function registerFileRoutes(app: Express) {
           language,
         };
 
-        const job = enqueueJob(JobTypes.TRANSCRIBE_AUDIO, payload);
+        const job = await enqueueJob(JobTypes.TRANSCRIBE_AUDIO, payload);
 
         return res.status(202).json({
           message: "Transcription queued",
@@ -241,7 +241,7 @@ export function registerFileRoutes(app: Express) {
           fileId: id,
         };
 
-        const job = enqueueJob(JobTypes.TRANSCRIBE_AUDIO, payload);
+        const job = await enqueueJob(JobTypes.TRANSCRIBE_AUDIO, payload);
 
         return res.status(202).json({
           message: "Transcription queued",
@@ -268,4 +268,3 @@ export function registerFileRoutes(app: Express) {
     }
   });
 }
-

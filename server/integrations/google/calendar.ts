@@ -12,11 +12,18 @@ const SCOPES = [
 function getEncryptionKey(): Buffer {
   const key = process.env.GOOGLE_TOKEN_ENCRYPTION_KEY;
   if (!key) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("GOOGLE_TOKEN_ENCRYPTION_KEY is required in production");
+    }
     // If no key is set, use a derived key from SESSION_SECRET (not ideal but fallback)
     const sessionSecret = process.env.SESSION_SECRET || 'default-secret-key-change-me';
     return crypto.scryptSync(sessionSecret, 'google-calendar-salt', 32);
   }
-  return Buffer.from(key, 'base64');
+  const buffer = Buffer.from(key, 'base64');
+  if (buffer.length !== 32) {
+    throw new Error("GOOGLE_TOKEN_ENCRYPTION_KEY must be 32 bytes (base64)");
+  }
+  return buffer;
 }
 
 export function encryptToken(token: string): string {
@@ -54,7 +61,12 @@ export class GoogleCalendarService {
    * Check if Google Calendar integration is configured
    */
   isConfigured(): boolean {
-    return !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
+    const hasClient = !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
+    if (!hasClient) return false;
+    if (process.env.NODE_ENV === "production" && !process.env.GOOGLE_TOKEN_ENCRYPTION_KEY) {
+      return false;
+    }
+    return true;
   }
 
   /**

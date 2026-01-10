@@ -283,10 +283,17 @@ async function handleSyncEmail(payload: SyncEmailPayload): Promise<{
     throw new Error("Email configuration is missing");
   }
 
-  const result = await syncEmails(emailConfig, undefined, async (email: ParsedEmail) => {
+  const lastSyncUid = emailConfig.lastSyncUid;
+  const result = await syncEmails(emailConfig, lastSyncUid, async (email: ParsedEmail) => {
     // Process each email (same logic as in channelConfigs.ts)
     const senderEmail = email.from[0]?.address;
     if (!senderEmail) return;
+
+    const externalId = email.messageId ? `email:${email.messageId}` : null;
+    if (externalId) {
+      const existingMessage = await storage.getMessageByExternalId(externalId);
+      if (existingMessage) return;
+    }
 
     let contact = await storage.getContactByEmail(senderEmail, payload.organizationId);
 
@@ -326,6 +333,7 @@ async function handleSyncEmail(payload: SyncEmailPayload): Promise<{
       contentType: "text",
       senderType: "contact",
       isInternal: false,
+      externalId: externalId || undefined,
       metadata: {
         emailMessageId: email.messageId,
         emailDate: email.date.toISOString(),
@@ -339,9 +347,11 @@ async function handleSyncEmail(payload: SyncEmailPayload): Promise<{
     });
   });
 
-  await storage.updateChannelConfig(payload.channelConfigId, {
+  const updates = {
     lastSyncAt: new Date(),
-  });
+    emailConfig: result.lastUid !== undefined ? { ...emailConfig, lastSyncUid: result.lastUid } : emailConfig,
+  };
+  await storage.updateChannelConfig(payload.channelConfigId, updates);
 
   logger.info("[Jobs:Email] Sync completed", {
     channelConfigId: payload.channelConfigId,

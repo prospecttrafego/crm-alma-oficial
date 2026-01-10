@@ -1,5 +1,5 @@
 import type { Express } from "express";
-import { insertChannelConfigSchema } from "@shared/schema";
+import { insertChannelConfigSchema, type InsertChannelConfig } from "@shared/schema";
 import { isAuthenticated } from "../auth";
 import { storage } from "../storage";
 import { broadcast } from "../ws/index";
@@ -32,6 +32,15 @@ async function processIncomingEmail(
   if (!senderEmail) {
     logger.warn("[Email] Skipping email without sender", { messageId: email.messageId });
     return;
+  }
+
+  const externalId = email.messageId ? `email:${email.messageId}` : null;
+  if (externalId) {
+    const existingMessage = await storage.getMessageByExternalId(externalId);
+    if (existingMessage) {
+      logger.info("[Email] Skipping duplicate email message", { externalId });
+      return;
+    }
   }
 
   // Try to find existing contact by email
@@ -99,6 +108,7 @@ async function processIncomingEmail(
     contentType: "text",
     senderType: "contact",
     isInternal: false,
+    externalId: externalId || undefined,
     // Store email-specific metadata (schema allows any JSON)
     metadata: {
       emailMessageId: email.messageId,
@@ -305,7 +315,7 @@ export function registerChannelConfigRoutes(app: Express) {
           userId: user.id,
         };
 
-        const job = enqueueJob(JobTypes.SYNC_EMAIL, payload);
+        const job = await enqueueJob(JobTypes.SYNC_EMAIL, payload);
 
         return res.status(202).json({
           message: "Email sync queued",
@@ -315,8 +325,7 @@ export function registerChannelConfigRoutes(app: Express) {
       }
 
       // Sync mode: sync immediately
-      // Get last sync UID from config metadata
-      const lastSyncUid = (config as any).lastSyncUid as number | undefined;
+      const lastSyncUid = emailConfig.lastSyncUid;
 
       // Sync emails and create conversations/messages
       const result = await syncEmails(emailConfig, lastSyncUid, async (email: ParsedEmail) => {
@@ -324,13 +333,13 @@ export function registerChannelConfigRoutes(app: Express) {
       });
 
       // Update last sync timestamp and UID
-      if (result.lastUid) {
-        await storage.updateChannelConfig(id, {
-          lastSyncAt: new Date(),
-        });
-        // Store lastSyncUid in a way that doesn't conflict with the schema
-        // For now, we'll rely on lastSyncAt and fetch all recent emails
+      const updates: Partial<InsertChannelConfig> = {
+        lastSyncAt: new Date(),
+      };
+      if (result.lastUid !== undefined) {
+        updates.emailConfig = { ...emailConfig, lastSyncUid: result.lastUid } as InsertChannelConfig["emailConfig"];
       }
+      await storage.updateChannelConfig(id, updates);
 
       logger.info("[Email] Sync completed", {
         channelId: id,

@@ -14,7 +14,11 @@ import { db, pool } from "./db";
 import { users, pipelines, pipelineStages } from "@shared/schema";
 import { and, count, eq } from "drizzle-orm";
 import { getSingleTenantOrganizationId } from "./tenant";
-import { checkRateLimit } from "./redis";
+import {
+  checkRateLimit,
+  checkLoginRateLimit as checkLoginRateLimitRedis,
+  resetLoginRateLimit as resetLoginRateLimitRedis,
+} from "./redis";
 import { logger } from "./logger";
 
 const BCRYPT_ROUNDS = 12;
@@ -48,7 +52,7 @@ function getClientIp(req: Request): string {
   return req.ip || req.socket.remoteAddress || "unknown";
 }
 
-function checkLoginRateLimit(ip: string): { allowed: boolean; retryAfter?: number } {
+function checkLoginRateLimitLocal(ip: string): { allowed: boolean; retryAfter?: number } {
   const now = Date.now();
   const record = loginAttempts.get(ip);
 
@@ -66,8 +70,21 @@ function checkLoginRateLimit(ip: string): { allowed: boolean; retryAfter?: numbe
   return { allowed: true };
 }
 
-function resetLoginAttempts(ip: string): void {
+function resetLoginAttemptsLocal(ip: string): void {
   loginAttempts.delete(ip);
+}
+
+async function checkLoginRateLimit(ip: string): Promise<{ allowed: boolean; retryAfter?: number }> {
+  const redisResult = await checkLoginRateLimitRedis(ip);
+  if (redisResult) {
+    return redisResult;
+  }
+  return checkLoginRateLimitLocal(ip);
+}
+
+function resetLoginAttempts(ip: string): void {
+  resetLoginAttemptsLocal(ip);
+  void resetLoginRateLimitRedis(ip);
 }
 
 // Limpar registros antigos periodicamente
@@ -236,38 +253,43 @@ export async function setupAuth(app: Express) {
   });
 
   // Endpoint: Login (com rate limiting anti-brute-force)
-  app.post("/api/login", (req, res, next) => {
-    const clientIp = getClientIp(req);
-    const rateLimitCheck = checkLoginRateLimit(clientIp);
+  app.post("/api/login", async (req, res, next) => {
+    try {
+      const clientIp = getClientIp(req);
+      const rateLimitCheck = await checkLoginRateLimit(clientIp);
 
-    if (!rateLimitCheck.allowed) {
-      return res.status(429).json({
-        message: `Muitas tentativas de login. Tente novamente em ${rateLimitCheck.retryAfter} segundos.`,
-        retryAfter: rateLimitCheck.retryAfter,
-      });
-    }
-
-    passport.authenticate("local", (err: any, user: any, info: any) => {
-      if (err) {
-        return res.status(500).json({ message: "Erro interno do servidor" });
-      }
-      if (!user) {
-        // Nao resetar contador em caso de falha (brute force protection)
-        return res.status(401).json({ message: info?.message || "Credenciais invalidas" });
+      if (!rateLimitCheck.allowed) {
+        return res.status(429).json({
+          message: `Muitas tentativas de login. Tente novamente em ${rateLimitCheck.retryAfter} segundos.`,
+          retryAfter: rateLimitCheck.retryAfter,
+        });
       }
 
-      // Login bem-sucedido: resetar contador de tentativas
-      resetLoginAttempts(clientIp);
-
-      req.logIn(user, (loginErr) => {
-        if (loginErr) {
-          return res.status(500).json({ message: "Erro ao iniciar sessao" });
+      passport.authenticate("local", (err: any, user: any, info: any) => {
+        if (err) {
+          return res.status(500).json({ message: "Erro interno do servidor" });
         }
-        // Nao retornar passwordHash na resposta
-        const { passwordHash: _passwordHash, ...safeUser } = user;
-        return res.json(safeUser);
-      });
-    })(req, res, next);
+        if (!user) {
+          // Nao resetar contador em caso de falha (brute force protection)
+          return res.status(401).json({ message: info?.message || "Credenciais invalidas" });
+        }
+
+        // Login bem-sucedido: resetar contador de tentativas
+        resetLoginAttempts(clientIp);
+
+        req.logIn(user, (loginErr) => {
+          if (loginErr) {
+            return res.status(500).json({ message: "Erro ao iniciar sessao" });
+          }
+          // Nao retornar passwordHash na resposta
+          const { passwordHash: _passwordHash, ...safeUser } = user;
+          return res.json(safeUser);
+        });
+      })(req, res, next);
+    } catch (error) {
+      logger.error("Erro no login:", { error: error instanceof Error ? error.message : String(error) });
+      return res.status(500).json({ message: "Erro interno do servidor" });
+    }
   });
 
   // Endpoint: Registro (configuravel via env, com rate limiting)
@@ -275,7 +297,7 @@ export async function setupAuth(app: Express) {
     try {
       // Rate limiting para registro (mesmo mecanismo do login)
       const clientIp = getClientIp(req);
-      const rateLimitCheck = checkLoginRateLimit(clientIp);
+      const rateLimitCheck = await checkLoginRateLimit(clientIp);
 
       if (!rateLimitCheck.allowed) {
         return res.status(429).json({
@@ -392,7 +414,7 @@ export async function setupAuth(app: Express) {
     try {
       // Rate limiting (same as login to prevent enumeration)
       const clientIp = getClientIp(req);
-      const rateLimitCheck = checkLoginRateLimit(clientIp);
+      const rateLimitCheck = await checkLoginRateLimit(clientIp);
 
       if (!rateLimitCheck.allowed) {
         return res.status(429).json({
@@ -460,7 +482,7 @@ export async function setupAuth(app: Express) {
     try {
       // Rate limiting
       const clientIp = getClientIp(req);
-      const rateLimitCheck = checkLoginRateLimit(clientIp);
+      const rateLimitCheck = await checkLoginRateLimit(clientIp);
 
       if (!rateLimitCheck.allowed) {
         return res.status(429).json({

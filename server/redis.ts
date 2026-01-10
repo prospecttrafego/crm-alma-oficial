@@ -11,6 +11,10 @@ const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN;
 
 let redis: Redis | null = null;
 let ratelimit: Ratelimit | null = null;
+let loginRatelimit: Ratelimit | null = null;
+
+const LOGIN_RATE_LIMIT_MAX = 5;
+const LOGIN_RATE_LIMIT_WINDOW = "1 m";
 
 if (redisUrl && redisToken) {
   redis = new Redis({
@@ -24,6 +28,13 @@ if (redisUrl && redisToken) {
     limiter: Ratelimit.slidingWindow(100, "1 m"),
     analytics: true,
     prefix: "alma:ratelimit",
+  });
+
+  loginRatelimit = new Ratelimit({
+    redis,
+    limiter: Ratelimit.fixedWindow(LOGIN_RATE_LIMIT_MAX, LOGIN_RATE_LIMIT_WINDOW),
+    analytics: true,
+    prefix: "alma:ratelimit:login",
   });
 
   console.log("[Redis] Conectado ao Upstash");
@@ -189,6 +200,43 @@ export async function checkRateLimit(userId: string): Promise<RateLimitResult> {
     console.error("[Redis] Erro ao verificar rate limit:", error);
     // Em caso de erro, permitir a requisicao
     return { success: true, limit: 100, remaining: 100, reset: 0 };
+  }
+}
+
+export interface LoginRateLimitResult {
+  allowed: boolean;
+  retryAfter?: number;
+}
+
+/**
+ * Verificar rate limit para tentativas de login (por IP)
+ */
+export async function checkLoginRateLimit(identifier: string): Promise<LoginRateLimitResult | null> {
+  if (!loginRatelimit) return null;
+
+  try {
+    const result = await loginRatelimit.limit(identifier);
+    if (result.success) {
+      return { allowed: true };
+    }
+    const retryAfter = Math.ceil((result.reset - Date.now()) / 1000);
+    return { allowed: false, retryAfter };
+  } catch (error) {
+    console.error("[Redis] Erro ao verificar rate limit de login:", error);
+    return null;
+  }
+}
+
+/**
+ * Resetar rate limit de login para um identificador
+ */
+export async function resetLoginRateLimit(identifier: string): Promise<void> {
+  if (!loginRatelimit) return;
+
+  try {
+    await loginRatelimit.resetUsedTokens(identifier);
+  } catch (error) {
+    console.error("[Redis] Erro ao resetar rate limit de login:", error);
   }
 }
 

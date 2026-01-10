@@ -12,7 +12,7 @@ export function registerJobRoutes(app: Express) {
   app.get("/api/jobs/:id", isAuthenticated, async (req: any, res) => {
     try {
       const { id } = req.params;
-      const job = getJob(id);
+      const job = await getJob(id);
 
       if (!job) {
         return res.status(404).json({ message: "Job not found" });
@@ -40,7 +40,7 @@ export function registerJobRoutes(app: Express) {
   app.get("/api/jobs/:id/status", isAuthenticated, async (req: any, res) => {
     try {
       const { id } = req.params;
-      const status = getJobStatus(id);
+      const status = await getJobStatus(id);
 
       if (!status) {
         return res.status(404).json({ message: "Job not found" });
@@ -56,7 +56,7 @@ export function registerJobRoutes(app: Express) {
   // Get queue stats (admin only)
   app.get("/api/jobs/stats", isAuthenticated, requireRole("admin"), async (_req: any, res) => {
     try {
-      const stats = getQueueStats();
+      const stats = await getQueueStats();
       res.json(stats);
     } catch (error) {
       console.error("Error fetching queue stats:", error);
@@ -68,7 +68,7 @@ export function registerJobRoutes(app: Express) {
   app.post("/api/jobs/cleanup", isAuthenticated, requireRole("admin"), async (req: any, res) => {
     try {
       const maxAgeMs = req.body.maxAgeMs || 24 * 60 * 60 * 1000; // Default 24 hours
-      const removed = cleanupJobs(maxAgeMs);
+      const removed = await cleanupJobs(maxAgeMs);
       res.json({ removed });
     } catch (error) {
       console.error("Error cleaning up jobs:", error);

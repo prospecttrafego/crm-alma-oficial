@@ -255,7 +255,7 @@ export function registerGoogleCalendarRoutes(app: Express) {
           organizationId: user.organizationId,
         };
 
-        const job = enqueueJob(JobTypes.SYNC_GOOGLE_CALENDAR, payload);
+        const job = await enqueueJob(JobTypes.SYNC_GOOGLE_CALENDAR, payload);
 
         // Mark as syncing
         await storage.updateGoogleOAuthToken(userId, { syncStatus: "syncing", syncError: null });

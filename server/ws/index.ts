@@ -2,8 +2,10 @@ import type { Server as HttpServer } from "http";
 import type { RequestHandler } from "express";
 import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "../storage";
+import { setUserOffline, setUserOnline } from "../redis";
 
 const clients = new Set<WebSocket>();
+const HEARTBEAT_INTERVAL_MS = 30000;
 
 export function broadcast(type: string, data: unknown) {
   const message = JSON.stringify({ type, data });
@@ -21,6 +23,17 @@ export function broadcast(type: string, data: unknown) {
 export function setupWebSocketServer(httpServer: HttpServer, sessionParser: RequestHandler) {
   const wss = new WebSocketServer({ noServer: true });
   const clientUserMap = new Map<WebSocket, string>();
+  const heartbeatInterval = setInterval(() => {
+    for (const client of clients) {
+      const trackedClient = client as WebSocket & { isAlive?: boolean };
+      if (trackedClient.isAlive === false) {
+        client.terminate();
+        continue;
+      }
+      trackedClient.isAlive = false;
+      client.ping();
+    }
+  }, HEARTBEAT_INTERVAL_MS);
 
   const fakeRes = {
     getHeader() {
@@ -61,16 +74,25 @@ export function setupWebSocketServer(httpServer: HttpServer, sessionParser: Requ
 
     clients.add(ws);
     clientUserMap.set(ws, userId);
+    (ws as WebSocket & { isAlive?: boolean }).isAlive = true;
 
     try {
       const user = await storage.getUser(userId);
       const userName = user ? `${user.firstName || ""} ${user.lastName || ""}`.trim() : undefined;
-      const { setUserOnline } = await import("../redis");
       await setUserOnline(userId);
       broadcast("user:online", { userId, userName, lastSeenAt: new Date().toISOString() });
     } catch (error) {
       console.error("WebSocket online status error:", error);
     }
+
+    ws.on("pong", async () => {
+      (ws as WebSocket & { isAlive?: boolean }).isAlive = true;
+      try {
+        await setUserOnline(userId);
+      } catch (error) {
+        console.error("WebSocket presence refresh error:", error);
+      }
+    });
 
     ws.on("message", async (message) => {
       try {
@@ -92,7 +114,6 @@ export function setupWebSocketServer(httpServer: HttpServer, sessionParser: Requ
       if (hasOtherConnections) return;
 
       try {
-        const { setUserOffline } = await import("../redis");
         await setUserOffline(userId);
       } catch (error) {
         console.error("WebSocket offline status error:", error);
@@ -100,5 +121,9 @@ export function setupWebSocketServer(httpServer: HttpServer, sessionParser: Requ
 
       broadcast("user:offline", { userId, lastSeenAt: new Date().toISOString() });
     });
+  });
+
+  wss.on("close", () => {
+    clearInterval(heartbeatInterval);
   });
 }

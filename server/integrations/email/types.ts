@@ -13,6 +13,7 @@ export interface EmailConfig {
   email: string;
   password: string;
   fromName?: string;
+  lastSyncUid?: number;
 }
 
 export interface EmailAddress {

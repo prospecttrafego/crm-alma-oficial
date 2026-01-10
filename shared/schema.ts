@@ -399,6 +399,7 @@ export const channelConfigs = pgTable("channel_configs", {
     email: string;
     password: string;
     fromName?: string;
+    lastSyncUid?: number;
   }>(),
   whatsappConfig: jsonb("whatsapp_config").$type<WhatsAppConfig>(),
   lastSyncAt: timestamp("last_sync_at"),
