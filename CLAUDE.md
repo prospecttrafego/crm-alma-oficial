@@ -135,28 +135,38 @@ CRM_Oficial/
 │       ├── contexts/            # Contextos (ex.: idioma)
 │       ├── hooks/               # Hooks (auth, websocket, push, toast…)
 │       ├── lib/                 # Infra do frontend (query client, firebase, utils)
+│       │   └── validation/      # Schemas Zod (importa de @shared/schema)
 │       ├── locales/             # Traducoes (pt-BR/en)
 │       └── pages/               # Paginas (dashboard, pipeline, inbox, settings…)
 ├── server/
 │   ├── index.ts                 # Entry point, inicia servidor
 │   ├── env.ts                   # Loader de .env (staging/prod) com fallback
-│   ├── logger.ts                # Logs estruturados (requestId + loggers de integrações)
-│   ├── health.ts                # Health check (DB + integrações opcionais)
 │   ├── routes.ts                # Agregador (auth + rate limit + API + WebSocket)
-│   ├── api/                     # Rotas HTTP por domínio (módulos)
+│   ├── middleware.ts            # Middlewares padronizados (asyncHandler, validate*)
+│   ├── response.ts              # Helpers de resposta (sendSuccess, sendError, toSafeUser)
+│   ├── validation/              # Schemas Zod centralizados
+│   │   ├── index.ts             # Re-exports
+│   │   ├── schemas.ts           # Schemas de validação
+│   │   └── factory.ts           # Factory drizzle-zod
+│   ├── api/                     # Rotas HTTP por domínio (módulos) - TODOS padronizados
 │   │   ├── index.ts             # Registra todos os módulos de API
 │   │   ├── contacts.ts          # Contatos
 │   │   ├── companies.ts         # Empresas
 │   │   ├── deals.ts             # Deals
 │   │   ├── pipelines.ts         # Pipelines/estágios
 │   │   ├── conversations.ts     # Inbox (conversas/mensagens)
-│   │   └── ...                  # Demais domínios (activities, files, etc.)
+│   │   ├── files.ts             # Upload/download + transcrição
+│   │   ├── lgpd.ts              # LGPD compliance (export/delete)
+│   │   ├── jobs.ts              # Status de background jobs
+│   │   └── ...                  # Demais domínios (activities, notifications, etc.)
 │   ├── ws/                      # WebSocket (/ws) + broadcast
 │   │   └── index.ts             # Upgrade handler + presença + "typing"
 │   ├── jobs/                    # Background jobs (tarefas assíncronas)
 │   │   ├── index.ts             # Exports do módulo
 │   │   ├── queue.ts             # Fila Redis (Upstash) com fallback em memoria
 │   │   └── handlers.ts          # Handlers: transcricao, lead score, sync
+│   ├── logger.ts                # Logs estruturados (requestId + loggers de integrações)
+│   ├── health.ts                # Health check (DB + integrações opcionais)
 │   ├── storage.ts               # Camada de acesso ao banco (DAL)
 │   ├── auth.ts                  # Passport.js + sessoes
 │   ├── db.ts                    # Drizzle + conexao Postgres (Pool)
@@ -171,8 +181,11 @@ CRM_Oficial/
 │   ├── redis.ts                 # Upstash Redis (presenca + base cache/rate-limit)
 │   ├── static.ts                # Servir frontend em producao (dist/public)
 │   └── vite.ts                  # Integracao Vite em dev
-├── shared/
-│   └── schema.ts                # Schema Drizzle + tipos TypeScript
+├── shared/                      # Fonte unica de verdade (tipos e enums)
+│   ├── schema.ts                # Schema Drizzle + enums + tipos inferidos
+│   └── types/                   # Tipos compartilhados frontend/backend
+│       ├── api.ts               # ApiResponse, ErrorCodes, PaginationMeta
+│       └── dto.ts               # DTOs para transferencia de dados
 ├── scripts/
 │   └── migrate-users.ts         # Script de migracao de usuarios
 ├── script/

@@ -18,11 +18,16 @@ Estrutura atual (nível alto):
 /
   client/
   server/
-    api/
-    ws/
-    integrations/
-    jobs/
+    api/            # Rotas HTTP por domínio
+    ws/             # WebSocket
+    validation/     # Schemas Zod centralizados
+    integrations/   # Integrações externas
+    jobs/           # Background jobs
+    middleware.ts   # Middlewares padronizados
+    response.ts     # Helpers de resposta API
   shared/
+    schema.ts       # Drizzle schema + enums
+    types/          # Tipos compartilhados
   scripts/
   script/
   dist/
@@ -98,17 +103,26 @@ client/
 Aqui ficam as regras de negócio, autenticação, comunicação com banco de dados e integrações externas.
 É a parte que garante que o CRM funcione de forma consistente e segura.
 
-O que você encontra (pastas principais):
+O que você encontra (pastas e arquivos principais):
 
 ```
 server/
-  api/
-  ws/
-  integrations/
-  jobs/
+  api/                # Rotas HTTP por domínio
+  ws/                 # WebSocket
+  validation/         # Schemas Zod centralizados
+  integrations/       # Integrações externas
+  jobs/               # Background jobs
+  middleware.ts       # Middlewares (asyncHandler, validateBody/Params/Query)
+  response.ts         # Helpers de resposta (sendSuccess, sendError, toSafeUser)
 ```
 
-E também existem arquivos importantes “soltos” dentro de `server/` (por exemplo: autenticação, banco, storage/DAL e `server/env.ts` para carregar `.env.staging`/`.env.production`).
+E também existem arquivos importantes "soltos" dentro de `server/` (por exemplo: autenticação, banco, storage/DAL e `server/env.ts` para carregar `.env.staging`/`.env.production`).
+
+### Arquivos de infraestrutura importantes
+
+- `server/middleware.ts`: Middlewares padronizados como `asyncHandler` (captura erros automaticamente), `validateBody`, `validateParams`, `validateQuery` (validação Zod).
+- `server/response.ts`: Funções helper para respostas HTTP padronizadas (`sendSuccess`, `sendError`, `sendNotFound`, `sendValidationError`, `toSafeUser`, etc.).
+- `server/validation/`: Pasta com schemas Zod centralizados para validação de entrada (importa tipos base de `@shared/schema`).
 
 ### `server/api/` — Rotas HTTP do sistema (endpoints `/api/...`)
 - O que é: aqui estão as “portas de entrada” do backend (as URLs que o frontend chama).
@@ -205,13 +219,26 @@ O que evitar:
 
 ```
 shared/
-  schema.ts
+  schema.ts           # Drizzle schema + enums + tipos inferidos
+  types/
+    api.ts            # ApiResponse, ErrorCodes, PaginationMeta
+    dto.ts            # DTOs para transferência de dados
 ```
 
-- O que é: o “contrato” dos dados (tabelas do banco + tipos TypeScript).
-- Por que existe: evita “adivinhação” de campos (nome, tipo, formato) e reduz bugs.
-- O que pode mudar: quando você cria/alterar tabelas/campos, isso normalmente passa por `shared/schema.ts`.
-- O que evitar: mudanças sem atualizar o banco (migração/push), porque o backend vai tentar usar algo que não existe.
+- O que é: a **fonte única de verdade** para tipos, enums e schema do banco.
+- Por que existe: evita duplicação de definições entre frontend e backend, reduz bugs e garante consistência.
+
+### `shared/schema.ts`
+- Contém todas as tabelas Drizzle (users, contacts, deals, etc.)
+- Contém todos os **enums** do sistema (channelTypes, activityTypes, savedViewTypes, etc.)
+- Exporta tipos inferidos (Contact, InsertContact, Deal, etc.)
+
+### `shared/types/`
+- `api.ts`: Tipos de resposta da API (`ApiResponse`, `PaginatedResponse`, `ErrorCodes`, `PaginationMeta`)
+- `dto.ts`: DTOs (Data Transfer Objects) para transferência entre frontend e backend
+
+O que pode mudar: quando você cria/altera tabelas/campos, isso normalmente passa por `shared/schema.ts`.
+O que evitar: mudanças sem atualizar o banco (migração/push), porque o backend vai tentar usar algo que não existe.
 
 ---
 

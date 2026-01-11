@@ -1,7 +1,7 @@
 # Diagnóstico completo — Alma CRM
 
-Data do diagnóstico: 2026-01-09  
-Commit analisado (base): `3afebb2`  
+Data do diagnóstico: 2026-01-11
+Commit analisado (base): `c154dbe` (após padronização completa do backend)
 Ambiente usado para validações: Node `v25.2.1`, npm `11.6.2` (o projeto documenta Node 20+)
 
 Este documento foi criado para:
@@ -128,15 +128,22 @@ Integrações opcionais (dependem de configuração):
 client/                Frontend (React)
   public/              Arquivos públicos (logo, favicon, service worker do Firebase)
   src/
-    components/        Componentes (UI e “features”)
+    components/        Componentes (UI e "features")
     pages/             Páginas (pipeline, inbox, contatos, etc.)
     hooks/             Hooks (auth, websocket, push, toast…)
     lib/               Infra do frontend (query client, firebase, utils)
+      validation/      Schemas Zod (importa de @shared/schema)
 
 server/                Backend (Express)
   index.ts             Entry point (Express + Vite dev + static prod)
   routes.ts            Agregador (auth + rate limit + API + WS)
-  api/                 Rotas HTTP por domínio (módulos)
+  middleware.ts        Middlewares padronizados (asyncHandler, validate*)
+  response.ts          Helpers de resposta (sendSuccess, sendError, toSafeUser)
+  validation/          Schemas Zod centralizados
+    index.ts           Re-exports
+    schemas.ts         Schemas de validação
+    factory.ts         Factory drizzle-zod
+  api/                 Rotas HTTP por domínio (módulos) — TODOS padronizados
     index.ts           Registra todos os módulos de API
     contacts.ts        Endpoints de contatos
     companies.ts       Endpoints de empresas
@@ -147,15 +154,21 @@ server/                Backend (Express)
     channelConfigs.ts  Canais (email/whatsapp) + ações WhatsApp
     googleCalendar.ts  Integração Google Calendar
     evolution.ts       Status + webhook Evolution (WhatsApp)
+    lgpd.ts            LGPD compliance (export/delete)
+    jobs.ts            Status de background jobs
     ...                (demais domínios: activities, notifications, reports, etc.)
   ws/                  WebSocket (/ws) + broadcast
     index.ts           Upgrade handler + presença + "typing" + broadcast
+  jobs/                Background jobs (Redis/fallback memória)
+    index.ts           Exports do módulo
+    queue.ts           Fila Redis (Upstash) com fallback
+    handlers.ts        Handlers: transcrição, lead score, sync
   logger.ts            Logs estruturados (requestId + loggers de integrações)
   health.ts            Health check (DB + integrações opcionais)
   auth.ts              Sessões + Passport (login/register/logout/me)
   db.ts                Conexão Postgres + Drizzle
-  storage.ts           “Camada de banco” (CRUD e queries)
-  tenant.ts            Regra de “single-tenant” (1 organização por instalação)
+  storage.ts           "Camada de banco" (CRUD e queries)
+  tenant.ts            Regra de "single-tenant" (1 organização por instalação)
   static.ts            Servir frontend em produção (dist/public)
   vite.ts              Vite em modo middleware (dev)
   storage.supabase.ts  Supabase Storage (upload/download/signed URL + controle de acesso)
@@ -167,8 +180,11 @@ server/                Backend (Express)
   aiScoring.ts         Lead scoring + recomendação via OpenAI
   whisper.ts           Transcrição de áudio (OpenAI Whisper)
 
-shared/
-  schema.ts            Schema Drizzle + tipos compartilhados
+shared/                Fonte única de verdade (tipos e enums)
+  schema.ts            Schema Drizzle + enums + tipos inferidos
+  types/
+    api.ts             ApiResponse, ErrorCodes, PaginationMeta
+    dto.ts             DTOs para transferência de dados
 
 scripts/               Scripts utilitários
 script/                Script de build (client + server bundle)
@@ -361,9 +377,29 @@ Foram executados:
 - `npm run build` (OK) — build do client + bundle do server gerados em `dist/`
 - `npm run lint` (OK) — linter configurado; há warnings principalmente de imports/variáveis não usadas
 
-### 8.2 Documentação vs código
-- `README.md` e `CLAUDE.md` estão alinhados com o código atual (variáveis de ambiente, integrações e endpoints principais, incluindo health check).
-- Regra prática: sempre que um endpoint/integração mudar, atualizar os 2 arquivos para manter “100% verdade”.
+### 8.2 Padronização completa do backend (concluída em 2026-01-11)
+
+Todas as 14 rotas de API do backend foram refatoradas para usar o padrão consistente:
+- **asyncHandler**: captura erros automaticamente (elimina try/catch manual)
+- **validateBody/validateParams/validateQuery**: validação Zod centralizada
+- **sendSuccess/sendError/sendNotFound**: respostas padronizadas
+
+Arquivos refatorados:
+- `activities.ts`, `calendarEvents.ts`, `channelConfigs.ts`, `companies.ts`, `contacts.ts`
+- `conversations.ts`, `deals.ts`, `emailTemplates.ts`, `pipelines.ts`, `savedViews.ts`
+- `files.ts`, `jobs.ts`, `lgpd.ts`, `googleCalendar.ts`, `evolution.ts`
+- `users.ts`, `notifications.ts`, `dashboard.ts`, `auditLogs.ts`, `reports.ts`
+- `pushTokens.ts`, `health.ts`, `objects.ts`, `leadScores.ts`
+
+Eliminação de duplicações:
+- **Tipos de resposta API**: `shared/types/api.ts` é a fonte única (ErrorCodes, ApiResponse)
+- **Enums**: todos definidos em `shared/schema.ts` (savedViewTypes, activityStatuses, etc.)
+- **Schemas Zod**: centralizados em `server/validation/schemas.ts` (importam de @shared/schema)
+- **Utilitário toSafeUser**: movido de `server/api/utils.ts` para `server/response.ts`
+
+### 8.3 Documentação vs código
+- `README.md`, `CLAUDE.md`, `ESTRUTURA_DE_PASTAS.md` e `DIAGNOSTICO.md` estão alinhados com o código atual.
+- Regra prática: sempre que um endpoint/integração mudar, atualizar os arquivos de documentação para manter "100% verdade".
 
 ---
 

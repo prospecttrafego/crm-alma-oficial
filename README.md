@@ -92,18 +92,26 @@ npm run dev
 │       ├── pages/           # Paginas da aplicacao
 │       ├── hooks/           # React hooks customizados
 │       └── lib/             # Utilitarios e configuracoes
+│           └── validation/  # Schemas Zod (importa de @shared/schema)
 ├── server/                  # Backend Express
 │   ├── index.ts             # Entry point
+│   ├── routes.ts            # Agregador (auth + rate limit + API + WebSocket)
+│   ├── middleware.ts        # Middlewares padronizados (asyncHandler, validate*)
+│   ├── response.ts          # Helpers de resposta (sendSuccess, sendError, etc)
+│   ├── validation/          # Schemas Zod para validacao de entrada
+│   │   ├── index.ts         # Re-exports
+│   │   ├── schemas.ts       # Schemas de validacao
+│   │   └── factory.ts       # Factory drizzle-zod
+│   ├── api/                 # Rotas HTTP por domínio (módulos)
+│   ├── ws/                  # WebSocket (/ws) + broadcast
+│   ├── jobs/                # Background jobs (Redis/fallback memoria)
 │   ├── logger.ts            # Logs estruturados (requestId + integrações)
 │   ├── health.ts            # Health check (DB + integrações opcionais)
-│   ├── routes.ts            # Agregador (auth + rate limit + API + WebSocket)
-│   ├── api/                 # Rotas HTTP por domínio (módulos)
-│   └── ws/                  # WebSocket (/ws) + broadcast
-│   ├── storage.ts           # Camada de acesso ao banco
+│   ├── storage.ts           # Camada de acesso ao banco (DAL)
 │   ├── auth.ts              # Autenticacao Passport.js
 │   ├── db.ts                # Drizzle + conexao Postgres
 │   ├── tenant.ts            # Single-tenant (organizacao)
-│   ├── storage.supabase.ts  # Upload de arquivos
+│   ├── storage.supabase.ts  # Upload de arquivos (Supabase Storage)
 │   ├── aiScoring.ts         # Lead scoring com IA
 │   ├── whisper.ts           # Transcricao de audio (Whisper/OpenAI)
 │   ├── evolution-api.ts     # Evolution API (WhatsApp)
@@ -113,8 +121,11 @@ npm run dev
 │   ├── redis.ts             # Redis (Upstash)
 │   ├── static.ts            # Servir frontend em producao
 │   └── vite.ts              # Vite middleware (dev)
-├── shared/                  # Codigo compartilhado
-│   └── schema.ts            # Schema Drizzle + tipos
+├── shared/                  # Codigo compartilhado (fonte unica de verdade)
+│   ├── schema.ts            # Schema Drizzle + tipos + enums
+│   └── types/               # Tipos compartilhados frontend/backend
+│       ├── api.ts           # ApiResponse, ErrorCodes, PaginationMeta
+│       └── dto.ts           # DTOs para transferencia de dados
 ├── scripts/                 # Scripts utilitarios
 │   └── migrate-users.ts     # Migracao de usuarios
 └── script/
