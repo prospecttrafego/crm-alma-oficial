@@ -77,12 +77,13 @@ export function AppSidebar() {
       icon: Users,
       key: "contacts",
     },
-    {
-      title: t("nav.companies"),
-      url: "/companies",
-      icon: Building2,
-      key: "companies",
-    },
+    // DESABILITADO - Para reativar Companies, descomentar o bloco abaixo:
+    // {
+    //   title: t("nav.companies"),
+    //   url: "/companies",
+    //   icon: Building2,
+    //   key: "companies",
+    // },
     {
       title: t("nav.activities"),
       url: "/activities",

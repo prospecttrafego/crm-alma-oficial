@@ -1,6 +1,6 @@
 import type { Express } from "express";
 import {
-  insertContactSchema,
+  createContactWithCompanySchema,
   updateContactSchema,
   idParamSchema,
   paginationQuerySchema,
@@ -66,7 +66,7 @@ export function registerContactRoutes(app: Express) {
   app.post(
     "/api/contacts",
     isAuthenticated,
-    validateBody(insertContactSchema),
+    validateBody(createContactWithCompanySchema),
     asyncHandler(async (req: any, res) => {
       const org = await storage.getDefaultOrganization();
       if (!org) {
@@ -74,8 +74,27 @@ export function registerContactRoutes(app: Express) {
       }
       const userId = (req.user as any).id;
 
+      const { companyName, ...contactData } = req.validatedBody;
+      let companyId: number | undefined;
+
+      // Buscar ou criar empresa pelo nome
+      if (companyName && companyName.trim()) {
+        const trimmedName = companyName.trim();
+        const existingCompany = await storage.getCompanyByName(trimmedName, org.id);
+        if (existingCompany) {
+          companyId = existingCompany.id;
+        } else {
+          const newCompany = await storage.createCompany({
+            name: trimmedName,
+            organizationId: org.id,
+          });
+          companyId = newCompany.id;
+        }
+      }
+
       const contact = await storage.createContact({
-        ...req.validatedBody,
+        ...contactData,
+        companyId,
         organizationId: org.id,
       });
 

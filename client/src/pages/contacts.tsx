@@ -53,17 +53,22 @@ export default function ContactsPage() {
     queryKey: ["/api/contacts"],
   });
 
-  const { data: companies } = useQuery<Company[]>({
-    queryKey: ["/api/companies"],
-  });
+  // REMOVIDO - Não precisa mais carregar lista de empresas
+  // Agora usamos input de texto com auto-criação de empresa no backend
+  // const { data: companies } = useQuery<Company[]>({
+  //   queryKey: ["/api/companies"],
+  // });
 
   const { data: activities } = useQuery<Activity[]>({
     queryKey: ["/api/contacts", selectedContact?.id, "activities"],
     enabled: !!selectedContact,
   });
 
+  // Tipo para criação de contato (usa companyName em vez de companyId)
+  type CreateContactData = Omit<Partial<Contact>, 'companyId'> & { companyName?: string };
+
   const createContactMutation = useMutation({
-    mutationFn: async (data: Partial<Contact>) => {
+    mutationFn: async (data: CreateContactData) => {
       await apiRequest("POST", "/api/contacts", data);
     },
     onSuccess: () => {
@@ -85,7 +90,7 @@ export default function ContactsPage() {
       email: formData.get("email") as string,
       phone: formData.get("phone") as string,
       jobTitle: formData.get("jobTitle") as string,
-      companyId: formData.get("companyId") ? Number(formData.get("companyId")) : undefined,
+      companyName: (formData.get("companyName") as string) || undefined,
     });
   };
 
@@ -173,20 +178,13 @@ export default function ContactsPage() {
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="companyId">{t("contacts.company")}</Label>
-                  <select
-                    id="companyId"
-                    name="companyId"
-                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                    data-testid="select-contact-company"
-                  >
-                    <option value="">{t("contacts.selectCompany")}</option>
-                    {companies?.map((company) => (
-                      <option key={company.id} value={company.id}>
-                        {company.name}
-                      </option>
-                    ))}
-                  </select>
+                  <Label htmlFor="companyName">{t("contacts.company")}</Label>
+                  <Input
+                    id="companyName"
+                    name="companyName"
+                    placeholder={t("contacts.companyPlaceholder")}
+                    data-testid="input-contact-companyName"
+                  />
                 </div>
               </div>
               <DialogFooter>

@@ -106,7 +106,8 @@ function Router() {
         <Route path="/pipeline/:pipelineId" component={PipelinePage} />
         <Route path="/inbox" component={InboxPage} />
         <Route path="/contacts" component={ContactsPage} />
-        <Route path="/companies" component={CompaniesPage} />
+        {/* DESABILITADO - Para reativar Companies, descomentar: */}
+        {/* <Route path="/companies" component={CompaniesPage} /> */}
         <Route path="/activities" component={ActivitiesPage} />
         <Route path="/calendar" component={CalendarPage} />
         <Route path="/reports" component={ReportsPage} />

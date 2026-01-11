@@ -67,9 +67,35 @@ Obs: alem do trio principal acima, o backend possui integracoes opcionais com:
 2. **Upload de Arquivo**: Cliente → Express → Supabase Storage
 3. **Real-time**: Express → WebSocket → Todos os clientes conectados
 4. **AI Scoring**: Express → OpenAI API → Calculo de score → Banco
-5. **WhatsApp**: Evolution API → Webhook → Express → Banco → WebSocket
+5. **WhatsApp**: Evolution API → Webhook → Express → Banco → WebSocket → Auto-criacao de Deal
 6. **Google Calendar**: OAuth + Google API → Sincronizacao → Banco → WebSocket
 7. **Push**: Express → Firebase → Notificacao no dispositivo (quando usuario estiver offline)
+
+### Comportamentos Automatizados
+
+#### Auto-criacao de Empresa (Contatos)
+Ao criar um contato via formulario, o usuario pode digitar o nome da empresa em um campo de texto livre. O backend:
+1. Busca empresa existente pelo nome (case-insensitive)
+2. Se nao existir, cria automaticamente uma nova empresa
+3. Vincula o contato a empresa encontrada ou criada
+
+#### Auto-criacao de Deal (WhatsApp)
+Quando uma mensagem chega via WhatsApp (Evolution API), o sistema automaticamente:
+1. Cria/atualiza o contato pelo numero de telefone
+2. Verifica se o contato possui deals abertos
+3. Se NAO houver deal aberto, cria um novo deal automaticamente:
+   - Usa o pipeline default da organizacao
+   - Se nao houver pipeline default, cria um "Pipeline Padrao" com stage "Novo Lead"
+   - Deal eh criado no primeiro stage (menor `order`)
+   - Titulo: "Lead WhatsApp: {nome ou telefone}"
+   - Source: "whatsapp", Probability: 10%, Status: "open"
+
+#### Modulos Desabilitados (Reversiveis)
+- **Companies**: O modulo de empresas esta temporariamente desabilitado no menu e rotas.
+  Para reativar, descomentar as linhas marcadas em:
+  - `client/src/components/app-sidebar.tsx` (menu)
+  - `client/src/App.tsx` (rota)
+  - `client/src/components/command-palette.tsx` (paleta de comandos)
 
 ---
 

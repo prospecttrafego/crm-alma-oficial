@@ -604,6 +604,7 @@
     "jobTitle": "Cargo",
     "company": "Empresa",
     "selectCompany": "Selecione uma empresa...",
+    "companyPlaceholder": "Nome da empresa (opcional)",
     "owner": "Responsável",
     "source": "Origem",
     "tags": "Tags",

@@ -56,6 +56,13 @@ export const insertContactSchema = baseInsertContactSchema.extend({
 // Schema de update para API
 export const updateContactSchema = baseUpdateContactSchema;
 
+// Schema para criacao de contato com nome da empresa (auto-criar se nao existir)
+export const createContactWithCompanySchema = insertContactSchema
+  .omit({ companyId: true })
+  .extend({
+    companyName: z.string().optional(),
+  });
+
 // ============================================================================
 // COMPANIES
 // ============================================================================

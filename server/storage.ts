@@ -130,10 +130,11 @@ export interface IStorage {
   
   getCompanies(organizationId: number): Promise<Company[]>;
   getCompany(id: number): Promise<Company | undefined>;
+  getCompanyByName(name: string, organizationId: number): Promise<Company | undefined>;
   createCompany(company: InsertCompany): Promise<Company>;
   updateCompany(id: number, company: Partial<InsertCompany>): Promise<Company | undefined>;
   deleteCompany(id: number): Promise<void>;
-  
+
   getContacts(organizationId: number): Promise<Contact[]>;
   getContact(id: number): Promise<Contact | undefined>;
   createContact(contact: InsertContact): Promise<Contact>;
@@ -429,6 +430,20 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(companies)
       .where(and(eq(companies.id, id), eq(companies.organizationId, tenantOrganizationId)));
+    return company;
+  }
+
+  async getCompanyByName(name: string, organizationId: number): Promise<Company | undefined> {
+    const tenantOrganizationId = await this.tenantOrganizationId();
+    const [company] = await db
+      .select()
+      .from(companies)
+      .where(
+        and(
+          sql`LOWER(${companies.name}) = LOWER(${name})`,
+          eq(companies.organizationId, tenantOrganizationId)
+        )
+      );
     return company;
   }
 

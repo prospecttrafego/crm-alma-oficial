@@ -604,6 +604,7 @@
     "jobTitle": "Job Title",
     "company": "Company",
     "selectCompany": "Select a company...",
+    "companyPlaceholder": "Company name (optional)",
     "owner": "Owner",
     "source": "Source",
     "tags": "Tags",
