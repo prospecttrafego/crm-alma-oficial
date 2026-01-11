@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import type { InsertChannelConfig } from "@shared/schema";
 import {
-  insertChannelConfigSchema,
+  createChannelConfigSchema,
   updateChannelConfigSchema,
   idParamSchema,
 } from "../validation";
@@ -199,7 +199,7 @@ export function registerChannelConfigRoutes(app: Express) {
   app.post(
     "/api/channel-configs",
     isAuthenticated,
-    validateBody(insertChannelConfigSchema),
+    validateBody(createChannelConfigSchema),
     asyncHandler(async (req: any, res) => {
       const org = await storage.getDefaultOrganization();
       if (!org) {

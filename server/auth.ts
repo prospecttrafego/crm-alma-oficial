@@ -20,6 +20,7 @@ import {
   resetLoginRateLimit as resetLoginRateLimitRedis,
 } from "./redis";
 import { logger } from "./logger";
+import { sendSuccess, sendError, ErrorCodes } from "./response";
 
 const BCRYPT_ROUNDS = 12;
 
@@ -259,19 +260,27 @@ export async function setupAuth(app: Express) {
       const rateLimitCheck = await checkLoginRateLimit(clientIp);
 
       if (!rateLimitCheck.allowed) {
-        return res.status(429).json({
-          message: `Muitas tentativas de login. Tente novamente em ${rateLimitCheck.retryAfter} segundos.`,
-          retryAfter: rateLimitCheck.retryAfter,
-        });
+        return sendError(
+          res,
+          ErrorCodes.RATE_LIMITED,
+          `Muitas tentativas de login. Tente novamente em ${rateLimitCheck.retryAfter} segundos.`,
+          429,
+          { retryAfter: rateLimitCheck.retryAfter }
+        );
       }
 
       passport.authenticate("local", (err: any, user: any, info: any) => {
         if (err) {
-          return res.status(500).json({ message: "Erro interno do servidor" });
+          return sendError(res, ErrorCodes.INTERNAL_ERROR, "Erro interno do servidor", 500);
         }
         if (!user) {
           // Nao resetar contador em caso de falha (brute force protection)
-          return res.status(401).json({ message: info?.message || "Credenciais invalidas" });
+          return sendError(
+            res,
+            ErrorCodes.UNAUTHORIZED,
+            info?.message || "Credenciais invalidas",
+            401
+          );
         }
 
         // Login bem-sucedido: resetar contador de tentativas
@@ -279,16 +288,16 @@ export async function setupAuth(app: Express) {
 
         req.logIn(user, (loginErr) => {
           if (loginErr) {
-            return res.status(500).json({ message: "Erro ao iniciar sessao" });
+            return sendError(res, ErrorCodes.INTERNAL_ERROR, "Erro ao iniciar sessao", 500);
           }
           // Nao retornar passwordHash na resposta
           const { passwordHash: _passwordHash, ...safeUser } = user;
-          return res.json(safeUser);
+          return sendSuccess(res, safeUser);
         });
       })(req, res, next);
     } catch (error) {
       logger.error("Erro no login:", { error: error instanceof Error ? error.message : String(error) });
-      return res.status(500).json({ message: "Erro interno do servidor" });
+      return sendError(res, ErrorCodes.INTERNAL_ERROR, "Erro interno do servidor", 500);
     }
   });
 
@@ -300,30 +309,46 @@ export async function setupAuth(app: Express) {
       const rateLimitCheck = await checkLoginRateLimit(clientIp);
 
       if (!rateLimitCheck.allowed) {
-        return res.status(429).json({
-          message: `Muitas tentativas. Tente novamente em ${rateLimitCheck.retryAfter} segundos.`,
-          retryAfter: rateLimitCheck.retryAfter,
-        });
+        return sendError(
+          res,
+          ErrorCodes.RATE_LIMITED,
+          `Muitas tentativas. Tente novamente em ${rateLimitCheck.retryAfter} segundos.`,
+          429,
+          { retryAfter: rateLimitCheck.retryAfter }
+        );
       }
 
       const allowRegistration = process.env.ALLOW_REGISTRATION === "true";
       if (!allowRegistration) {
-        return res.status(403).json({ message: "Registro desabilitado. Contate o administrador." });
+        return sendError(
+          res,
+          ErrorCodes.FORBIDDEN,
+          "Registro desabilitado. Contate o administrador.",
+          403
+        );
       }
 
       const { email, password, firstName, lastName } = req.body;
 
       if (!email || !password) {
-        return res.status(400).json({ message: "Email e senha sao obrigatorios" });
+        return sendError(
+          res,
+          ErrorCodes.INVALID_INPUT,
+          "Email e senha sao obrigatorios",
+          400
+        );
       }
 
       // Validacao de senha robusta
       const passwordValidation = validatePassword(password);
       if (!passwordValidation.valid) {
-        return res.status(400).json({
-          message: "Senha invalida",
-          errors: passwordValidation.errors,
-        });
+        return sendError(
+          res,
+          ErrorCodes.INVALID_INPUT,
+          "Senha invalida",
+          400,
+          { errors: passwordValidation.errors }
+        );
       }
 
       // Verificar se usuario ja existe
@@ -333,7 +358,7 @@ export async function setupAuth(app: Express) {
         .where(eq(users.email, email.toLowerCase()));
 
       if (existing) {
-        return res.status(409).json({ message: "Email ja cadastrado" });
+        return sendError(res, ErrorCodes.CONFLICT, "Email ja cadastrado", 409);
       }
 
       // Hash da senha
@@ -398,14 +423,14 @@ export async function setupAuth(app: Express) {
       // Auto-login apos registro
       req.logIn(newUser, (loginErr) => {
         if (loginErr) {
-          return res.status(500).json({ message: "Erro ao iniciar sessao" });
+          return sendError(res, ErrorCodes.INTERNAL_ERROR, "Erro ao iniciar sessao", 500);
         }
         const { passwordHash: _, ...safeUser } = newUser;
-        return res.status(201).json(safeUser);
+        return sendSuccess(res, safeUser, 201);
       });
     } catch (error) {
       console.error("Erro no registro:", error);
-      res.status(500).json({ message: "Erro ao criar conta" });
+      return sendError(res, ErrorCodes.INTERNAL_ERROR, "Erro ao criar conta", 500);
     }
   });
 
@@ -417,16 +442,19 @@ export async function setupAuth(app: Express) {
       const rateLimitCheck = await checkLoginRateLimit(clientIp);
 
       if (!rateLimitCheck.allowed) {
-        return res.status(429).json({
-          message: `Muitas tentativas. Tente novamente em ${rateLimitCheck.retryAfter} segundos.`,
-          retryAfter: rateLimitCheck.retryAfter,
-        });
+        return sendError(
+          res,
+          ErrorCodes.RATE_LIMITED,
+          `Muitas tentativas. Tente novamente em ${rateLimitCheck.retryAfter} segundos.`,
+          429,
+          { retryAfter: rateLimitCheck.retryAfter }
+        );
       }
 
       const { email } = req.body;
 
       if (!email) {
-        return res.status(400).json({ message: "Email e obrigatorio" });
+        return sendError(res, ErrorCodes.INVALID_INPUT, "Email e obrigatorio", 400);
       }
 
       // Always return success to prevent email enumeration attacks
@@ -443,7 +471,7 @@ export async function setupAuth(app: Express) {
       if (!user) {
         // Don't reveal that user doesn't exist
         logger.info(`Password reset requested for non-existent email: ${email}`);
-        return res.json(successResponse);
+        return sendSuccess(res, successResponse);
       }
 
       // Generate token and expiry
@@ -470,10 +498,10 @@ export async function setupAuth(app: Express) {
       // await sendPasswordResetEmail(user.email, resetUrl);
 
       logger.info(`Password reset token generated for user: ${user.id}`);
-      return res.json(successResponse);
+      return sendSuccess(res, successResponse);
     } catch (error) {
       logger.error("Erro no forgot-password:", { error: error instanceof Error ? error.message : String(error) });
-      res.status(500).json({ message: "Erro ao processar solicitacao" });
+      return sendError(res, ErrorCodes.INTERNAL_ERROR, "Erro ao processar solicitacao", 500);
     }
   });
 
@@ -485,31 +513,42 @@ export async function setupAuth(app: Express) {
       const rateLimitCheck = await checkLoginRateLimit(clientIp);
 
       if (!rateLimitCheck.allowed) {
-        return res.status(429).json({
-          message: `Muitas tentativas. Tente novamente em ${rateLimitCheck.retryAfter} segundos.`,
-          retryAfter: rateLimitCheck.retryAfter,
-        });
+        return sendError(
+          res,
+          ErrorCodes.RATE_LIMITED,
+          `Muitas tentativas. Tente novamente em ${rateLimitCheck.retryAfter} segundos.`,
+          429,
+          { retryAfter: rateLimitCheck.retryAfter }
+        );
       }
 
       const { token, password } = req.body;
 
       if (!token || !password) {
-        return res.status(400).json({ message: "Token e nova senha sao obrigatorios" });
+        return sendError(
+          res,
+          ErrorCodes.INVALID_INPUT,
+          "Token e nova senha sao obrigatorios",
+          400
+        );
       }
 
       // Validate password
       const passwordValidation = validatePassword(password);
       if (!passwordValidation.valid) {
-        return res.status(400).json({
-          message: "Senha invalida",
-          errors: passwordValidation.errors,
-        });
+        return sendError(
+          res,
+          ErrorCodes.INVALID_INPUT,
+          "Senha invalida",
+          400,
+          { errors: passwordValidation.errors }
+        );
       }
 
       // Find valid token
       const resetToken = await storage.getValidPasswordResetToken(token);
       if (!resetToken) {
-        return res.status(400).json({ message: "Token invalido ou expirado" });
+        return sendError(res, ErrorCodes.INVALID_INPUT, "Token invalido ou expirado", 400);
       }
 
       // Hash new password
@@ -526,10 +565,10 @@ export async function setupAuth(app: Express) {
 
       logger.info(`Password reset completed for user: ${resetToken.userId}`);
 
-      return res.json({ message: "Senha alterada com sucesso" });
+      return sendSuccess(res, { message: "Senha alterada com sucesso" });
     } catch (error) {
       logger.error("Erro no reset-password:", { error: error instanceof Error ? error.message : String(error) });
-      res.status(500).json({ message: "Erro ao redefinir senha" });
+      return sendError(res, ErrorCodes.INTERNAL_ERROR, "Erro ao redefinir senha", 500);
     }
   });
 
@@ -537,19 +576,19 @@ export async function setupAuth(app: Express) {
   app.post("/api/logout", (req, res) => {
     req.logout((err) => {
       if (err) {
-        return res.status(500).json({ message: "Erro ao encerrar sessao" });
+        return sendError(res, ErrorCodes.INTERNAL_ERROR, "Erro ao encerrar sessao", 500);
       }
-      res.json({ message: "Logout realizado com sucesso" });
+      return sendSuccess(res, { message: "Logout realizado com sucesso" });
     });
   });
 
   // Endpoint: Usuario atual
   app.get("/api/auth/me", (req, res) => {
     if (!req.isAuthenticated() || !req.user) {
-      return res.status(401).json({ message: "Nao autenticado" });
+      return sendError(res, ErrorCodes.UNAUTHORIZED, "Nao autenticado", 401);
     }
     const { passwordHash: _passwordHash, ...safeUser } = req.user as any;
-    res.json(safeUser);
+    return sendSuccess(res, safeUser);
   });
 }
 

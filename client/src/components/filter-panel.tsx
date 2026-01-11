@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { queryClient, apiRequest } from "@/lib/queryClient";
+import { queryClient } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/dialog";
 import { Filter, Save, X, ChevronDown, Trash2, Calendar } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { savedViewsApi } from "@/lib/api/savedViews";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { enUS, ptBR } from "date-fns/locale";
@@ -66,10 +67,7 @@ export function FilterPanel({ type, filters, onFiltersChange, stages }: FilterPa
 
   const { data: savedViews } = useQuery<SavedView[]>({
     queryKey: ["/api/saved-views", type],
-    queryFn: async () => {
-      const res = await apiRequest("GET", `/api/saved-views?type=${type}`);
-      return res.json();
-    },
+    queryFn: () => savedViewsApi.listByType(type),
   });
 
   const { data: users } = useQuery<User[]>({
@@ -78,7 +76,7 @@ export function FilterPanel({ type, filters, onFiltersChange, stages }: FilterPa
 
   const saveViewMutation = useMutation({
     mutationFn: async (data: { name: string; type: string; filters: Record<string, unknown> }) => {
-      await apiRequest("POST", "/api/saved-views", data);
+      await savedViewsApi.create(data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/saved-views", type] });
@@ -93,7 +91,7 @@ export function FilterPanel({ type, filters, onFiltersChange, stages }: FilterPa
 
   const deleteViewMutation = useMutation({
     mutationFn: async (id: number) => {
-      await apiRequest("DELETE", `/api/saved-views/${id}`);
+      await savedViewsApi.delete(id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/saved-views", type] });

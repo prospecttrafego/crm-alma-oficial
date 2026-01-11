@@ -17,8 +17,8 @@ export const calendarEventsApi = {
    */
   listByRange: (start: Date, end: Date) => {
     const params = new URLSearchParams();
-    params.set('start', start.toISOString());
-    params.set('end', end.toISOString());
+    params.set('startDate', start.toISOString());
+    params.set('endDate', end.toISOString());
     return api.get<CalendarEvent[]>(`/api/calendar-events?${params.toString()}`);
   },
 

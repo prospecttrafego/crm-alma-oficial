@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { filesApi } from "@/lib/api/files";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -35,7 +35,7 @@ export function FileUploader({
 
   const deleteMutation = useMutation({
     mutationFn: async (fileId: number) => {
-      await apiRequest("DELETE", `/api/files/${fileId}`);
+      await filesApi.delete(fileId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/files", entityType, entityId] });
@@ -54,8 +54,7 @@ export function FileUploader({
 
     try {
       for (const file of Array.from(selectedFiles)) {
-        const urlResponse = await apiRequest("POST", "/api/files/upload-url", {});
-        const { uploadURL } = await urlResponse.json();
+        const { uploadURL } = await filesApi.getUploadUrl();
 
         await fetch(uploadURL, {
           method: "PUT",
@@ -65,16 +64,14 @@ export function FileUploader({
           },
         });
 
-        const registerResponse = await apiRequest("POST", "/api/files", {
+        const registeredFile = await filesApi.register({
           name: file.name,
           mimeType: file.type,
           size: file.size,
           uploadURL,
           entityType,
-          entityId: String(entityId),
+          entityId,
         });
-
-        const registeredFile = await registerResponse.json();
         
         if (onUploadComplete) {
           onUploadComplete(registeredFile);
@@ -349,8 +346,7 @@ export function MessageFileUploader({ onFilesChange, pendingFiles }: MessageFile
 
     for (const file of Array.from(selectedFiles)) {
       try {
-        const urlResponse = await apiRequest("POST", "/api/files/upload-url", {});
-        const { uploadURL } = await urlResponse.json();
+        const { uploadURL } = await filesApi.getUploadUrl();
 
         await fetch(uploadURL, {
           method: "PUT",

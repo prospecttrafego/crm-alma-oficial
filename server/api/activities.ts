@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { z } from "zod";
 import {
-  insertActivitySchema,
+  createActivitySchema,
   updateActivitySchema,
   idParamSchema,
   paginationQuerySchema,
@@ -75,7 +75,7 @@ export function registerActivityRoutes(app: Express) {
   app.post(
     "/api/activities",
     isAuthenticated,
-    validateBody(insertActivitySchema),
+    validateBody(createActivitySchema),
     asyncHandler(async (req: any, res) => {
       const org = await storage.getDefaultOrganization();
       if (!org) {

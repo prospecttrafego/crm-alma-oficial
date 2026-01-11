@@ -10,8 +10,14 @@ import {
   index,
   decimal,
 } from "drizzle-orm/pg-core";
-import { createInsertSchema } from "drizzle-zod";
+import { createSchemaFactory } from "drizzle-zod";
 import { z } from "zod";
+
+const { createInsertSchema, createUpdateSchema, createSelectSchema } = createSchemaFactory({
+  coerce: {
+    date: true,
+  },
+});
 
 // Tabela de armazenamento de sessoes
 export const sessions = pgTable(
@@ -793,6 +799,45 @@ export const insertPushTokenSchema = createInsertSchema(pushTokens);
 export const insertGoogleOAuthTokenSchema = createInsertSchema(googleOAuthTokens)
   .extend({ syncStatus: z.enum(googleCalendarSyncStatuses).optional() });
 
+// Update schemas
+export const updateUserSchema = createUpdateSchema(users);
+export const updateOrganizationSchema = createUpdateSchema(organizations);
+export const updateCompanySchema = createUpdateSchema(companies);
+export const updateContactSchema = createUpdateSchema(contacts);
+export const updatePipelineSchema = createUpdateSchema(pipelines);
+export const updatePipelineStageSchema = createUpdateSchema(pipelineStages);
+export const updateDealSchema = createUpdateSchema(deals);
+export const updateConversationSchema = createUpdateSchema(conversations)
+  .extend({ channel: z.enum(channelTypes).optional() });
+export const updateMessageSchema = createUpdateSchema(messages)
+  .extend({ contentType: z.enum(messageContentTypes).optional() });
+export const updateActivitySchema = createUpdateSchema(activities)
+  .extend({ type: z.enum(activityTypes).optional() });
+export const updateNotificationSchema = createUpdateSchema(notifications)
+  .extend({ type: z.enum(notificationTypes).optional() });
+export const updateSavedViewSchema = createUpdateSchema(savedViews)
+  .extend({ type: z.enum(savedViewTypes).optional() });
+export const updateEmailTemplateSchema = createUpdateSchema(emailTemplates);
+export const updateAuditLogSchema = createUpdateSchema(auditLogs)
+  .extend({
+    action: z.enum(auditLogActions).optional(),
+    entityType: z.enum(auditLogEntityTypes).optional(),
+  });
+export const updateFileSchema = createUpdateSchema(files)
+  .extend({ entityType: z.enum(fileEntityTypes).optional() });
+export const updateLeadScoreSchema = createUpdateSchema(leadScores)
+  .extend({ entityType: z.enum(leadScoreEntityTypes).optional() });
+export const updateCalendarEventSchema = createUpdateSchema(calendarEvents)
+  .extend({
+    type: z.enum(calendarEventTypes).nullable().optional(),
+    syncSource: z.enum(calendarSyncSources).nullable().optional(),
+  });
+export const updateChannelConfigSchema = createUpdateSchema(channelConfigs)
+  .extend({ type: z.enum(channelConfigTypes).optional() });
+export const updatePushTokenSchema = createUpdateSchema(pushTokens);
+export const updateGoogleOAuthTokenSchema = createUpdateSchema(googleOAuthTokens)
+  .extend({ syncStatus: z.enum(googleCalendarSyncStatuses).optional() });
+
 // Types - usamos z.infer para schemas com enum estendidos e $inferSelect para select types
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
@@ -836,3 +881,24 @@ export type InsertPushToken = z.infer<typeof insertPushTokenSchema>;
 export type PushToken = typeof pushTokens.$inferSelect;
 export type InsertGoogleOAuthToken = z.infer<typeof insertGoogleOAuthTokenSchema>;
 export type GoogleOAuthToken = typeof googleOAuthTokens.$inferSelect;
+
+export type UpdateUser = z.infer<typeof updateUserSchema>;
+export type UpdateOrganization = z.infer<typeof updateOrganizationSchema>;
+export type UpdateCompany = z.infer<typeof updateCompanySchema>;
+export type UpdateContact = z.infer<typeof updateContactSchema>;
+export type UpdatePipeline = z.infer<typeof updatePipelineSchema>;
+export type UpdatePipelineStage = z.infer<typeof updatePipelineStageSchema>;
+export type UpdateDeal = z.infer<typeof updateDealSchema>;
+export type UpdateConversation = z.infer<typeof updateConversationSchema>;
+export type UpdateMessage = z.infer<typeof updateMessageSchema>;
+export type UpdateActivity = z.infer<typeof updateActivitySchema>;
+export type UpdateNotification = z.infer<typeof updateNotificationSchema>;
+export type UpdateSavedView = z.infer<typeof updateSavedViewSchema>;
+export type UpdateEmailTemplate = z.infer<typeof updateEmailTemplateSchema>;
+export type UpdateAuditLog = z.infer<typeof updateAuditLogSchema>;
+export type UpdateFile = z.infer<typeof updateFileSchema>;
+export type UpdateLeadScore = z.infer<typeof updateLeadScoreSchema>;
+export type UpdateCalendarEvent = z.infer<typeof updateCalendarEventSchema>;
+export type UpdateChannelConfig = z.infer<typeof updateChannelConfigSchema>;
+export type UpdatePushToken = z.infer<typeof updatePushTokenSchema>;
+export type UpdateGoogleOAuthToken = z.infer<typeof updateGoogleOAuthTokenSchema>;

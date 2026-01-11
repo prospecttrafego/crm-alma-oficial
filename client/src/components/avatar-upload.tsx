@@ -1,6 +1,7 @@
 import { useState, useRef } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { filesApi } from "@/lib/api/files";
+import { usersApi } from "@/lib/api/users";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
 import { Camera, Loader2 } from "lucide-react";
@@ -39,13 +40,10 @@ export function AvatarUpload({
 
   const updateProfileMutation = useMutation({
     mutationFn: async (profileImageUrl: string) => {
-      const response = await apiRequest("PATCH", "/api/users/me", {
-        profileImageUrl,
-      });
-      return response.json();
+      return usersApi.updateMe({ profileImageUrl });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
       toast({ title: "Avatar atualizado com sucesso" });
     },
     onError: () => {
@@ -77,8 +75,7 @@ export function AvatarUpload({
 
     try {
       // Get presigned upload URL
-      const urlResponse = await apiRequest("POST", "/api/files/upload-url", {});
-      const { uploadURL, objectPath } = await urlResponse.json();
+      const { uploadURL, objectPath } = await filesApi.getUploadUrl();
 
       // Upload to Supabase Storage
       await fetch(uploadURL, {

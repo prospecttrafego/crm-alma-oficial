@@ -1,6 +1,6 @@
 import type { Express } from "express";
 import {
-  insertCompanySchema,
+  createCompanySchema,
   updateCompanySchema,
   idParamSchema,
   paginationQuerySchema,
@@ -66,7 +66,7 @@ export function registerCompanyRoutes(app: Express) {
   app.post(
     "/api/companies",
     isAuthenticated,
-    validateBody(insertCompanySchema),
+    validateBody(createCompanySchema),
     asyncHandler(async (req: any, res) => {
       const org = await storage.getDefaultOrganization();
       if (!org) {

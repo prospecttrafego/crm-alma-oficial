@@ -7,7 +7,7 @@ import WaveSurfer from "wavesurfer.js";
 import { Button } from "@/components/ui/button";
 import { Play, Pause, Download, FileText, Loader2, ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { apiRequest } from "@/lib/queryClient";
+import { filesApi } from "@/lib/api/files";
 
 interface AudioWaveformProps {
   /** Audio source URL or Blob */
@@ -161,14 +161,10 @@ export function AudioWaveform({
       let result;
       if (fileId) {
         // Transcribe by file ID
-        const response = await apiRequest("POST", `/api/files/${fileId}/transcribe`, {});
-        result = await response.json();
+        result = await filesApi.transcribeFile(fileId);
       } else if (typeof src === "string") {
         // Transcribe by URL
-        const response = await apiRequest("POST", "/api/audio/transcribe", {
-          audioUrl: src,
-        });
-        result = await response.json();
+        result = await filesApi.transcribeAudio(src);
       } else {
         throw new Error("Cannot transcribe blob without file ID");
       }

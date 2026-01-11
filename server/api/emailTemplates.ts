@@ -1,6 +1,6 @@
 import type { Express } from "express";
 import {
-  insertEmailTemplateSchema,
+  createEmailTemplateSchema,
   updateEmailTemplateSchema,
   idParamSchema,
 } from "../validation";
@@ -49,7 +49,7 @@ export function registerEmailTemplateRoutes(app: Express) {
   app.post(
     "/api/email-templates",
     isAuthenticated,
-    validateBody(insertEmailTemplateSchema),
+    validateBody(createEmailTemplateSchema),
     asyncHandler(async (req: any, res) => {
       const org = await storage.getDefaultOrganization();
       if (!org) {

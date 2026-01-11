@@ -1,6 +1,5 @@
 import { useState } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { queryClient, apiRequest } from "@/lib/queryClient";
+import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "@/contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,7 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useToast } from "@/hooks/use-toast";
+import { useActivityMutations } from "@/hooks/mutations";
 import { Plus, Search, Phone, Mail, Calendar, FileText, CheckSquare, Clock, Check } from "lucide-react";
 import type { Activity, Contact, Deal } from "@shared/schema";
 
@@ -44,7 +43,7 @@ const activityIcons = {
 
 export default function ActivitiesPage() {
   const { t } = useTranslation();
-  const { toast } = useToast();
+  const { createActivity, completeActivity } = useActivityMutations();
   const [searchQuery, setSearchQuery] = useState("");
   const [newActivityOpen, setNewActivityOpen] = useState(false);
   const [filterType, setFilterType] = useState<string>("all");
@@ -62,46 +61,18 @@ export default function ActivitiesPage() {
     queryKey: ["/api/deals"],
   });
 
-  const createActivityMutation = useMutation({
-    mutationFn: async (data: Partial<Activity>) => {
-      await apiRequest("POST", "/api/activities", data);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/activities"] });
-      setNewActivityOpen(false);
-      toast({ title: t("toast.created") });
-    },
-    onError: () => {
-      toast({ title: t("toast.error"), variant: "destructive" });
-    },
-  });
-
-  const completeActivityMutation = useMutation({
-    mutationFn: async (id: number) => {
-      await apiRequest("PATCH", `/api/activities/${id}`, {
-        status: "completed",
-        completedAt: new Date().toISOString(),
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/activities"] });
-      toast({ title: t("activities.markComplete") });
-    },
-    onError: () => {
-      toast({ title: t("toast.error"), variant: "destructive" });
-    },
-  });
-
   const handleCreateActivity = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
-    createActivityMutation.mutate({
+    createActivity.mutate({
       type: formData.get("type") as Activity["type"],
       title: formData.get("title") as string,
       description: formData.get("description") as string,
       contactId: formData.get("contactId") ? Number(formData.get("contactId")) : undefined,
       dealId: formData.get("dealId") ? Number(formData.get("dealId")) : undefined,
       dueDate: formData.get("dueDate") ? new Date(formData.get("dueDate") as string) : undefined,
+    }, {
+      onSuccess: () => setNewActivityOpen(false),
     });
   };
 
@@ -247,10 +218,10 @@ export default function ActivitiesPage() {
                 </Button>
                 <Button
                   type="submit"
-                  disabled={createActivityMutation.isPending}
+                  disabled={createActivity.isPending}
                   data-testid="button-create-activity-submit"
                 >
-                  {createActivityMutation.isPending ? t("common.saving") : t("common.create")}
+                  {createActivity.isPending ? t("common.saving") : t("common.create")}
                 </Button>
               </DialogFooter>
             </form>
@@ -323,7 +294,7 @@ export default function ActivitiesPage() {
                   <button
                     onClick={() => {
                       if (activity.status !== "completed") {
-                        completeActivityMutation.mutate(activity.id);
+                        completeActivity.mutate(activity.id);
                       }
                     }}
                     className="flex h-10 w-10 items-center justify-center rounded-full border transition-colors hover:bg-accent"

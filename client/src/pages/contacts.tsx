@@ -1,6 +1,5 @@
 import { useState } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { queryClient, apiRequest } from "@/lib/queryClient";
+import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "@/contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,7 +31,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { useToast } from "@/hooks/use-toast";
+import { useContactMutations } from "@/hooks/mutations";
 import { Plus, Search, Mail, Phone, Building2, User, MoreHorizontal, Calendar, FileText, CheckSquare } from "lucide-react";
 import { EntityHistory } from "@/components/entity-history";
 import { LeadScorePanel } from "@/components/LeadScorePanel";
@@ -44,7 +43,7 @@ interface ContactWithRelations extends Contact {
 
 export default function ContactsPage() {
   const { t } = useTranslation();
-  const { toast } = useToast();
+  const { createContact } = useContactMutations();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedContact, setSelectedContact] = useState<ContactWithRelations | null>(null);
   const [newContactOpen, setNewContactOpen] = useState(false);
@@ -67,30 +66,18 @@ export default function ContactsPage() {
   // Tipo para criação de contato (usa companyName em vez de companyId)
   type CreateContactData = Omit<Partial<Contact>, 'companyId'> & { companyName?: string };
 
-  const createContactMutation = useMutation({
-    mutationFn: async (data: CreateContactData) => {
-      await apiRequest("POST", "/api/contacts", data);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
-      setNewContactOpen(false);
-      toast({ title: t("toast.created") });
-    },
-    onError: () => {
-      toast({ title: t("toast.error"), variant: "destructive" });
-    },
-  });
-
   const handleCreateContact = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
-    createContactMutation.mutate({
+    createContact.mutate({
       firstName: formData.get("firstName") as string,
       lastName: formData.get("lastName") as string,
       email: formData.get("email") as string,
       phone: formData.get("phone") as string,
       jobTitle: formData.get("jobTitle") as string,
       companyName: (formData.get("companyName") as string) || undefined,
+    }, {
+      onSuccess: () => setNewContactOpen(false),
     });
   };
 

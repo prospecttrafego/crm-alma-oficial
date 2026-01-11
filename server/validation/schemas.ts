@@ -1,187 +1,70 @@
 /**
  * Schemas de Validacao Centralizados
  *
- * Todos os schemas Zod para validacao de entrada de dados.
- * Gerados a partir das tabelas Drizzle usando createInsertSchema e createUpdateSchema.
- *
- * NOTA: createInsertSchema/createUpdateSchema do drizzle-zod ja tratam automaticamente:
- * - Campos com generatedAlwaysAsIdentity() (id) - excluidos ou opcionais
- * - Campos com defaultNow() (createdAt, updatedAt) - opcionais
- *
- * Os schemas aqui definem validacoes adicionais e customizacoes para a API.
+ * Schemas de payloads sao derivados de shared/contracts.
+ * Schemas de params/query permanecem aqui (especificos do server).
  */
 
-import { z } from 'zod';
-import { createInsertSchema, createUpdateSchema } from './factory';
+import { z } from "zod";
 import {
-  // Tabelas
-  contacts,
-  companies,
-  deals,
-  pipelines,
-  pipelineStages,
-  conversations,
-  messages,
-  activities,
-  emailTemplates,
-  savedViews,
-  calendarEvents,
-  channelConfigs,
-  notifications,
-  // Enums
-  channelTypes,
-  messageContentTypes,
-  activityTypes,
-  savedViewTypes,
-  calendarEventTypes,
-  calendarSyncSources,
-  channelConfigTypes,
-  notificationTypes,
-} from '@shared/schema';
+  createActivitySchema,
+  createCalendarEventSchema,
+  createChannelConfigSchema,
+  createCompanySchema,
+  createContactSchema,
+  createConversationSchema,
+  createDealSchema,
+  createEmailTemplateSchema,
+  createMessageSchema,
+  createPipelineSchema,
+  createPipelineStageInlineSchema,
+  createPipelineStageSchema,
+  createSavedViewSchema,
+  moveDealSchema,
+  updateActivitySchema,
+  updateCalendarEventSchema,
+  updateChannelConfigSchema,
+  updateCompanySchema,
+  updateContactSchema,
+  updateConversationSchema,
+  updateDealSchema,
+  updateEmailTemplateSchema,
+  updatePipelineSchema,
+  updatePipelineStageSchema,
+  updateSavedViewSchema,
+} from "@shared/contracts";
 
-// ============================================================================
-// CONTACTS
-// ============================================================================
+export {
+  createActivitySchema,
+  createCalendarEventSchema,
+  createChannelConfigSchema,
+  createCompanySchema,
+  createContactSchema,
+  createConversationSchema,
+  createDealSchema,
+  createEmailTemplateSchema,
+  createMessageSchema,
+  createPipelineSchema,
+  createPipelineStageInlineSchema,
+  createPipelineStageSchema,
+  createSavedViewSchema,
+  moveDealSchema,
+  updateActivitySchema,
+  updateCalendarEventSchema,
+  updateChannelConfigSchema,
+  updateCompanySchema,
+  updateContactSchema,
+  updateConversationSchema,
+  updateDealSchema,
+  updateEmailTemplateSchema,
+  updatePipelineSchema,
+  updatePipelineStageSchema,
+  updateSavedViewSchema,
+};
 
-// Schema base gerado - ja exclui id, torna createdAt/updatedAt opcionais
-// organizationId eh injetado pelo backend
-const baseInsertContactSchema = createInsertSchema(contacts).omit({ organizationId: true });
-const baseUpdateContactSchema = createUpdateSchema(contacts).omit({ organizationId: true });
-
-// Schema de insert para API - phoneNormalized eh gerado no backend
-export const insertContactSchema = baseInsertContactSchema.extend({
-  phoneNormalized: z.string().optional(), // Ignorar se enviado, sera gerado
-});
-
-// Schema de update para API
-export const updateContactSchema = baseUpdateContactSchema;
-
-// Schema para criacao de contato com nome da empresa (auto-criar se nao existir)
-export const createContactWithCompanySchema = insertContactSchema
-  .omit({ companyId: true })
-  .extend({
-    companyName: z.string().optional(),
-  });
-
-// ============================================================================
-// COMPANIES
-// ============================================================================
-
-export const insertCompanySchema = createInsertSchema(companies).omit({ organizationId: true });
-export const updateCompanySchema = createUpdateSchema(companies).omit({ organizationId: true });
-
-// ============================================================================
-// DEALS
-// ============================================================================
-
-export const insertDealSchema = createInsertSchema(deals).omit({ organizationId: true });
-export const updateDealSchema = createUpdateSchema(deals).omit({ organizationId: true });
-
-// Schema especifico para mover deal de stage
-export const moveDealSchema = z.object({
-  stageId: z.number().int().positive(),
-});
-
-// ============================================================================
-// PIPELINES
-// ============================================================================
-
-export const insertPipelineSchema = createInsertSchema(pipelines).omit({ organizationId: true });
-export const updatePipelineSchema = createUpdateSchema(pipelines).omit({ organizationId: true });
-
-// ============================================================================
-// PIPELINE STAGES
-// ============================================================================
-
-export const insertPipelineStageSchema = createInsertSchema(pipelineStages);
-export const updatePipelineStageSchema = createUpdateSchema(pipelineStages);
-
-// Schema para criar stages inline (sem pipelineId obrigatorio - sera adicionado pelo backend)
-export const insertPipelineStageInlineSchema = z.object({
-  name: z.string().min(1),
-  order: z.number().int(),
-  color: z.string().nullable().optional(),
-  isWon: z.boolean().nullable().optional(),
-  isLost: z.boolean().nullable().optional(),
-});
-
-// ============================================================================
-// CONVERSATIONS
-// ============================================================================
-
-export const insertConversationSchema = createInsertSchema(conversations).omit({ organizationId: true }).extend({
-  channel: z.enum(channelTypes),
-});
-
-export const updateConversationSchema = createUpdateSchema(conversations).omit({ organizationId: true });
-
-// ============================================================================
-// MESSAGES
-// ============================================================================
-
-export const insertMessageSchema = createInsertSchema(messages).extend({
-  contentType: z.enum(messageContentTypes).optional(),
-});
-
-// ============================================================================
-// ACTIVITIES
-// ============================================================================
-
-export const insertActivitySchema = createInsertSchema(activities).omit({ organizationId: true }).extend({
-  type: z.enum(activityTypes),
-});
-
-export const updateActivitySchema = createUpdateSchema(activities).omit({ organizationId: true });
-
-// ============================================================================
-// EMAIL TEMPLATES
-// ============================================================================
-
-export const insertEmailTemplateSchema = createInsertSchema(emailTemplates).omit({ organizationId: true });
-export const updateEmailTemplateSchema = createUpdateSchema(emailTemplates).omit({ organizationId: true });
-
-// ============================================================================
-// SAVED VIEWS
-// ============================================================================
-
-export const insertSavedViewSchema = createInsertSchema(savedViews).omit({ organizationId: true }).extend({
-  type: z.enum(savedViewTypes),
-});
-
-export const updateSavedViewSchema = createUpdateSchema(savedViews).omit({ organizationId: true });
-
-// ============================================================================
-// CALENDAR EVENTS
-// ============================================================================
-
-export const insertCalendarEventSchema = createInsertSchema(calendarEvents).omit({ organizationId: true }).extend({
-  type: z.enum(calendarEventTypes).nullable().optional(),
-  syncSource: z.enum(calendarSyncSources).nullable().optional(),
-});
-
-export const updateCalendarEventSchema = createUpdateSchema(calendarEvents).omit({ organizationId: true });
-
-// ============================================================================
-// CHANNEL CONFIGS
-// ============================================================================
-
-export const insertChannelConfigSchema = createInsertSchema(channelConfigs).omit({ organizationId: true }).extend({
-  type: z.enum(channelConfigTypes),
-});
-
-export const updateChannelConfigSchema = createUpdateSchema(channelConfigs).omit({ organizationId: true });
-
-// ============================================================================
-// NOTIFICATIONS
-// ============================================================================
-
-export const insertNotificationSchema = createInsertSchema(notifications).extend({
-  type: z.enum(notificationTypes),
-});
-
-// ============================================================================
-// SCHEMAS COMUNS
-// ============================================================================
+// ======================================================================
+// PARAMS/QUERY SCHEMAS (server-specific)
+// ======================================================================
 
 /**
  * Schema para validacao de ID em parametros de URL
@@ -200,7 +83,7 @@ export const paginationQuerySchema = z.object({
   limit: z.coerce.number().int().positive().max(100).optional().default(20),
   search: z.string().optional(),
   sortBy: z.string().optional(),
-  sortOrder: z.enum(['asc', 'desc']).optional().default('desc'),
+  sortOrder: z.enum(["asc", "desc"]).optional().default("desc"),
 });
 
 /**
@@ -214,32 +97,3 @@ export const pipelineStageParamsSchema = z.object({
   pipelineId: z.coerce.number().int().positive(),
   id: z.coerce.number().int().positive(),
 });
-
-// ============================================================================
-// TYPES INFERIDOS
-// ============================================================================
-
-export type InsertContact = z.infer<typeof insertContactSchema>;
-export type UpdateContact = z.infer<typeof updateContactSchema>;
-export type InsertCompany = z.infer<typeof insertCompanySchema>;
-export type UpdateCompany = z.infer<typeof updateCompanySchema>;
-export type InsertDeal = z.infer<typeof insertDealSchema>;
-export type UpdateDeal = z.infer<typeof updateDealSchema>;
-export type InsertPipeline = z.infer<typeof insertPipelineSchema>;
-export type UpdatePipeline = z.infer<typeof updatePipelineSchema>;
-export type InsertPipelineStage = z.infer<typeof insertPipelineStageSchema>;
-export type UpdatePipelineStage = z.infer<typeof updatePipelineStageSchema>;
-export type InsertConversation = z.infer<typeof insertConversationSchema>;
-export type UpdateConversation = z.infer<typeof updateConversationSchema>;
-export type InsertMessage = z.infer<typeof insertMessageSchema>;
-export type InsertActivity = z.infer<typeof insertActivitySchema>;
-export type UpdateActivity = z.infer<typeof updateActivitySchema>;
-export type InsertEmailTemplate = z.infer<typeof insertEmailTemplateSchema>;
-export type UpdateEmailTemplate = z.infer<typeof updateEmailTemplateSchema>;
-export type InsertSavedView = z.infer<typeof insertSavedViewSchema>;
-export type UpdateSavedView = z.infer<typeof updateSavedViewSchema>;
-export type InsertCalendarEvent = z.infer<typeof insertCalendarEventSchema>;
-export type UpdateCalendarEvent = z.infer<typeof updateCalendarEventSchema>;
-export type InsertChannelConfig = z.infer<typeof insertChannelConfigSchema>;
-export type UpdateChannelConfig = z.infer<typeof updateChannelConfigSchema>;
-export type InsertNotification = z.infer<typeof insertNotificationSchema>;

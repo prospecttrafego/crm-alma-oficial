@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { z } from "zod";
 import {
-  insertCalendarEventSchema,
+  createCalendarEventSchema,
   updateCalendarEventSchema,
   idParamSchema,
 } from "../validation";
@@ -60,7 +60,7 @@ export function registerCalendarEventRoutes(app: Express) {
   app.post(
     "/api/calendar-events",
     isAuthenticated,
-    validateBody(insertCalendarEventSchema),
+    validateBody(createCalendarEventSchema),
     asyncHandler(async (req: any, res) => {
       const org = await storage.getDefaultOrganization();
       if (!org) {

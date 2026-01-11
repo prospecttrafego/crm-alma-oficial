@@ -38,7 +38,8 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/hooks/useAuth";
 import { useTranslation } from "@/contexts/LanguageContext";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { queryClient } from "@/lib/queryClient";
+import { authApi } from "@/lib/api/auth";
 import { useQuery } from "@tanstack/react-query";
 import type { Pipeline } from "@shared/schema";
 
@@ -116,7 +117,7 @@ export function AppSidebar() {
 
   const handleLogout = async () => {
     try {
-      await apiRequest("POST", "/api/logout");
+      await authApi.logout();
     } catch (error) {
       console.error("Logout failed:", error);
     } finally {

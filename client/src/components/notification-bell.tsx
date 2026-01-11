@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { queryClient, apiRequest } from "@/lib/queryClient";
+import { queryClient } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -24,6 +24,7 @@ import type { Notification } from "@shared/schema";
 import { formatDistanceToNow } from "date-fns";
 import { enUS, ptBR } from "date-fns/locale";
 import { useTranslation } from "@/contexts/LanguageContext";
+import { notificationsApi } from "@/lib/api/notifications";
 
 const notificationIcons: Record<string, typeof Bell> = {
   new_message: MessageSquare,
@@ -51,9 +52,7 @@ export function NotificationBell() {
   });
 
   const markReadMutation = useMutation({
-    mutationFn: async (id: number) => {
-      await apiRequest("PATCH", `/api/notifications/${id}/read`);
-    },
+    mutationFn: (id: number) => notificationsApi.markRead(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
       queryClient.invalidateQueries({ queryKey: ["/api/notifications/unread-count"] });
@@ -61,9 +60,7 @@ export function NotificationBell() {
   });
 
   const markAllReadMutation = useMutation({
-    mutationFn: async () => {
-      await apiRequest("POST", "/api/notifications/mark-all-read");
-    },
+    mutationFn: () => notificationsApi.markAllRead(),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
       queryClient.invalidateQueries({ queryKey: ["/api/notifications/unread-count"] });

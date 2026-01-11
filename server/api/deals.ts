@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { z } from "zod";
 import {
-  insertDealSchema,
+  createDealSchema,
   updateDealSchema,
   moveDealSchema,
   idParamSchema,
@@ -79,7 +79,7 @@ export function registerDealRoutes(app: Express) {
   app.post(
     "/api/deals",
     isAuthenticated,
-    validateBody(insertDealSchema),
+    validateBody(createDealSchema),
     asyncHandler(async (req: any, res) => {
       const org = await storage.getDefaultOrganization();
       if (!org) {

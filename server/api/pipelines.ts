@@ -1,11 +1,11 @@
 import type { Express } from "express";
 import { z } from "zod";
 import {
-  insertPipelineSchema,
+  createPipelineSchema,
   updatePipelineSchema,
-  insertPipelineStageSchema,
+  createPipelineStageSchema,
   updatePipelineStageSchema,
-  insertPipelineStageInlineSchema,
+  createPipelineStageInlineSchema,
   idParamSchema,
   pipelineStageParamsSchema,
 } from "../validation";
@@ -80,7 +80,7 @@ export function registerPipelineRoutes(app: Express) {
     "/api/pipelines",
     isAuthenticated,
     requireRole("admin"),
-    validateBody(insertPipelineSchema),
+    validateBody(createPipelineSchema),
     asyncHandler(async (req: any, res) => {
       const org = await storage.getDefaultOrganization();
       if (!org) {
@@ -95,7 +95,7 @@ export function registerPipelineRoutes(app: Express) {
 
       // Processar stages inline se fornecidos
       if (Array.isArray(req.body.stages)) {
-        const parsedStages = z.array(insertPipelineStageInlineSchema).safeParse(req.body.stages);
+        const parsedStages = z.array(createPipelineStageInlineSchema).safeParse(req.body.stages);
         if (parsedStages.success) {
           for (const stage of parsedStages.data) {
             await storage.createPipelineStage({ ...stage, pipelineId: pipeline.id });
@@ -222,7 +222,7 @@ export function registerPipelineRoutes(app: Express) {
     isAuthenticated,
     requireRole("admin"),
     validateParams(idParamSchema),
-    validateBody(insertPipelineStageInlineSchema),
+    validateBody(createPipelineStageInlineSchema),
     asyncHandler(async (req: any, res) => {
       const { id: pipelineId } = req.validatedParams;
 

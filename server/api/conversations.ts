@@ -1,9 +1,9 @@
 import type { Express } from "express";
 import { z } from "zod";
 import {
-  insertConversationSchema,
+  createConversationSchema,
   updateConversationSchema,
-  insertMessageSchema,
+  createMessageSchema,
   idParamSchema,
   paginationQuerySchema,
 } from "../validation";
@@ -122,7 +122,7 @@ export function registerConversationRoutes(app: Express) {
   app.post(
     "/api/conversations",
     isAuthenticated,
-    validateBody(insertConversationSchema),
+    validateBody(createConversationSchema),
     asyncHandler(async (req: any, res) => {
       const org = await storage.getDefaultOrganization();
       if (!org) {
@@ -175,7 +175,7 @@ export function registerConversationRoutes(app: Express) {
     "/api/conversations/:id/messages",
     isAuthenticated,
     validateParams(idParamSchema),
-    validateBody(insertMessageSchema),
+    validateBody(createMessageSchema),
     asyncHandler(async (req: any, res) => {
       const { id: conversationId } = req.validatedParams;
       const senderId = (req.user as any).id;

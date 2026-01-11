@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
+import { usersApi } from "@/lib/api/users";
 
 // Import translation files
 import ptBR from "@/locales/pt-BR.json";
@@ -65,15 +65,12 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     mutationFn: async (newLanguage: Language) => {
       localStorage.setItem(LANGUAGE_STORAGE_KEY, newLanguage);
       if (user) {
-        const response = await apiRequest("PATCH", "/api/users/me", {
-          preferences: { language: newLanguage },
-        });
-        return response.json();
+        return usersApi.updateMe({ preferences: { language: newLanguage } });
       }
       return null;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
     },
   });
 

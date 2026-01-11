@@ -43,6 +43,7 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart";
+import { reportsApi } from "@/lib/api/reports";
 
 interface ReportData {
   dealsByStage: { stage: string; count: number; value: string }[];
@@ -93,13 +94,10 @@ export default function ReportsPage() {
   const { data: reportData, isLoading } = useQuery<ReportData>({
     queryKey: ["/api/reports", dateRange.from.toISOString(), dateRange.to.toISOString()],
     queryFn: async () => {
-      const params = new URLSearchParams({
+      return reportsApi.get<ReportData>({
         startDate: dateRange.from.toISOString(),
         endDate: dateRange.to.toISOString(),
       });
-      const res = await fetch(`/api/reports?${params}`);
-      if (!res.ok) throw new Error(t("errors.generic"));
-      return res.json();
     },
   });
 

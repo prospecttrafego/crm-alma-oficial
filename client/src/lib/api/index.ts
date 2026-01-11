@@ -2,7 +2,7 @@
  * API Client - Type-safe HTTP client for backend communication
  */
 
-import type { ApiResponse, ApiError } from '@shared/types';
+import type { ApiError } from '@shared/types';
 
 /**
  * Custom error class for API request failures
@@ -59,7 +59,7 @@ export class ApiClient {
     method: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE',
     url: string,
     data?: unknown
-  ): Promise<ApiResponse<T>> {
+  ): Promise<T> {
     const response = await fetch(this.baseUrl + url, {
       method,
       headers: data ? { 'Content-Type': 'application/json' } : {},
@@ -67,7 +67,14 @@ export class ApiClient {
       credentials: 'include',
     });
 
-    const json = await response.json();
+    let json: any = null;
+    if (response.status !== 204) {
+      try {
+        json = await response.json();
+      } catch {
+        json = null;
+      }
+    }
 
     if (!response.ok) {
       throw new ApiRequestError(
@@ -79,7 +86,11 @@ export class ApiClient {
       );
     }
 
-    return json as ApiResponse<T>;
+    if (json && typeof json === 'object' && 'success' in json && 'data' in json) {
+      return json.data as T;
+    }
+
+    return json as T;
   }
 
   /**
@@ -113,8 +124,8 @@ export class ApiClient {
   /**
    * DELETE request
    */
-  delete<T>(url: string) {
-    return this.request<T>('DELETE', url);
+  delete<T>(url: string, data?: unknown) {
+    return this.request<T>('DELETE', url, data);
   }
 }
 
@@ -132,3 +143,10 @@ export { calendarEventsApi } from './calendarEvents';
 export { channelConfigsApi } from './channelConfigs';
 export { emailTemplatesApi } from './emailTemplates';
 export { savedViewsApi } from './savedViews';
+export { authApi } from './auth';
+export { filesApi } from './files';
+export { leadScoresApi } from './leadScores';
+export { notificationsApi } from './notifications';
+export { pushTokensApi } from './pushTokens';
+export { usersApi } from './users';
+export { reportsApi } from './reports';

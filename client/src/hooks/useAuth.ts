@@ -4,26 +4,12 @@
  */
 import { useQuery } from "@tanstack/react-query";
 import type { User } from "@shared/schema";
+import { getQueryFn } from "@/lib/queryClient";
 
 export function useAuth() {
   const { data: user, isLoading, error } = useQuery<User | null>({
-    queryKey: ["/api/auth/user"],
-    queryFn: async () => {
-      const response = await fetch("/api/auth/me", {
-        credentials: "include",
-      });
-
-      // Se nao autenticado, retorna null em vez de lancar erro
-      if (response.status === 401) {
-        return null;
-      }
-
-      if (!response.ok) {
-        throw new Error("Erro ao verificar autenticacao");
-      }
-
-      return response.json();
-    },
+    queryKey: ["/api/auth/me"],
+    queryFn: getQueryFn({ on401: "returnNull" }),
     retry: false,
     staleTime: 5 * 60 * 1000, // 5 minutos
   });

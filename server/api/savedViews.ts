@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { z } from "zod";
 import { savedViewTypes } from "@shared/schema";
 import {
-  insertSavedViewSchema,
+  createSavedViewSchema,
   updateSavedViewSchema,
   idParamSchema,
 } from "../validation";
@@ -39,7 +39,7 @@ export function registerSavedViewRoutes(app: Express) {
   app.post(
     "/api/saved-views",
     isAuthenticated,
-    validateBody(insertSavedViewSchema),
+    validateBody(createSavedViewSchema),
     asyncHandler(async (req: any, res) => {
       const userId = (req.user as any).id;
       const org = await storage.getDefaultOrganization();

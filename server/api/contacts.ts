@@ -1,6 +1,6 @@
 import type { Express } from "express";
 import {
-  createContactWithCompanySchema,
+  createContactSchema,
   updateContactSchema,
   idParamSchema,
   paginationQuerySchema,
@@ -66,7 +66,7 @@ export function registerContactRoutes(app: Express) {
   app.post(
     "/api/contacts",
     isAuthenticated,
-    validateBody(createContactWithCompanySchema),
+    validateBody(createContactSchema),
     asyncHandler(async (req: any, res) => {
       const org = await storage.getDefaultOrganization();
       if (!org) {

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import EmojiPicker, { Theme, EmojiClickData } from "emoji-picker-react";
 import { useQuery, useMutation, useInfiniteQuery } from "@tanstack/react-query";
 import { Virtuoso, VirtuosoHandle } from "react-virtuoso";
-import { queryClient, apiRequest } from "@/lib/queryClient";
+import { queryClient } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +13,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { useTranslation } from "@/contexts/LanguageContext";
+import { conversationsApi } from "@/lib/api/conversations";
+import { filesApi } from "@/lib/api/files";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -187,14 +189,10 @@ export default function InboxPage() {
     enabled: !!selectedConversation,
     initialPageParam: undefined,
     queryFn: async ({ pageParam }) => {
-      const params = new URLSearchParams();
-      if (pageParam) params.set("cursor", String(pageParam));
-      params.set("limit", "30");
-      const response = await apiRequest(
-        "GET",
-        `/api/conversations/${selectedConversation?.id}/messages?${params.toString()}`
-      );
-      return response.json();
+      if (!selectedConversation?.id) {
+        return { messages: [], nextCursor: null, hasMore: false };
+      }
+      return conversationsApi.listMessages(selectedConversation.id, pageParam, 30);
     },
     getNextPageParam: (lastPage) =>
       lastPage.hasMore ? lastPage.nextCursor : undefined,
@@ -234,7 +232,7 @@ export default function InboxPage() {
     // Mark as read after a short delay (ensures user actually viewed)
     const timeout = setTimeout(async () => {
       try {
-        await apiRequest("POST", `/api/conversations/${selectedConversation.id}/read`);
+        await conversationsApi.markAsRead(selectedConversation.id);
         // Refresh conversations to update unread count
         queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
       } catch (error) {
@@ -325,8 +323,7 @@ export default function InboxPage() {
 
     try {
       // Upload audio file
-      const urlResponse = await apiRequest("POST", "/api/files/upload-url", {});
-      const { uploadURL } = await urlResponse.json();
+      const { uploadURL } = await filesApi.getUploadUrl();
 
       await fetch(uploadURL, {
         method: "PUT",
@@ -335,20 +332,19 @@ export default function InboxPage() {
       });
 
       // Create message with audio
-      const response = await apiRequest("POST", `/api/conversations/${selectedConversation.id}/messages`, {
+      const messageData = await conversationsApi.sendMessage(selectedConversation.id, {
         content: "🎤 Mensagem de áudio",
         isInternal: isInternalComment,
       });
-      const messageData = await response.json();
 
       // Attach audio file to message
-      await apiRequest("POST", "/api/files", {
+      await filesApi.register({
         name: `audio_${Date.now()}.webm`,
         mimeType: "audio/webm",
         size: audioBlob.size,
         uploadURL,
         entityType: "message",
-        entityId: String(messageData.id),
+        entityId: messageData.id,
       });
 
       queryClient.invalidateQueries({
@@ -387,22 +383,21 @@ export default function InboxPage() {
   const sendMessageMutation = useMutation({
     mutationFn: async (data: { content: string; isInternal: boolean; attachments?: PendingFile[] }) => {
       if (!selectedConversation) return;
-      const response = await apiRequest("POST", `/api/conversations/${selectedConversation.id}/messages`, {
+      const messageData = await conversationsApi.sendMessage(selectedConversation.id, {
         content: data.content,
         isInternal: data.isInternal,
       });
-      const messageData = await response.json();
       
       if (data.attachments && data.attachments.length > 0) {
         for (const pf of data.attachments) {
           if (pf.uploadURL && pf.status === "uploaded") {
-            await apiRequest("POST", "/api/files", {
+            await filesApi.register({
               name: pf.file.name,
               mimeType: pf.file.type,
               size: pf.file.size,
               uploadURL: pf.uploadURL,
               entityType: "message",
-              entityId: String(messageData.id),
+              entityId: messageData.id,
             });
           }
         }
@@ -433,8 +428,7 @@ export default function InboxPage() {
 
     for (const file of Array.from(selectedFiles)) {
       try {
-        const urlResponse = await apiRequest("POST", "/api/files/upload-url", {});
-        const { uploadURL } = await urlResponse.json();
+        const { uploadURL } = await filesApi.getUploadUrl();
 
         await fetch(uploadURL, {
           method: "PUT",

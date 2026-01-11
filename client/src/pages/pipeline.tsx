@@ -1,15 +1,15 @@
 import { useState, useEffect } from "react";
 import { useRoute, useLocation } from "wouter";
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { queryClient, apiRequest } from "@/lib/queryClient";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "@/contexts/LanguageContext";
+import { pipelinesApi } from "@/lib/api/pipelines";
+import { useDealMutations } from "@/hooks/mutations";
 import {
   Dialog,
   DialogContent,
@@ -50,7 +50,6 @@ interface PipelineWithStages extends Pipeline {
 }
 
 export default function PipelinePage() {
-  const { toast } = useToast();
   const { t } = useTranslation();
   const [, setLocation] = useLocation();
   const [match, params] = useRoute("/pipeline/:pipelineId");
@@ -78,14 +77,7 @@ export default function PipelinePage() {
     queryKey: ["/api/pipelines", selectedPipelineId || urlPipelineId],
     queryFn: async () => {
       const idToFetch = selectedPipelineId || urlPipelineId;
-      if (idToFetch) {
-        const res = await fetch(`/api/pipelines/${idToFetch}`, { credentials: "include" });
-        if (!res.ok) throw new Error("Failed to fetch pipeline");
-        return res.json();
-      }
-      const res = await fetch("/api/pipelines/default", { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch pipeline");
-      return res.json();
+      return idToFetch ? pipelinesApi.get(idToFetch) : pipelinesApi.getDefault();
     },
   });
 
@@ -106,32 +98,7 @@ export default function PipelinePage() {
     queryKey: ["/api/contacts"],
   });
 
-  const moveDealMutation = useMutation({
-    mutationFn: async ({ dealId, stageId }: { dealId: number; stageId: number }) => {
-      await apiRequest("PATCH", `/api/deals/${dealId}`, { stageId });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/deals"] });
-      toast({ title: t("toast.updated") });
-    },
-    onError: () => {
-      toast({ title: t("toast.error"), variant: "destructive" });
-    },
-  });
-
-  const createDealMutation = useMutation({
-    mutationFn: async (data: Partial<Deal>) => {
-      await apiRequest("POST", "/api/deals", data);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/deals"] });
-      setNewDealOpen(false);
-      toast({ title: t("toast.created") });
-    },
-    onError: () => {
-      toast({ title: t("toast.error"), variant: "destructive" });
-    },
-  });
+  const { moveDeal, createDeal } = useDealMutations();
 
   const handleDragStart = (e: React.DragEvent, deal: DealWithRelations) => {
     setDraggedDeal(deal);
@@ -151,7 +118,7 @@ export default function PipelinePage() {
     e.preventDefault();
     setDragOverStage(null);
     if (draggedDeal && draggedDeal.stageId !== stageId) {
-      moveDealMutation.mutate({ dealId: draggedDeal.id, stageId });
+      moveDeal.mutate({ id: draggedDeal.id, data: { stageId } });
     }
     setDraggedDeal(null);
   };
@@ -162,7 +129,7 @@ export default function PipelinePage() {
     const firstStage = pipeline?.stages?.[0];
     if (!firstStage || !pipeline) return;
 
-    createDealMutation.mutate({
+    createDeal.mutate({
       title: formData.get("title") as string,
       value: formData.get("value") as string,
       pipelineId: pipeline.id,
@@ -338,10 +305,10 @@ export default function PipelinePage() {
                 </Button>
                 <Button
                   type="submit"
-                  disabled={createDealMutation.isPending}
+                  disabled={createDeal.isPending}
                   data-testid="button-create-deal-submit"
                 >
-                  {createDealMutation.isPending ? t("common.saving") : t("common.create")}
+                  {createDeal.isPending ? t("common.saving") : t("common.create")}
                 </Button>
               </DialogFooter>
             </form>
