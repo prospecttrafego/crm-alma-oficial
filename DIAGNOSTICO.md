@@ -1,7 +1,7 @@
 # Diagnóstico completo — Alma CRM
 
-Data do diagnóstico: 2026-01-11
-Commit analisado (base): `c154dbe` (após padronização completa do backend)
+Data do diagnóstico: 2026-01-11 (atualizado)
+Commit analisado (base): `be376d4` (após simplificação de contatos + auto-deal WhatsApp)
 Ambiente usado para validações: Node `v25.2.1`, npm `11.6.2` (o projeto documenta Node 20+)
 
 Este documento foi criado para:
@@ -23,7 +23,7 @@ Ele junta, em um só lugar:
 - **Inbox (caixa de entrada):** um lugar para registrar e acompanhar conversas com contatos (ex.: WhatsApp), com mensagens, não lidas, responsáveis e anexos.
 
 Além disso, ele guarda:
-- **Contatos e empresas** (cadastro e histórico)
+- **Contatos** (cadastro e histórico; empresa é auto-criada pelo nome digitado)
 - **Atividades** (tarefas, ligações, reuniões)
 - **Calendário** (eventos locais e integração com Google Calendar)
 - **Notificações** (em tempo real e/ou push)
@@ -90,7 +90,7 @@ Integrações opcionais (dependem de configuração):
 - Autenticação por email/senha (Passport + sessão)
 - Pipeline (pipelines, estágios e deals)
 - Inbox (conversas e mensagens)
-- Contatos e empresas
+- Contatos (empresas sao auto-criadas via formulario)
 - Atividades
 - Notificações internas (tabela + endpoints)
 - Logs de auditoria (tabela + endpoints)
@@ -110,7 +110,7 @@ Integrações opcionais (dependem de configuração):
 - Presença (online/offline) usando Redis quando configurado
 
 ### Integrações implementadas
-- WhatsApp via Evolution API (conectar, status, enviar mensagem, webhook para receber)
+- WhatsApp via Evolution API (conectar, status, enviar mensagem, webhook para receber, **auto-criação de deal para contatos sem deal aberto**)
 - Email (IMAP/SMTP): sincronização e envio via `channel_configs.emailConfig`
 - Google Calendar (OAuth + import de eventos)
 - Push notifications (Firebase Admin + tokens; usado quando usuário está “offline”)
@@ -337,8 +337,8 @@ Endpoints `/api` principais (somando `server/auth.ts` e `server/api/*`, registra
   `/api/pipelines`, `/api/pipelines/default`, `/api/pipelines/:id`, `/api/pipelines/:id/set-default`, `/api/pipelines/:id/stages`, `/api/pipelines/:pipelineId/stages/:id`
 - Deals:  
   `/api/deals`, `/api/deals/:id`, `/api/deals/:id/stage`
-- Contatos/Empresas:  
-  `/api/contacts`, `/api/contacts/:id`, `/api/companies`, `/api/companies/:id`
+- Contatos:
+  `/api/contacts`, `/api/contacts/:id` (empresas sao criadas automaticamente via `companyName`; endpoints `/api/companies` existem mas frontend desabilitado)
 - Inbox:  
   `/api/conversations`, `/api/conversations/:id`, `/api/conversations/:id/messages`, `/api/conversations/:id/read`
 - Atividades:  
@@ -409,7 +409,7 @@ Eliminação de duplicações:
 > Então, os pontos abaixo priorizam **confiabilidade, segurança, performance e governança** — e não “MVP”.
 
 ### ✅ Principais melhorias já aplicadas (estado atual)
-- **Listagens grandes com paginação + busca:** reduz risco de travar com volume (contacts/companies/deals/conversations/activities).
+- **Listagens grandes com paginação + busca:** reduz risco de travar com volume (contacts/deals/conversations/activities).
 - **WhatsApp otimizado:** handler deixa de “varrer tudo em memória” e passa a consultar direto no banco (mais rápido e estável).
 - **Observabilidade básica:** logs com `requestId`, endpoint `GET /api/health` e timeouts nas integrações externas.
 - **Sessões mais eficientes:** session store passa a reutilizar o mesmo pool do Postgres (evita conexões duplicadas).

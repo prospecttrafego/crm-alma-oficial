@@ -18,12 +18,13 @@ Sistema de CRM (Customer Relationship Management) desenvolvido para a agencia di
 - Anexos de arquivos
 - Contagem de nao lidos
 
-### Gestao de Contatos e Empresas
+### Gestao de Contatos
 - Cadastro completo de contatos
-- Vinculacao com empresas
+- Empresa digitada como texto (auto-criada se nao existir)
 - Campos customizados (JSON)
 - Tags e segmentacao
 - Historico de atividades
+- Auto-criacao de deal via WhatsApp (para contatos sem deal aberto)
 
 ### Recursos Adicionais
 - Lead scoring com IA (OpenAI)

@@ -131,7 +131,7 @@ E também existem arquivos importantes "soltos" dentro de `server/` (por exemplo
 
 O que você encontra aqui (exemplos reais):
 - `server/api/contacts.ts`: tudo de contatos (`/api/contacts`)
-- `server/api/companies.ts`: tudo de empresas (`/api/companies`)
+- `server/api/companies.ts`: tudo de empresas (`/api/companies`) — *backend ativo, frontend desabilitado*
 - `server/api/deals.ts`: deals (`/api/deals`)
 - `server/api/conversations.ts`: inbox (conversas/mensagens)
 - `server/api/files.ts`: arquivos (upload/download/transcrição)
