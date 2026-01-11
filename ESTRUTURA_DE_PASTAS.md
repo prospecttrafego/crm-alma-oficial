@@ -108,7 +108,7 @@ server/
   jobs/
 ```
 
-E também existem arquivos importantes “soltos” dentro de `server/` (por exemplo: autenticação, banco, storage/DAL).
+E também existem arquivos importantes “soltos” dentro de `server/` (por exemplo: autenticação, banco, storage/DAL e `server/env.ts` para carregar `.env.staging`/`.env.production`).
 
 ### `server/api/` — Rotas HTTP do sistema (endpoints `/api/...`)
 - O que é: aqui estão as “portas de entrada” do backend (as URLs que o frontend chama).

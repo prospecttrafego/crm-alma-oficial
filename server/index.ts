@@ -1,4 +1,4 @@
-import "dotenv/config";
+import "./env";
 import express from "express";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";

@@ -139,6 +139,7 @@ CRM_Oficial/
 │       └── pages/               # Paginas (dashboard, pipeline, inbox, settings…)
 ├── server/
 │   ├── index.ts                 # Entry point, inicia servidor
+│   ├── env.ts                   # Loader de .env (staging/prod) com fallback
 │   ├── logger.ts                # Logs estruturados (requestId + loggers de integrações)
 │   ├── health.ts                # Health check (DB + integrações opcionais)
 │   ├── routes.ts                # Agregador (auth + rate limit + API + WebSocket)
@@ -602,7 +603,11 @@ NODE_ENV=production node dist/index.cjs
 
 ## Configuracao de Ambiente
 
-### Arquivo .env
+### Arquivos .env (.env.staging / .env.production)
+
+O backend carrega primeiro `.env.{APP_ENV}` (ou `.env.{NODE_ENV}`) quando existir e depois `.env` como fallback.  
+Para staging, use `APP_ENV=staging`. Para produção, `NODE_ENV=production` já aponta para `.env.production`.  
+Se precisar forçar um arquivo, use `ENV_FILE=/caminho/para/.env`.
 
 ```bash
 # ====== MINIMO PARA RODAR (OBRIGATORIAS) ======
@@ -733,8 +738,8 @@ cd crm-alma-oficial
 npm install
 
 # Criar arquivo de ambiente
-cp .env.example .env
-nano .env  # Editar com credenciais reais
+cp .env.example .env.production
+nano .env.production  # Editar com credenciais reais
 ```
 
 #### 3. Configurar Banco de Dados
@@ -834,7 +839,7 @@ sudo certbot renew --dry-run
 
 #### 8. Criar Primeiro Usuario
 
-Com `ALLOW_REGISTRATION=true`, acesse a aplicacao e crie uma conta. Depois, altere para `false` no .env e reinicie:
+Com `ALLOW_REGISTRATION=true`, acesse a aplicacao e crie uma conta. Depois, altere para `false` no .env.production e reinicie:
 
 ```bash
 pm2 restart crm-alma

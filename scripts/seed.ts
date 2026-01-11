@@ -11,7 +11,7 @@
  * - SEED_ORG_NAME: Organization name (default: Alma Digital)
  */
 
-import "dotenv/config";
+import "../server/env";
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import { eq, count } from "drizzle-orm";

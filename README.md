@@ -60,18 +60,23 @@ Sistema de CRM (Customer Relationship Management) desenvolvido para a agencia di
 npm install
 
 # Configurar ambiente
-cp .env.example .env
-# Editar .env com suas credenciais
+cp .env.example .env.staging
+cp .env.example .env.production
+# Editar os arquivos com suas credenciais
 
 # Aplicar schema no banco
 npm run db:push
 
-# Desenvolvimento
+# Desenvolvimento (usa .env.staging quando APP_ENV=staging)
+APP_ENV=staging npm run dev
+
+# Producao local (usa .env.production quando NODE_ENV=production)
+APP_ENV=production npm run build
+npm start
+
+# Ou mantenha um .env para uso local rapido
 npm run dev
 
-# Producao
-npm run build
-npm start
 ```
 
 ## Estrutura do Projeto
@@ -147,6 +152,8 @@ npm start
 | `GOOGLE_CLIENT_SECRET` | Nao | Client Secret OAuth (Google Calendar) |
 | `GOOGLE_REDIRECT_URI` | Nao | Redirect URI OAuth (Google Calendar) |
 | `GOOGLE_TOKEN_ENCRYPTION_KEY` | Nao | Chave base64 (32 bytes) para criptografar tokens (obrigatoria em producao se usar Google Calendar) |
+| `APP_ENV` | Nao | Define arquivo `.env.{APP_ENV}` (ex.: `staging`, `production`) |
+| `ENV_FILE` | Nao | Caminho explicito para arquivo `.env` (sobrescreve APP_ENV) |
 | `EVOLUTION_API_URL` | Nao | URL base da Evolution API V2 |
 | `EVOLUTION_API_KEY` | Nao | API key da Evolution API |
 | `EVOLUTION_INSTANCE_PREFIX` | Nao | Prefixo unico por deploy para evitar colisao de instancias (quando varios CRMs compartilham a mesma Evolution API) |
@@ -188,8 +195,8 @@ cd crm-alma-oficial
 npm install
 
 # 3. Configurar ambiente
-cp .env.example .env
-nano .env  # Preencher credenciais
+cp .env.example .env.production
+nano .env.production  # Preencher credenciais
 
 # 4. Aplicar schema no banco
 npm run db:push
@@ -232,7 +239,7 @@ server {
 1. Criar projeto em [supabase.com](https://supabase.com)
 2. Criar bucket "uploads" em Storage
 3. Configurar politica de acesso (RLS) se necessario
-4. Copiar credenciais para `.env`:
+4. Copiar credenciais para `.env.staging` e/ou `.env.production`:
    - `SUPABASE_URL`: Settings > API > Project URL
    - `SUPABASE_SERVICE_ROLE_KEY`: Settings > API > service_role key
 

@@ -9,7 +9,7 @@
  *   node dist/migrate.cjs --baseline   # mark existing schema as migrated (one-time)
  */
 
-import "dotenv/config";
+import "../server/env";
 import path from "node:path";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { readMigrationFiles } from "drizzle-orm/migrator";

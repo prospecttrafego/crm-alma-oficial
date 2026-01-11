@@ -113,7 +113,7 @@ Redis (Upstash) (opcional, mas recomendado para rate-limit, jobs e cache):
 2. Escolha o seu repositório (Git) e a branch (ex.: `main`)
 3. Selecione build por **Dockerfile** (Coolify detecta automaticamente se existir `Dockerfile`)
 4. Configure a porta do container como `3000` (ou a mesma do `PORT`, se você definir)
-5. Cole todas as variáveis do seu `.env` na área de **Environment Variables** do Coolify
+5. Cole todas as variáveis do seu `.env.production` na área de **Environment Variables** do Coolify
 6. Clique em **Deploy**
 
 ### 3.2 Preparar o banco (uma vez)

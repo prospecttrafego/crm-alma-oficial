@@ -192,7 +192,7 @@ Se você usa Supabase:
 
 O que fazer:
 - Crie um banco Postgres (pode ser Supabase, Neon, Railway, VPS, etc.).
-- Coloque a `DATABASE_URL` no `.env`.
+- Coloque a `DATABASE_URL` no `.env.staging`/`.env.production`.
 - Rode `npm run db:push` para criar as tabelas.
 
 Ponto importante (pode causar erro no deploy):
@@ -205,7 +205,7 @@ O que você fornece:
 - `SESSION_SECRET=...` (uma chave forte)
 
 O que fazer:
-- Gere uma chave forte (ex.: `openssl rand -base64 32`) e coloque no `.env`.
+- Gere uma chave forte (ex.: `openssl rand -base64 32`) e coloque no `.env.staging`/`.env.production`.
 - Confirme que `npm run db:push` criou a tabela `sessions`.
 
 ### 6.3 Organização (modo “single-tenant”) — **obrigatório para o app funcionar**
@@ -232,7 +232,7 @@ O que você fornece:
 O que fazer:
 - Crie um projeto no Supabase.
 - Crie um bucket chamado **`uploads`**.
-- Coloque `SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY` no `.env`.
+- Coloque `SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY` no `.env.staging`/`.env.production`.
 
 ### 6.5 WhatsApp (Evolution API) — **opcional**
 Integração implementada para WhatsApp via Evolution API (Baileys).

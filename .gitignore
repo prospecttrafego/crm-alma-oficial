@@ -11,6 +11,8 @@ vite.config.ts.*
 .env
 .env.local
 .env.*.local
+.env.staging
+.env.production
 ecosystem.config.cjs
 
 # Claude Code local settings
