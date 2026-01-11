@@ -12,7 +12,7 @@ Sistema de CRM (Customer Relationship Management) desenvolvido para a agencia di
 - Historico de movimentacoes
 
 ### Inbox Unificado
-- Conversas multicanal (modelo suporta email/WhatsApp/SMS/telefone; integracao implementada: WhatsApp via Evolution API; demais em roadmap)
+- Conversas multicanal (email via IMAP/SMTP e WhatsApp via Evolution API; SMS/telefone em roadmap)
 - Atribuicao de responsaveis
 - Notas internas
 - Anexos de arquivos
@@ -131,8 +131,8 @@ npm start
 | `DEFAULT_ORGANIZATION_ID` | Nao | ID da organizacao padrao (modo single-tenant) |
 | `APP_URL` | Nao | URL da aplicacao em producao |
 | `PORT` | Nao | Porta do servidor (default: 3000) |
-| `UPSTASH_REDIS_REST_URL` | Nao | URL Upstash Redis (opcional) |
-| `UPSTASH_REDIS_REST_TOKEN` | Nao | Token Upstash Redis (opcional) |
+| `UPSTASH_REDIS_REST_URL` | Nao | URL Upstash Redis (opcional; recomendado para rate limit, jobs e presenca) |
+| `UPSTASH_REDIS_REST_TOKEN` | Nao | Token Upstash Redis (opcional; recomendado para rate limit, jobs e presenca) |
 | `FIREBASE_PROJECT_ID` | Nao | Firebase Project ID (push/FCM - opcional) |
 | `FIREBASE_PRIVATE_KEY` | Nao | Private key do service account (push/FCM - opcional) |
 | `FIREBASE_CLIENT_EMAIL` | Nao | Client email do service account (push/FCM - opcional) |
@@ -146,7 +146,7 @@ npm start
 | `GOOGLE_CLIENT_ID` | Nao | Client ID OAuth (Google Calendar) |
 | `GOOGLE_CLIENT_SECRET` | Nao | Client Secret OAuth (Google Calendar) |
 | `GOOGLE_REDIRECT_URI` | Nao | Redirect URI OAuth (Google Calendar) |
-| `GOOGLE_TOKEN_ENCRYPTION_KEY` | Nao | Chave base64 (32 bytes) para criptografar tokens |
+| `GOOGLE_TOKEN_ENCRYPTION_KEY` | Nao | Chave base64 (32 bytes) para criptografar tokens (obrigatoria em producao se usar Google Calendar) |
 | `EVOLUTION_API_URL` | Nao | URL base da Evolution API V2 |
 | `EVOLUTION_API_KEY` | Nao | API key da Evolution API |
 | `EVOLUTION_INSTANCE_PREFIX` | Nao | Prefixo unico por deploy para evitar colisao de instancias (quando varios CRMs compartilham a mesma Evolution API) |
@@ -159,6 +159,7 @@ npm run dev       # Servidor de desenvolvimento
 npm run build     # Build de producao
 npm start         # Inicia servidor de producao
 npm run check     # Verifica tipos TypeScript
+npm run test      # Alias para verificacao de tipos
 npm run lint      # Lint (ESLint)
 npm run lint:fix  # Lint + autofix (opcional)
 npm run db:push   # Aplica schema no banco

@@ -154,7 +154,7 @@ CRM_Oficial/
 │   │   └── index.ts             # Upgrade handler + presença + "typing"
 │   ├── jobs/                    # Background jobs (tarefas assíncronas)
 │   │   ├── index.ts             # Exports do módulo
-│   │   ├── queue.ts             # Fila em memória com retry
+│   │   ├── queue.ts             # Fila Redis (Upstash) com fallback em memoria
 │   │   └── handlers.ts          # Handlers: transcricao, lead score, sync
 │   ├── storage.ts               # Camada de acesso ao banco (DAL)
 │   ├── auth.ts                  # Passport.js + sessoes
@@ -678,7 +678,8 @@ EVOLUTION_WEBHOOK_SECRET=sua-webhook-secret-aqui
 GOOGLE_CLIENT_ID=seu-google-client-id.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=seu-google-client-secret
 GOOGLE_REDIRECT_URI=https://crm.seudominio.com/api/auth/google/callback
-# Chave base64 de 32 bytes para criptografar tokens (gerar com: openssl rand -base64 32)
+# Chave base64 de 32 bytes para criptografar tokens (obrigatoria em producao)
+# (gerar com: openssl rand -base64 32)
 GOOGLE_TOKEN_ENCRYPTION_KEY=sua-chave-base64-aqui
 ```
 

@@ -91,7 +91,7 @@ Google Calendar:
 - `GOOGLE_CLIENT_ID`
 - `GOOGLE_CLIENT_SECRET`
 - `GOOGLE_REDIRECT_URI` (tem que bater com o domínio do `APP_URL`)
-- `GOOGLE_TOKEN_ENCRYPTION_KEY`
+- `GOOGLE_TOKEN_ENCRYPTION_KEY` (**obrigatório em produção**)
 
 Push (Firebase):
 - `FIREBASE_PROJECT_ID`
@@ -99,7 +99,7 @@ Push (Firebase):
 - `FIREBASE_CLIENT_EMAIL`
 e variáveis `VITE_FIREBASE_*` para o frontend
 
-Redis (Upstash) (opcional, mas recomendado para rate-limit/cache):
+Redis (Upstash) (opcional, mas recomendado para rate-limit, jobs e cache):
 - `UPSTASH_REDIS_REST_URL`
 - `UPSTASH_REDIS_REST_TOKEN`
 

@@ -111,14 +111,14 @@ Integrações opcionais (dependem de configuração):
 
 ### Integrações implementadas
 - WhatsApp via Evolution API (conectar, status, enviar mensagem, webhook para receber)
+- Email (IMAP/SMTP): sincronização e envio via `channel_configs.emailConfig`
 - Google Calendar (OAuth + import de eventos)
 - Push notifications (Firebase Admin + tokens; usado quando usuário está “offline”)
 - IA (OpenAI): recomendações do lead score + transcrição Whisper (quando configurado)
 
 ### Integrações **não completas** (existem estruturas, mas faltam rotinas reais)
-- “Email channel” (existe `channel_configs.emailConfig`, mas não existe rotina de IMAP/SMTP para sincronizar/enviar emails)
 - SMS/telefone (o schema aceita `sms`/`phone` em conversas, mas não existe integração implementada para isso)
-- Cache/rate limit via Redis (existe código base em `server/redis.ts`, mas a maior parte não está aplicada nos endpoints)
+- Cache via Redis ainda parcial (rate limiting e presença já usam Upstash quando configurado)
 
 ---
 
@@ -383,13 +383,12 @@ Foram executados:
 - **Regra de “não lidas” não está claramente definida por usuário/responsável:** `unreadCount` ainda é global na conversa e pode confundir times grandes (ex.: quando o próprio usuário envia mensagem).
 - **Bootstrap da organização (single-tenant):** o backend depende de existir organização no banco; ainda falta um fluxo “oficial” e seguro (seed/bootstrap).
 - **Webhooks (WhatsApp):** token existe, mas falta idempotência (evitar duplicar mensagens) e melhor tratamento de picos/retries.
-- **Proteção contra brute force distribuída:** login/register têm rate limit local (memória). Para múltiplas instâncias, o ideal é mover isso para Redis.
+- **Proteção contra brute force distribuída:** login/register usam rate limit no Redis quando configurado; fallback local se não houver Upstash.
 - **Integrações dependem de variáveis de ambiente:** Supabase, WhatsApp, Google, OpenAI e Firebase precisam estar corretos; sem isso partes importantes ficam indisponíveis.
 
 ### P1 — Lacunas funcionais (promete multicanal, mas ainda não entrega tudo)
-- **Email (IMAP/SMTP):** existe configuração (`channel_configs.emailConfig`), mas não existe sincronização real de emails nem envio por SMTP.
 - **SMS/telefone:** o schema suporta, mas não há integração implementada.
-- **Redis:** presença (online/offline) existe; porém cache e rate limiting ainda não estão aplicados na maioria das rotas.
+- **Redis:** presença (online/offline) e rate limiting existem; cache ainda é parcial.
 
 ### P2 — Maturidade (qualidade/operacional)
 - **Linter agora existe:** ele roda e ajuda a manter padrão, mas há muitos warnings (limpeza gradual recomendada).

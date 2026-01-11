@@ -181,6 +181,7 @@ O que evitar:
 ### `server/jobs/` — Tarefas em background (para coisas pesadas)
 - O que é: um lugar para tarefas que não deveriam travar uma requisição (ex.: transcrever áudio, calcular score, sincronizar calendário).
 - Por que existe: melhora a experiência do usuário e reduz risco de timeouts.
+- Nota: usa Redis (Upstash) quando configurado; caso contrário faz fallback em memória.
 
 Estrutura atual:
 
@@ -193,10 +194,10 @@ server/jobs/
 
 O que pode ser mudado/alterado:
 - Adicionar novos tipos de job e handlers.
-- Evoluir a fila in-memory para uma fila robusta (ex.: Redis/BullMQ) quando escalar para múltiplas instâncias.
+- Separar um processo de worker dedicado quando escalar para múltiplas instâncias.
 
 O que evitar:
-- Depender de fila “em memória” para cenários com várias instâncias do servidor (porque cada instância teria sua própria fila).
+- Rodar sem Redis em produção quando precisar de jobs duráveis (o fallback em memória é para dev/ambientes simples).
 
 ---
 
@@ -281,4 +282,3 @@ dist/
 
 - O que é: onde o Git guarda o histórico de commits, branches, etc.
 - O que evitar: mexer manualmente aqui (só use comandos do Git).
-
