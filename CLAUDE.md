@@ -4,23 +4,24 @@ Este documento contem todas as informacoes necessarias para entender, desenvolve
 
 ---
 
-## DIRETRIZES DE DESENVOLVIMENTO (IMPORTANTE!)
+## DIRETRIZES DE DESENVOLVIMENTO (OBRIGATORIO!)
 
-**Antes de implementar qualquer alteracao, SEMPRE considerar:**
+**Regras que DEVEM ser seguidas em TODA alteracao:**
 
-1. **Organizacao de arquivos**: Arquivos grandes (500+ linhas) devem ser divididos em modulos menores com responsabilidades claras. NAO simplesmente adicionar codigo em arquivos existentes sem questionar a estrutura.
+1. **NUNCA seguir padrao ruim**: Se o arquivo ja esta grande/desorganizado, NAO adicionar mais codigo nele. Propor refatoracao ANTES de implementar.
 
-2. **Propor refatoracao quando necessario**: Se um arquivo ja esta grande e a nova funcionalidade poderia ser um modulo separado, PERGUNTAR ao usuario:
-   > "O arquivo X ja tem bastante logica. Quer que eu crie um modulo separado para Y ou prefere que adicione no arquivo existente?"
+2. **Pensar na arquitetura, nao so na tarefa**: Antes de implementar qualquer feature, avaliar: "Onde isso deveria morar? Faz sentido criar um modulo separado?" A qualidade arquitetural e tao importante quanto a funcionalidade.
 
-3. **Estrutura sobre conveniencia**: Criar arquivos/pastas novos quando fizer sentido, mesmo que de mais trabalho. Exemplos:
+3. **Refatorar quando necessario, mesmo sem ser pedido**: Se uma refatoracao beneficia o projeto, PROPOR ao usuario. Expandir escopo para melhorar estrutura e VALIDO.
+
+4. **Estrutura > velocidade**: Criar arquivos/pastas novos quando fizer sentido, mesmo que de mais trabalho. Codigo bem organizado economiza tempo no futuro. Exemplos:
    - `storage.ts` grande → dividir em `storage/contacts.ts`, `storage/deals.ts`, etc.
    - Logica de automacao → criar `automations/` ou `services/`
    - Handlers complexos → separar em arquivos por responsabilidade
 
-4. **Pensar em manutencao futura**: Codigo sera lido e modificado muitas vezes. Estrutura clara > codigo rapido de escrever.
+5. **Arquivos pequenos e focados**: Limite sugerido de ~300 linhas por arquivo. Acima disso, considerar dividir.
 
-5. **Documentacao alinhada**: Sempre atualizar TODOS os arquivos .md relevantes (README, DIAGNOSTICO, ESTRUTURA_DE_PASTAS, CLAUDE) quando houver mudancas estruturais.
+6. **Documentacao alinhada**: Sempre atualizar TODOS os arquivos .md relevantes (README, DIAGNOSTICO, ESTRUTURA_DE_PASTAS, CLAUDE) quando houver mudancas.
 
 ---
 
