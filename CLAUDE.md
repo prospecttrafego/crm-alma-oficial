@@ -4,6 +4,26 @@ Este documento contem todas as informacoes necessarias para entender, desenvolve
 
 ---
 
+## DIRETRIZES DE DESENVOLVIMENTO (IMPORTANTE!)
+
+**Antes de implementar qualquer alteracao, SEMPRE considerar:**
+
+1. **Organizacao de arquivos**: Arquivos grandes (500+ linhas) devem ser divididos em modulos menores com responsabilidades claras. NAO simplesmente adicionar codigo em arquivos existentes sem questionar a estrutura.
+
+2. **Propor refatoracao quando necessario**: Se um arquivo ja esta grande e a nova funcionalidade poderia ser um modulo separado, PERGUNTAR ao usuario:
+   > "O arquivo X ja tem bastante logica. Quer que eu crie um modulo separado para Y ou prefere que adicione no arquivo existente?"
+
+3. **Estrutura sobre conveniencia**: Criar arquivos/pastas novos quando fizer sentido, mesmo que de mais trabalho. Exemplos:
+   - `storage.ts` grande → dividir em `storage/contacts.ts`, `storage/deals.ts`, etc.
+   - Logica de automacao → criar `automations/` ou `services/`
+   - Handlers complexos → separar em arquivos por responsabilidade
+
+4. **Pensar em manutencao futura**: Codigo sera lido e modificado muitas vezes. Estrutura clara > codigo rapido de escrever.
+
+5. **Documentacao alinhada**: Sempre atualizar TODOS os arquivos .md relevantes (README, DIAGNOSTICO, ESTRUTURA_DE_PASTAS, CLAUDE) quando houver mudancas estruturais.
+
+---
+
 ## Visao Geral do Projeto
 
 **Alma CRM** e uma aplicacao SaaS de gestao de relacionamento com clientes desenvolvida para a agencia digital Alma. O sistema combina duas funcionalidades principais:
