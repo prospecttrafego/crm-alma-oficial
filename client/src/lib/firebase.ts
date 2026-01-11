@@ -122,7 +122,7 @@ export async function requestNotificationPermission(): Promise<string | null> {
  */
 async function saveTokenToServer(token: string) {
   try {
-    await pushTokensApi.register(token);
+    await pushTokensApi.register({ token });
     console.log("[Firebase] Token saved to server");
   } catch (error) {
     console.error("[Firebase] Error saving token:", error);

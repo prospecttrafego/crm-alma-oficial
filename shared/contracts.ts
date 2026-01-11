@@ -19,6 +19,8 @@ import {
   insertPipelineSchema as baseInsertPipelineSchema,
   insertPipelineStageSchema as baseInsertPipelineStageSchema,
   insertSavedViewSchema as baseInsertSavedViewSchema,
+  insertFileSchema as baseInsertFileSchema,
+  insertPushTokenSchema as baseInsertPushTokenSchema,
   updateActivitySchema as baseUpdateActivitySchema,
   updateCalendarEventSchema as baseUpdateCalendarEventSchema,
   updateChannelConfigSchema as baseUpdateChannelConfigSchema,
@@ -30,6 +32,7 @@ import {
   updatePipelineSchema as baseUpdatePipelineSchema,
   updatePipelineStageSchema as baseUpdatePipelineStageSchema,
   updateSavedViewSchema as baseUpdateSavedViewSchema,
+  updateUserSchema as baseUpdateUserSchema,
 } from "./schema";
 
 // ===== CONTACTS =====
@@ -134,6 +137,46 @@ export const createChannelConfigSchema = baseInsertChannelConfigSchema
 export const updateChannelConfigSchema = baseUpdateChannelConfigSchema
   .omit({ organizationId: true });
 
+// ===== USERS =====
+
+export const updateUserProfileSchema = baseUpdateUserSchema
+  .pick({
+    firstName: true,
+    lastName: true,
+    profileImageUrl: true,
+    preferences: true,
+  })
+  .extend({
+    preferences: z
+      .object({
+        language: z.enum(["pt-BR", "en"]).optional(),
+      })
+      .optional(),
+  });
+
+// ===== FILES =====
+
+const baseCreateFileSchema = baseInsertFileSchema
+  .omit({ organizationId: true, uploadedBy: true, objectPath: true });
+
+export const createFileSchema = baseCreateFileSchema.extend({
+  objectPath: z.string().optional(),
+  uploadURL: z.string().optional(),
+  entityId: z.union([z.string(), z.number()]),
+});
+
+// ===== PUSH TOKENS =====
+
+export const createPushTokenSchema = baseInsertPushTokenSchema
+  .omit({ userId: true })
+  .extend({
+    oldToken: z.string().optional(),
+  });
+
+export const deletePushTokenSchema = baseInsertPushTokenSchema.pick({
+  token: true,
+});
+
 // ===== TYPES =====
 
 export type CreateContactDTO = z.infer<typeof createContactSchema>;
@@ -171,3 +214,10 @@ export type UpdateEmailTemplateDTO = z.infer<typeof updateEmailTemplateSchema>;
 
 export type CreateSavedViewDTO = z.infer<typeof createSavedViewSchema>;
 export type UpdateSavedViewDTO = z.infer<typeof updateSavedViewSchema>;
+
+export type UpdateUserProfileDTO = z.infer<typeof updateUserProfileSchema>;
+
+export type CreateFileDTO = z.infer<typeof createFileSchema>;
+
+export type CreatePushTokenDTO = z.infer<typeof createPushTokenSchema>;
+export type DeletePushTokenDTO = z.infer<typeof deletePushTokenSchema>;

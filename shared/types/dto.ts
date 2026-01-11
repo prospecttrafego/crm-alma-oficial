@@ -28,4 +28,8 @@ export type {
   UpdateEmailTemplateDTO,
   CreateSavedViewDTO,
   UpdateSavedViewDTO,
+  UpdateUserProfileDTO,
+  CreateFileDTO,
+  CreatePushTokenDTO,
+  DeletePushTokenDTO,
 } from "../contracts";

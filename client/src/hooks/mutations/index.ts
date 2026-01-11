@@ -3,7 +3,6 @@
  */
 
 export { useContactMutations } from './useContactMutations';
-export { useCompanyMutations } from './useCompanyMutations';
 export { useDealMutations } from './useDealMutations';
 export { usePipelineMutations } from './usePipelineMutations';
 export { useActivityMutations } from './useActivityMutations';

@@ -54,10 +54,6 @@ export default function ContactsPage() {
 
   // REMOVIDO - Não precisa mais carregar lista de empresas
   // Agora usamos input de texto com auto-criação de empresa no backend
-  // const { data: companies } = useQuery<Company[]>({
-  //   queryKey: ["/api/companies"],
-  // });
-
   const { data: activities } = useQuery<Activity[]>({
     queryKey: ["/api/contacts", selectedContact?.id, "activities"],
     enabled: !!selectedContact,

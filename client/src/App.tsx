@@ -23,7 +23,6 @@ import Dashboard from "@/pages/dashboard";
 import PipelinePage from "@/pages/pipeline";
 import InboxPage from "@/pages/inbox";
 import ContactsPage from "@/pages/contacts";
-import CompaniesPage from "@/pages/companies";
 import ActivitiesPage from "@/pages/activities";
 import ReportsPage from "@/pages/reports";
 import SettingsPage from "@/pages/settings";
@@ -106,8 +105,6 @@ function Router() {
         <Route path="/pipeline/:pipelineId" component={PipelinePage} />
         <Route path="/inbox" component={InboxPage} />
         <Route path="/contacts" component={ContactsPage} />
-        {/* DESABILITADO - Para reativar Companies, descomentar: */}
-        {/* <Route path="/companies" component={CompaniesPage} /> */}
         <Route path="/activities" component={ActivitiesPage} />
         <Route path="/calendar" component={CalendarPage} />
         <Route path="/reports" component={ReportsPage} />

@@ -134,7 +134,6 @@ export const api = new ApiClient();
 
 // Re-export domain APIs
 export { contactsApi } from './contacts';
-export { companiesApi } from './companies';
 export { dealsApi } from './deals';
 export { pipelinesApi } from './pipelines';
 export { activitiesApi } from './activities';

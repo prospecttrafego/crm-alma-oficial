@@ -1,21 +1,10 @@
 import type { Express } from "express";
-import { z } from "zod";
 import { isAuthenticated } from "../auth";
 import { storage } from "../storage";
 import { logger } from "../logger";
 import { asyncHandler, validateBody, getCurrentUser } from "../middleware";
-import { sendSuccess, sendValidationError } from "../response";
-
-// Schemas de validacao
-const createPushTokenSchema = z.object({
-  token: z.string().min(1, "Token is required"),
-  deviceInfo: z.string().optional().nullable(),
-  oldToken: z.string().optional(),
-});
-
-const deletePushTokenSchema = z.object({
-  token: z.string().min(1, "Token is required"),
-});
+import { createPushTokenSchema, deletePushTokenSchema } from "../validation";
+import { sendSuccess } from "../response";
 
 export function registerPushTokenRoutes(app: Express) {
   /**

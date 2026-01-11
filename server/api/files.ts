@@ -7,19 +7,9 @@ import { ObjectStorageService } from "../integrations/supabase/storage";
 import { enqueueJob } from "../jobs/queue";
 import { JobTypes, type TranscribeAudioPayload } from "../jobs/handlers";
 import { asyncHandler, validateBody, validateParams, validateQuery, getCurrentUser } from "../middleware";
+import { createFileSchema } from "../validation";
 import { sendSuccess, sendNotFound, sendValidationError, sendServiceUnavailable } from "../response";
 import { logger } from "../logger";
-
-// Schemas de validacao
-const registerFileSchema = z.object({
-  name: z.string().min(1),
-  mimeType: z.string().optional().nullable(),
-  size: z.number().optional().nullable(),
-  uploadURL: z.string().optional(),
-  objectPath: z.string().optional(),
-  entityType: z.string(),
-  entityId: z.union([z.string(), z.number()]),
-});
 
 const fileEntityParamsSchema = z.object({
   entityType: z.string(),
@@ -55,7 +45,7 @@ export function registerFileRoutes(app: Express) {
   app.post(
     "/api/files",
     isAuthenticated,
-    validateBody(registerFileSchema),
+    validateBody(createFileSchema),
     asyncHandler(async (req: any, res) => {
       const org = await storage.getDefaultOrganization();
       if (!org) {

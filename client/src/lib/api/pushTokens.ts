@@ -3,9 +3,10 @@
  */
 
 import { api } from "./index";
+import type { CreatePushTokenDTO, DeletePushTokenDTO } from "@shared/types";
 
 export const pushTokensApi = {
-  register: (token: string) => api.post<void>("/api/push-tokens", { token }),
-  unregister: (token: string) => api.delete<void>("/api/push-tokens", { token }),
+  register: (data: CreatePushTokenDTO) => api.post<void>("/api/push-tokens", data),
+  unregister: (data: DeletePushTokenDTO) => api.delete<void>("/api/push-tokens", data),
   unregisterAll: () => api.delete<void>("/api/push-tokens/all"),
 };

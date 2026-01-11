@@ -10,17 +10,17 @@ Status key: [ ] pending, [x] done, [~] in progress
 ## Milestone 2: Single Source of Truth for Schemas
 - [x] Generate/centralize insert/update schemas from Drizzle in shared
 - [x] Update server validation to consume shared schemas only
-- [ ] Align DTOs to shared schemas (add missing fields like companyName)
+- [~] Align DTOs to shared schemas (add missing fields like companyName)
 - [x] Remove unused client validation layer or replace with shared schemas
 
 ## Milestone 3: API Client and Response Consistency
 - [x] Make ApiClient unwrap `{ success, data }` consistently
-- [~] Replace manual `fetch`/`apiRequest` usage across pages/components
+- [x] Replace manual `fetch`/`apiRequest` usage across pages/components
 - [~] Normalize query keys + query functions to avoid raw response usage
 
 ## Milestone 4: Remove Dead/Legacy Layers
-- [ ] Remove deprecated API call paths and unused hooks/wrappers
-- [ ] Remove disabled/unused routes/pages/components (e.g., Companies UI)
+- [~] Remove deprecated API call paths and unused hooks/wrappers
+- [x] Remove disabled/unused routes/pages/components (e.g., Companies UI)
 - [ ] Prune unused types/DTOs after client/server alignment
 
 ## Milestone 5: Storage Refactor (God Class Split)

@@ -1,21 +1,9 @@
 import type { Express } from "express";
-import { z } from "zod";
 import { isAuthenticated } from "../auth";
 import { storage } from "../storage";
 import { asyncHandler, validateBody, getCurrentUser } from "../middleware";
+import { updateUserProfileSchema } from "../validation";
 import { sendSuccess, sendNotFound, toSafeUser } from "../response";
-
-// Schemas de validacao
-const updateUserProfileSchema = z.object({
-  firstName: z.string().min(1).optional(),
-  lastName: z.string().optional(),
-  profileImageUrl: z.string().url().optional().nullable(),
-  preferences: z
-    .object({
-      language: z.enum(["pt-BR", "en"]).optional(),
-    })
-    .optional(),
-});
 
 export function registerUserRoutes(app: Express) {
   // Get current user

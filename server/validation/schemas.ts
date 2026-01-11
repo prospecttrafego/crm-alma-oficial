@@ -15,10 +15,12 @@ import {
   createConversationSchema,
   createDealSchema,
   createEmailTemplateSchema,
+  createFileSchema,
   createMessageSchema,
   createPipelineSchema,
   createPipelineStageInlineSchema,
   createPipelineStageSchema,
+  createPushTokenSchema,
   createSavedViewSchema,
   moveDealSchema,
   updateActivitySchema,
@@ -32,6 +34,8 @@ import {
   updatePipelineSchema,
   updatePipelineStageSchema,
   updateSavedViewSchema,
+  updateUserProfileSchema,
+  deletePushTokenSchema,
 } from "@shared/contracts";
 
 export {
@@ -43,10 +47,12 @@ export {
   createConversationSchema,
   createDealSchema,
   createEmailTemplateSchema,
+  createFileSchema,
   createMessageSchema,
   createPipelineSchema,
   createPipelineStageInlineSchema,
   createPipelineStageSchema,
+  createPushTokenSchema,
   createSavedViewSchema,
   moveDealSchema,
   updateActivitySchema,
@@ -60,6 +66,8 @@ export {
   updatePipelineSchema,
   updatePipelineStageSchema,
   updateSavedViewSchema,
+  updateUserProfileSchema,
+  deletePushTokenSchema,
 };
 
 // ======================================================================

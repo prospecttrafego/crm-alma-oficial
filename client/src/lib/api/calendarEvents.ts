@@ -6,6 +6,31 @@ import { api } from './index';
 import type { CalendarEvent } from '@shared/schema';
 import type { CreateCalendarEventDTO, UpdateCalendarEventDTO } from '@shared/types';
 
+export type GoogleCalendarConfigured = {
+  configured: boolean;
+};
+
+export type GoogleCalendarStatus = {
+  connected: boolean;
+  email: string | null;
+  lastSyncAt: string | null;
+  syncStatus: string | null;
+  syncError?: string | null;
+};
+
+export type GoogleCalendarAuth = {
+  authUrl: string;
+};
+
+export type GoogleCalendarSyncResult = {
+  imported?: number;
+  updated?: number;
+  deleted?: number;
+  message?: string;
+  jobId?: string | number;
+  status?: string;
+};
+
 export const calendarEventsApi = {
   /**
    * List all calendar events
@@ -43,4 +68,21 @@ export const calendarEventsApi = {
    * Delete a calendar event
    */
   delete: (id: number) => api.delete<void>(`/api/calendar-events/${id}`),
+
+  // ===== GOOGLE CALENDAR INTEGRATION =====
+
+  getGoogleCalendarConfigured: () =>
+    api.get<GoogleCalendarConfigured>('/api/integrations/google-calendar/configured'),
+
+  getGoogleCalendarStatus: () =>
+    api.get<GoogleCalendarStatus>('/api/integrations/google-calendar/status'),
+
+  authorizeGoogleCalendar: () =>
+    api.get<GoogleCalendarAuth>('/api/auth/google/authorize'),
+
+  syncGoogleCalendar: () =>
+    api.post<GoogleCalendarSyncResult>('/api/integrations/google-calendar/sync', {}),
+
+  disconnectGoogleCalendar: () =>
+    api.post<{ success: boolean }>('/api/integrations/google-calendar/disconnect', {}),
 };

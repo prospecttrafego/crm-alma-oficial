@@ -4,16 +4,9 @@
 
 import { api } from "./index";
 import type { File as FileRecord } from "@shared/schema";
+import type { CreateFileDTO } from "@shared/types";
 
-export type RegisterFilePayload = {
-  name: string;
-  mimeType?: string | null;
-  size?: number | null;
-  uploadURL?: string;
-  objectPath?: string;
-  entityType: string;
-  entityId: number | string;
-};
+export type RegisterFilePayload = CreateFileDTO;
 
 export type TranscriptionResult = {
   text?: string;

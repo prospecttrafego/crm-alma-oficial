@@ -6,6 +6,26 @@ import { api } from './index';
 import type { ChannelConfig } from '@shared/schema';
 import type { CreateChannelConfigDTO, UpdateChannelConfigDTO } from '@shared/types';
 
+export type WhatsAppConnectResponse = {
+  instanceName: string;
+  qrCode: string;
+  pairingCode?: string;
+  status: string;
+};
+
+export type WhatsAppStatusResponse = {
+  status: string;
+  instanceName: string | null;
+  lastConnectedAt?: string;
+};
+
+export type ChannelConfigTestResult = {
+  success: boolean;
+  message?: string;
+  imap?: boolean;
+  smtp?: boolean;
+};
+
 export const channelConfigsApi = {
   /**
    * List all channel configs
@@ -40,7 +60,7 @@ export const channelConfigsApi = {
    * Connect WhatsApp (get QR code)
    */
   connectWhatsApp: (id: number) =>
-    api.post<{ qrCode?: string; status: string }>(
+    api.post<WhatsAppConnectResponse>(
       `/api/channel-configs/${id}/whatsapp/connect`,
       {}
     ),
@@ -49,7 +69,7 @@ export const channelConfigsApi = {
    * Get WhatsApp connection status
    */
   getWhatsAppStatus: (id: number) =>
-    api.get<{ status: string; phoneNumber?: string }>(
+    api.get<WhatsAppStatusResponse>(
       `/api/channel-configs/${id}/whatsapp/status`
     ),
 
@@ -58,6 +78,12 @@ export const channelConfigsApi = {
    */
   disconnectWhatsApp: (id: number) =>
     api.post<void>(`/api/channel-configs/${id}/whatsapp/disconnect`, {}),
+
+  /**
+   * Test a channel configuration
+   */
+  testConnection: (id: number) =>
+    api.post<ChannelConfigTestResult>(`/api/channel-configs/${id}/test`, {}),
 
   // ===== EMAIL =====
 

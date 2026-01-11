@@ -13,7 +13,6 @@ import {
   Inbox,
   LayoutDashboard,
   Users,
-  Building2,
   Kanban,
   Activity,
   Settings,
@@ -31,8 +30,6 @@ export function CommandPalette() {
     { key: "inbox", name: t("nav.inbox"), href: "/inbox", icon: Inbox },
     { key: "pipeline", name: t("nav.pipeline"), href: "/pipeline", icon: Kanban },
     { key: "contacts", name: t("nav.contacts"), href: "/contacts", icon: Users },
-    // DESABILITADO - Para reativar Companies, descomentar:
-    // { key: "companies", name: t("nav.companies"), href: "/companies", icon: Building2 },
     { key: "activities", name: t("nav.activities"), href: "/activities", icon: Activity },
     { key: "settings", name: t("nav.settings"), href: "/settings", icon: Settings },
   ];
