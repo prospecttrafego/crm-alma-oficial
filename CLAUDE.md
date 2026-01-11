@@ -418,6 +418,12 @@ GET    /api/users          # Listar usuarios (para dropdown/filtros; requer logi
 GET    /api/health         # Health check (DB + integrações opcionais)
 ```
 
+### Regras de organizationId (single-tenant)
+
+- organizationId e gerenciado pelo backend (DEFAULT_ORGANIZATION_ID)
+- Requests de criacao nao devem enviar organizationId; o backend injeta automaticamente
+- Requests de atualizacao nao podem alterar organizationId; qualquer valor enviado e ignorado
+
 ### Background Jobs
 
 ```

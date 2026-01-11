@@ -44,8 +44,9 @@ import {
 // ============================================================================
 
 // Schema base gerado - ja exclui id, torna createdAt/updatedAt opcionais
-const baseInsertContactSchema = createInsertSchema(contacts);
-const baseUpdateContactSchema = createUpdateSchema(contacts);
+// organizationId eh injetado pelo backend
+const baseInsertContactSchema = createInsertSchema(contacts).omit({ organizationId: true });
+const baseUpdateContactSchema = createUpdateSchema(contacts).omit({ organizationId: true });
 
 // Schema de insert para API - phoneNormalized eh gerado no backend
 export const insertContactSchema = baseInsertContactSchema.extend({
@@ -59,15 +60,15 @@ export const updateContactSchema = baseUpdateContactSchema;
 // COMPANIES
 // ============================================================================
 
-export const insertCompanySchema = createInsertSchema(companies);
-export const updateCompanySchema = createUpdateSchema(companies);
+export const insertCompanySchema = createInsertSchema(companies).omit({ organizationId: true });
+export const updateCompanySchema = createUpdateSchema(companies).omit({ organizationId: true });
 
 // ============================================================================
 // DEALS
 // ============================================================================
 
-export const insertDealSchema = createInsertSchema(deals);
-export const updateDealSchema = createUpdateSchema(deals);
+export const insertDealSchema = createInsertSchema(deals).omit({ organizationId: true });
+export const updateDealSchema = createUpdateSchema(deals).omit({ organizationId: true });
 
 // Schema especifico para mover deal de stage
 export const moveDealSchema = z.object({
@@ -78,8 +79,8 @@ export const moveDealSchema = z.object({
 // PIPELINES
 // ============================================================================
 
-export const insertPipelineSchema = createInsertSchema(pipelines);
-export const updatePipelineSchema = createUpdateSchema(pipelines);
+export const insertPipelineSchema = createInsertSchema(pipelines).omit({ organizationId: true });
+export const updatePipelineSchema = createUpdateSchema(pipelines).omit({ organizationId: true });
 
 // ============================================================================
 // PIPELINE STAGES
@@ -101,11 +102,11 @@ export const insertPipelineStageInlineSchema = z.object({
 // CONVERSATIONS
 // ============================================================================
 
-export const insertConversationSchema = createInsertSchema(conversations).extend({
+export const insertConversationSchema = createInsertSchema(conversations).omit({ organizationId: true }).extend({
   channel: z.enum(channelTypes),
 });
 
-export const updateConversationSchema = createUpdateSchema(conversations);
+export const updateConversationSchema = createUpdateSchema(conversations).omit({ organizationId: true });
 
 // ============================================================================
 // MESSAGES
@@ -119,49 +120,49 @@ export const insertMessageSchema = createInsertSchema(messages).extend({
 // ACTIVITIES
 // ============================================================================
 
-export const insertActivitySchema = createInsertSchema(activities).extend({
+export const insertActivitySchema = createInsertSchema(activities).omit({ organizationId: true }).extend({
   type: z.enum(activityTypes),
 });
 
-export const updateActivitySchema = createUpdateSchema(activities);
+export const updateActivitySchema = createUpdateSchema(activities).omit({ organizationId: true });
 
 // ============================================================================
 // EMAIL TEMPLATES
 // ============================================================================
 
-export const insertEmailTemplateSchema = createInsertSchema(emailTemplates);
-export const updateEmailTemplateSchema = createUpdateSchema(emailTemplates);
+export const insertEmailTemplateSchema = createInsertSchema(emailTemplates).omit({ organizationId: true });
+export const updateEmailTemplateSchema = createUpdateSchema(emailTemplates).omit({ organizationId: true });
 
 // ============================================================================
 // SAVED VIEWS
 // ============================================================================
 
-export const insertSavedViewSchema = createInsertSchema(savedViews).extend({
+export const insertSavedViewSchema = createInsertSchema(savedViews).omit({ organizationId: true }).extend({
   type: z.enum(savedViewTypes),
 });
 
-export const updateSavedViewSchema = createUpdateSchema(savedViews);
+export const updateSavedViewSchema = createUpdateSchema(savedViews).omit({ organizationId: true });
 
 // ============================================================================
 // CALENDAR EVENTS
 // ============================================================================
 
-export const insertCalendarEventSchema = createInsertSchema(calendarEvents).extend({
+export const insertCalendarEventSchema = createInsertSchema(calendarEvents).omit({ organizationId: true }).extend({
   type: z.enum(calendarEventTypes).nullable().optional(),
   syncSource: z.enum(calendarSyncSources).nullable().optional(),
 });
 
-export const updateCalendarEventSchema = createUpdateSchema(calendarEvents);
+export const updateCalendarEventSchema = createUpdateSchema(calendarEvents).omit({ organizationId: true });
 
 // ============================================================================
 // CHANNEL CONFIGS
 // ============================================================================
 
-export const insertChannelConfigSchema = createInsertSchema(channelConfigs).extend({
+export const insertChannelConfigSchema = createInsertSchema(channelConfigs).omit({ organizationId: true }).extend({
   type: z.enum(channelConfigTypes),
 });
 
-export const updateChannelConfigSchema = createUpdateSchema(channelConfigs);
+export const updateChannelConfigSchema = createUpdateSchema(channelConfigs).omit({ organizationId: true });
 
 // ============================================================================
 // NOTIFICATIONS

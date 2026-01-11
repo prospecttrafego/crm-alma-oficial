@@ -18,6 +18,13 @@ export { requestIdMiddleware, requestLoggingMiddleware } from "./logger";
  */
 export function validateBody<T extends z.ZodTypeAny>(schema: T): RequestHandler {
   return (req, res, next) => {
+    if ((req.method === "PATCH" || req.method === "PUT") && req.body && typeof req.body === "object" && !Array.isArray(req.body)) {
+      // organizationId is server-managed; ignore any client attempts to update it
+      if ("organizationId" in req.body) {
+        delete (req.body as Record<string, unknown>).organizationId;
+      }
+    }
+
     const result = schema.safeParse(req.body);
 
     if (!result.success) {
