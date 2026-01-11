@@ -1,100 +1,121 @@
 import type { Express } from "express";
-import { insertActivitySchema } from "@shared/schema";
-import { isAuthenticated } from "../auth";
+import { z } from "zod";
+import {
+  insertActivitySchema,
+  updateActivitySchema,
+  idParamSchema,
+  paginationQuerySchema,
+} from "../validation";
+import {
+  isAuthenticated,
+  validateBody,
+  validateParams,
+  validateQuery,
+  asyncHandler,
+} from "../middleware";
+import { sendSuccess, sendNotFound } from "../response";
 import { storage } from "../storage";
 
-const updateActivitySchema = insertActivitySchema.partial().omit({ organizationId: true });
+// Schema estendido para query de atividades
+const activitiesQuerySchema = paginationQuerySchema.extend({
+  type: z.string().optional(),
+  status: z.string().optional(),
+  userId: z.string().optional(),
+});
 
 export function registerActivityRoutes(app: Express) {
-  // Activities - supports pagination via query params (?page=1&limit=20&search=...&type=...&status=...)
-  app.get("/api/activities", isAuthenticated, async (req: any, res) => {
-    try {
+  // GET /api/activities - Listar atividades (com paginacao e filtros opcionais)
+  app.get(
+    "/api/activities",
+    isAuthenticated,
+    validateQuery(activitiesQuerySchema),
+    asyncHandler(async (req: any, res) => {
       const org = await storage.getDefaultOrganization();
       if (!org) {
-        return res.json({ data: [], pagination: { page: 1, limit: 20, total: 0, totalPages: 0, hasMore: false } });
+        return sendSuccess(res, { data: [], pagination: { page: 1, limit: 20, total: 0, totalPages: 0, hasMore: false } });
       }
 
+      const { page, limit, search, type, status, userId } = req.validatedQuery;
+
       // Check if pagination is requested
-      const { page, limit, search, type, status, userId } = req.query;
       if (page || limit || search || type || status) {
         const result = await storage.getActivitiesPaginated(org.id, {
-          page: page ? parseInt(page) : undefined,
-          limit: limit ? parseInt(limit) : undefined,
-          search: search as string,
-          type: type as string,
-          status: status as string,
-          userId: userId as string,
+          page,
+          limit,
+          search,
+          type,
+          status,
+          userId,
         });
-        return res.json(result);
+        return sendSuccess(res, result);
       }
 
       // Fallback to non-paginated (for backward compatibility)
       const allActivities = await storage.getActivities(org.id);
-      res.json(allActivities);
-    } catch (error) {
-      console.error("Error fetching activities:", error);
-      res.status(500).json({ message: "Failed to fetch activities" });
-    }
-  });
+      sendSuccess(res, allActivities);
+    }),
+  );
 
-  app.get("/api/activities/:id", isAuthenticated, async (req: any, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+  // GET /api/activities/:id - Obter atividade por ID
+  app.get(
+    "/api/activities/:id",
+    isAuthenticated,
+    validateParams(idParamSchema),
+    asyncHandler(async (req: any, res) => {
+      const { id } = req.validatedParams;
       const activity = await storage.getActivity(id);
-      if (!activity) return res.status(404).json({ message: "Activity not found" });
-      res.json(activity);
-    } catch (error) {
-      console.error("Error fetching activity:", error);
-      res.status(500).json({ message: "Failed to fetch activity" });
-    }
-  });
+      if (!activity) {
+        return sendNotFound(res, "Activity not found");
+      }
+      sendSuccess(res, activity);
+    }),
+  );
 
-  app.post("/api/activities", isAuthenticated, async (req: any, res) => {
-    try {
+  // POST /api/activities - Criar atividade
+  app.post(
+    "/api/activities",
+    isAuthenticated,
+    validateBody(insertActivitySchema),
+    asyncHandler(async (req: any, res) => {
       const org = await storage.getDefaultOrganization();
-      if (!org) return res.status(400).json({ message: "No organization" });
-
-      const parsed = insertActivitySchema.safeParse({ ...req.body, organizationId: org.id });
-      if (!parsed.success) {
-        return res.status(400).json({ message: "Invalid data", errors: parsed.error.issues });
+      if (!org) {
+        return sendNotFound(res, "No organization");
       }
-      const activity = await storage.createActivity(parsed.data);
-      res.status(201).json(activity);
-    } catch (error) {
-      console.error("Error creating activity:", error);
-      res.status(500).json({ message: "Failed to create activity" });
-    }
-  });
 
-  app.patch("/api/activities/:id", isAuthenticated, async (req: any, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+      const activity = await storage.createActivity({
+        ...req.validatedBody,
+        organizationId: org.id,
+      });
+      sendSuccess(res, activity, 201);
+    }),
+  );
 
-      const parsed = updateActivitySchema.safeParse(req.body);
-      if (!parsed.success) {
-        return res.status(400).json({ message: "Invalid data", errors: parsed.error.issues });
+  // PATCH /api/activities/:id - Atualizar atividade
+  app.patch(
+    "/api/activities/:id",
+    isAuthenticated,
+    validateParams(idParamSchema),
+    validateBody(updateActivitySchema),
+    asyncHandler(async (req: any, res) => {
+      const { id } = req.validatedParams;
+
+      const activity = await storage.updateActivity(id, req.validatedBody);
+      if (!activity) {
+        return sendNotFound(res, "Activity not found");
       }
-      const activity = await storage.updateActivity(id, parsed.data);
-      if (!activity) return res.status(404).json({ message: "Activity not found" });
-      res.json(activity);
-    } catch (error) {
-      console.error("Error updating activity:", error);
-      res.status(500).json({ message: "Failed to update activity" });
-    }
-  });
+      sendSuccess(res, activity);
+    }),
+  );
 
-  app.delete("/api/activities/:id", isAuthenticated, async (req: any, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+  // DELETE /api/activities/:id - Excluir atividade
+  app.delete(
+    "/api/activities/:id",
+    isAuthenticated,
+    validateParams(idParamSchema),
+    asyncHandler(async (req: any, res) => {
+      const { id } = req.validatedParams;
       await storage.deleteActivity(id);
       res.status(204).send();
-    } catch (error) {
-      console.error("Error deleting activity:", error);
-      res.status(500).json({ message: "Failed to delete activity" });
-    }
-  });
+    }),
+  );
 }
-

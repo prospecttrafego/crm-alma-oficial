@@ -1,65 +1,83 @@
 import type { Express } from "express";
-import { insertCompanySchema } from "@shared/schema";
-import { isAuthenticated } from "../auth";
+import {
+  insertCompanySchema,
+  updateCompanySchema,
+  idParamSchema,
+  paginationQuerySchema,
+} from "../validation";
+import {
+  isAuthenticated,
+  validateBody,
+  validateParams,
+  validateQuery,
+  asyncHandler,
+} from "../middleware";
+import { sendSuccess, sendNotFound } from "../response";
 import { storage } from "../storage";
 
-const updateCompanySchema = insertCompanySchema.partial().omit({ organizationId: true });
-
 export function registerCompanyRoutes(app: Express) {
-  // Companies - supports pagination via query params (?page=1&limit=20&search=...)
-  app.get("/api/companies", isAuthenticated, async (req: any, res) => {
-    try {
+  // GET /api/companies - Listar empresas (com paginacao opcional)
+  app.get(
+    "/api/companies",
+    isAuthenticated,
+    validateQuery(paginationQuerySchema),
+    asyncHandler(async (req: any, res) => {
       const org = await storage.getDefaultOrganization();
       if (!org) {
-        return res.json({ data: [], pagination: { page: 1, limit: 20, total: 0, totalPages: 0, hasMore: false } });
+        return sendSuccess(res, { data: [], pagination: { page: 1, limit: 20, total: 0, totalPages: 0, hasMore: false } });
       }
 
+      const { page, limit, search, sortBy, sortOrder } = req.validatedQuery;
+
       // Check if pagination is requested
-      const { page, limit, search, sortBy, sortOrder } = req.query;
       if (page || limit || search) {
         const result = await storage.getCompaniesPaginated(org.id, {
-          page: page ? parseInt(page) : undefined,
-          limit: limit ? parseInt(limit) : undefined,
-          search: search as string,
-          sortBy: sortBy as string,
-          sortOrder: sortOrder as "asc" | "desc",
+          page,
+          limit,
+          search,
+          sortBy,
+          sortOrder,
         });
-        return res.json(result);
+        return sendSuccess(res, result);
       }
 
       // Fallback to non-paginated (for backward compatibility)
       const allCompanies = await storage.getCompanies(org.id);
-      res.json(allCompanies);
-    } catch (error) {
-      console.error("Error fetching companies:", error);
-      res.status(500).json({ message: "Failed to fetch companies" });
-    }
-  });
+      sendSuccess(res, allCompanies);
+    }),
+  );
 
-  app.get("/api/companies/:id", isAuthenticated, async (req: any, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+  // GET /api/companies/:id - Obter empresa por ID
+  app.get(
+    "/api/companies/:id",
+    isAuthenticated,
+    validateParams(idParamSchema),
+    asyncHandler(async (req: any, res) => {
+      const { id } = req.validatedParams;
       const company = await storage.getCompany(id);
-      if (!company) return res.status(404).json({ message: "Company not found" });
-      res.json(company);
-    } catch (error) {
-      console.error("Error fetching company:", error);
-      res.status(500).json({ message: "Failed to fetch company" });
-    }
-  });
+      if (!company) {
+        return sendNotFound(res, "Company not found");
+      }
+      sendSuccess(res, company);
+    }),
+  );
 
-  app.post("/api/companies", isAuthenticated, async (req: any, res) => {
-    try {
+  // POST /api/companies - Criar empresa
+  app.post(
+    "/api/companies",
+    isAuthenticated,
+    validateBody(insertCompanySchema),
+    asyncHandler(async (req: any, res) => {
       const org = await storage.getDefaultOrganization();
-      if (!org) return res.status(400).json({ message: "No organization" });
+      if (!org) {
+        return sendNotFound(res, "No organization");
+      }
       const userId = (req.user as any).id;
 
-      const parsed = insertCompanySchema.safeParse({ ...req.body, organizationId: org.id });
-      if (!parsed.success) {
-        return res.status(400).json({ message: "Invalid data", errors: parsed.error.issues });
-      }
-      const company = await storage.createCompany(parsed.data);
+      const company = await storage.createCompany({
+        ...req.validatedBody,
+        organizationId: org.id,
+      });
 
       await storage.createAuditLog({
         userId,
@@ -71,26 +89,29 @@ export function registerCompanyRoutes(app: Express) {
         changes: { after: company as unknown as Record<string, unknown> },
       });
 
-      res.status(201).json(company);
-    } catch (error) {
-      console.error("Error creating company:", error);
-      res.status(500).json({ message: "Failed to create company" });
-    }
-  });
+      sendSuccess(res, company, 201);
+    }),
+  );
 
-  app.patch("/api/companies/:id", isAuthenticated, async (req: any, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+  // PATCH /api/companies/:id - Atualizar empresa
+  app.patch(
+    "/api/companies/:id",
+    isAuthenticated,
+    validateParams(idParamSchema),
+    validateBody(updateCompanySchema),
+    asyncHandler(async (req: any, res) => {
+      const { id } = req.validatedParams;
       const userId = (req.user as any).id;
 
       const existingCompany = await storage.getCompany(id);
-      const parsed = updateCompanySchema.safeParse(req.body);
-      if (!parsed.success) {
-        return res.status(400).json({ message: "Invalid data", errors: parsed.error.issues });
+      if (!existingCompany) {
+        return sendNotFound(res, "Company not found");
       }
-      const company = await storage.updateCompany(id, parsed.data);
-      if (!company) return res.status(404).json({ message: "Company not found" });
+
+      const company = await storage.updateCompany(id, req.validatedBody);
+      if (!company) {
+        return sendNotFound(res, "Company not found");
+      }
 
       const org = await storage.getDefaultOrganization();
       if (org) {
@@ -108,17 +129,17 @@ export function registerCompanyRoutes(app: Express) {
         });
       }
 
-      res.json(company);
-    } catch (error) {
-      console.error("Error updating company:", error);
-      res.status(500).json({ message: "Failed to update company" });
-    }
-  });
+      sendSuccess(res, company);
+    }),
+  );
 
-  app.delete("/api/companies/:id", isAuthenticated, async (req: any, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+  // DELETE /api/companies/:id - Excluir empresa
+  app.delete(
+    "/api/companies/:id",
+    isAuthenticated,
+    validateParams(idParamSchema),
+    asyncHandler(async (req: any, res) => {
+      const { id } = req.validatedParams;
       const userId = (req.user as any).id;
 
       const existingCompany = await storage.getCompany(id);
@@ -138,10 +159,6 @@ export function registerCompanyRoutes(app: Express) {
       }
 
       res.status(204).send();
-    } catch (error) {
-      console.error("Error deleting company:", error);
-      res.status(500).json({ message: "Failed to delete company" });
-    }
-  });
+    }),
+  );
 }
-

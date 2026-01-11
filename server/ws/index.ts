@@ -24,15 +24,15 @@ export function setupWebSocketServer(httpServer: HttpServer, sessionParser: Requ
   const wss = new WebSocketServer({ noServer: true });
   const clientUserMap = new Map<WebSocket, string>();
   const heartbeatInterval = setInterval(() => {
-    for (const client of clients) {
+    clients.forEach((client) => {
       const trackedClient = client as WebSocket & { isAlive?: boolean };
       if (trackedClient.isAlive === false) {
         client.terminate();
-        continue;
+        return;
       }
       trackedClient.isAlive = false;
       client.ping();
-    }
+    });
   }, HEARTBEAT_INTERVAL_MS);
 
   const fakeRes = {

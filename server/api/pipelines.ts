@@ -1,37 +1,52 @@
 import type { Express } from "express";
 import { z } from "zod";
-import { insertPipelineSchema, insertPipelineStageSchema } from "@shared/schema";
-import { isAuthenticated, requireRole } from "../auth";
+import {
+  insertPipelineSchema,
+  updatePipelineSchema,
+  insertPipelineStageSchema,
+  updatePipelineStageSchema,
+  insertPipelineStageInlineSchema,
+  idParamSchema,
+  pipelineStageParamsSchema,
+} from "../validation";
+import {
+  isAuthenticated,
+  requireRole,
+  validateBody,
+  validateParams,
+  asyncHandler,
+} from "../middleware";
+import { sendSuccess, sendNotFound, sendError, ErrorCodes } from "../response";
 import { storage } from "../storage";
 import { broadcast } from "../ws/index";
 
-const updatePipelineSchema = insertPipelineSchema.partial().omit({ organizationId: true });
-const updatePipelineStageSchema = insertPipelineStageSchema.partial().omit({ pipelineId: true });
-
 export function registerPipelineRoutes(app: Express) {
-  app.get("/api/pipelines/default", isAuthenticated, async (_req: any, res) => {
-    try {
+  // GET /api/pipelines/default - Obter pipeline padrao
+  app.get(
+    "/api/pipelines/default",
+    isAuthenticated,
+    asyncHandler(async (_req: any, res) => {
       const org = await storage.getDefaultOrganization();
       if (!org) {
-        return res.status(404).json({ message: "Organization not found" });
+        return sendNotFound(res, "Organization not found");
       }
       const pipeline = await storage.getDefaultPipeline(org.id);
       if (!pipeline) {
-        return res.status(404).json({ message: "Pipeline not found" });
+        return sendNotFound(res, "Pipeline not found");
       }
       const stages = await storage.getPipelineStages(pipeline.id);
       const pipelineDeals = await storage.getDealsByPipeline(pipeline.id);
-      res.json({ ...pipeline, stages, deals: pipelineDeals });
-    } catch (error) {
-      console.error("Error fetching pipeline:", error);
-      res.status(500).json({ message: "Failed to fetch pipeline" });
-    }
-  });
+      sendSuccess(res, { ...pipeline, stages, deals: pipelineDeals });
+    }),
+  );
 
-  app.get("/api/pipelines", isAuthenticated, async (_req: any, res) => {
-    try {
+  // GET /api/pipelines - Listar todos os pipelines
+  app.get(
+    "/api/pipelines",
+    isAuthenticated,
+    asyncHandler(async (_req: any, res) => {
       const org = await storage.getDefaultOrganization();
-      if (!org) return res.json([]);
+      if (!org) return sendSuccess(res, []);
       const allPipelines = await storage.getPipelines(org.id);
       const pipelinesWithStages = await Promise.all(
         allPipelines.map(async (p) => {
@@ -39,48 +54,52 @@ export function registerPipelineRoutes(app: Express) {
           return { ...p, stages };
         }),
       );
-      res.json(pipelinesWithStages);
-    } catch (error) {
-      console.error("Error fetching pipelines:", error);
-      res.status(500).json({ message: "Failed to fetch pipelines" });
-    }
-  });
+      sendSuccess(res, pipelinesWithStages);
+    }),
+  );
 
-  app.get("/api/pipelines/:id", isAuthenticated, async (req: any, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+  // GET /api/pipelines/:id - Obter pipeline por ID
+  app.get(
+    "/api/pipelines/:id",
+    isAuthenticated,
+    validateParams(idParamSchema),
+    asyncHandler(async (req: any, res) => {
+      const { id } = req.validatedParams;
       const pipeline = await storage.getPipeline(id);
-      if (!pipeline) return res.status(404).json({ message: "Pipeline not found" });
+      if (!pipeline) {
+        return sendNotFound(res, "Pipeline not found");
+      }
       const stages = await storage.getPipelineStages(pipeline.id);
       const pipelineDeals = await storage.getDealsByPipeline(pipeline.id);
-      res.json({ ...pipeline, stages, deals: pipelineDeals });
-    } catch (error) {
-      console.error("Error fetching pipeline:", error);
-      res.status(500).json({ message: "Failed to fetch pipeline" });
-    }
-  });
+      sendSuccess(res, { ...pipeline, stages, deals: pipelineDeals });
+    }),
+  );
 
-  // Pipeline management - admin only
-  app.post("/api/pipelines", isAuthenticated, requireRole("admin"), async (req: any, res) => {
-    try {
+  // POST /api/pipelines - Criar pipeline (admin only)
+  app.post(
+    "/api/pipelines",
+    isAuthenticated,
+    requireRole("admin"),
+    validateBody(insertPipelineSchema),
+    asyncHandler(async (req: any, res) => {
       const org = await storage.getDefaultOrganization();
-      if (!org) return res.status(400).json({ message: "No organization" });
+      if (!org) {
+        return sendNotFound(res, "No organization");
+      }
       const userId = (req.user as any).id;
 
-      const parsed = insertPipelineSchema.safeParse({ ...req.body, organizationId: org.id });
-      if (!parsed.success) {
-        return res.status(400).json({ message: "Invalid data", errors: parsed.error.issues });
-      }
-      const pipeline = await storage.createPipeline(parsed.data);
+      const pipeline = await storage.createPipeline({
+        ...req.validatedBody,
+        organizationId: org.id,
+      });
 
+      // Processar stages inline se fornecidos
       if (Array.isArray(req.body.stages)) {
-        const parsedStages = z.array(insertPipelineStageSchema.omit({ pipelineId: true })).safeParse(req.body.stages);
-        if (!parsedStages.success) {
-          return res.status(400).json({ message: "Invalid stages", errors: parsedStages.error.issues });
-        }
-        for (const stage of parsedStages.data) {
-          await storage.createPipelineStage({ ...stage, pipelineId: pipeline.id });
+        const parsedStages = z.array(insertPipelineStageInlineSchema).safeParse(req.body.stages);
+        if (parsedStages.success) {
+          for (const stage of parsedStages.data) {
+            await storage.createPipelineStage({ ...stage, pipelineId: pipeline.id });
+          }
         }
       }
 
@@ -96,27 +115,27 @@ export function registerPipelineRoutes(app: Express) {
 
       const stages = await storage.getPipelineStages(pipeline.id);
       broadcast("pipeline:created", { ...pipeline, stages });
-      res.status(201).json({ ...pipeline, stages });
-    } catch (error) {
-      console.error("Error creating pipeline:", error);
-      res.status(500).json({ message: "Failed to create pipeline" });
-    }
-  });
+      sendSuccess(res, { ...pipeline, stages }, 201);
+    }),
+  );
 
-  app.patch("/api/pipelines/:id", isAuthenticated, requireRole("admin"), async (req: any, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+  // PATCH /api/pipelines/:id - Atualizar pipeline (admin only)
+  app.patch(
+    "/api/pipelines/:id",
+    isAuthenticated,
+    requireRole("admin"),
+    validateParams(idParamSchema),
+    validateBody(updatePipelineSchema),
+    asyncHandler(async (req: any, res) => {
+      const { id } = req.validatedParams;
       const userId = (req.user as any).id;
 
       const existing = await storage.getPipeline(id);
-      if (!existing) return res.status(404).json({ message: "Pipeline not found" });
-
-      const parsed = updatePipelineSchema.safeParse(req.body);
-      if (!parsed.success) {
-        return res.status(400).json({ message: "Invalid data", errors: parsed.error.issues });
+      if (!existing) {
+        return sendNotFound(res, "Pipeline not found");
       }
-      const pipeline = await storage.updatePipeline(id, parsed.data);
+
+      const pipeline = await storage.updatePipeline(id, req.validatedBody);
 
       await storage.createAuditLog({
         userId,
@@ -132,29 +151,32 @@ export function registerPipelineRoutes(app: Express) {
       });
 
       broadcast("pipeline:updated", pipeline);
-      res.json(pipeline);
-    } catch (error) {
-      console.error("Error updating pipeline:", error);
-      res.status(500).json({ message: "Failed to update pipeline" });
-    }
-  });
+      sendSuccess(res, pipeline);
+    }),
+  );
 
-  app.delete("/api/pipelines/:id", isAuthenticated, requireRole("admin"), async (req: any, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+  // DELETE /api/pipelines/:id - Excluir pipeline (admin only)
+  app.delete(
+    "/api/pipelines/:id",
+    isAuthenticated,
+    requireRole("admin"),
+    validateParams(idParamSchema),
+    asyncHandler(async (req: any, res) => {
+      const { id } = req.validatedParams;
       const userId = (req.user as any).id;
 
       const existing = await storage.getPipeline(id);
-      if (!existing) return res.status(404).json({ message: "Pipeline not found" });
+      if (!existing) {
+        return sendNotFound(res, "Pipeline not found");
+      }
 
       if (existing.isDefault) {
-        return res.status(400).json({ message: "Cannot delete default pipeline" });
+        return sendError(res, ErrorCodes.INVALID_INPUT, "Cannot delete default pipeline", 400);
       }
 
       const dealsInPipeline = await storage.getDealsByPipeline(id);
       if (dealsInPipeline.length > 0) {
-        return res.status(400).json({ message: "Cannot delete pipeline with existing deals" });
+        return sendError(res, ErrorCodes.CONFLICT, "Cannot delete pipeline with existing deals", 409);
       }
 
       await storage.deletePipeline(id);
@@ -171,90 +193,79 @@ export function registerPipelineRoutes(app: Express) {
 
       broadcast("pipeline:deleted", { id });
       res.status(204).send();
-    } catch (error) {
-      console.error("Error deleting pipeline:", error);
-      res.status(500).json({ message: "Failed to delete pipeline" });
-    }
-  });
+    }),
+  );
 
-  app.post("/api/pipelines/:id/set-default", isAuthenticated, requireRole("admin"), async (req: any, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+  // POST /api/pipelines/:id/set-default - Definir pipeline padrao (admin only)
+  app.post(
+    "/api/pipelines/:id/set-default",
+    isAuthenticated,
+    requireRole("admin"),
+    validateParams(idParamSchema),
+    asyncHandler(async (req: any, res) => {
+      const { id } = req.validatedParams;
 
       const existing = await storage.getPipeline(id);
-      if (!existing) return res.status(404).json({ message: "Pipeline not found" });
+      if (!existing) {
+        return sendNotFound(res, "Pipeline not found");
+      }
 
       const pipeline = await storage.setDefaultPipeline(id, existing.organizationId);
       broadcast("pipeline:updated", pipeline);
-      res.json(pipeline);
-    } catch (error) {
-      console.error("Error setting default pipeline:", error);
-      res.status(500).json({ message: "Failed to set default pipeline" });
-    }
-  });
+      sendSuccess(res, pipeline);
+    }),
+  );
 
-  app.post("/api/pipelines/:id/stages", isAuthenticated, requireRole("admin"), async (req: any, res) => {
-    try {
-      const pipelineId = parseInt(req.params.id);
-      if (isNaN(pipelineId)) return res.status(400).json({ message: "Invalid pipeline ID" });
+  // POST /api/pipelines/:id/stages - Criar stage no pipeline (admin only)
+  app.post(
+    "/api/pipelines/:id/stages",
+    isAuthenticated,
+    requireRole("admin"),
+    validateParams(idParamSchema),
+    validateBody(insertPipelineStageInlineSchema),
+    asyncHandler(async (req: any, res) => {
+      const { id: pipelineId } = req.validatedParams;
 
-      const parsed = insertPipelineStageSchema.safeParse({ ...req.body, pipelineId });
-      if (!parsed.success) {
-        return res.status(400).json({ message: "Invalid data", errors: parsed.error.issues });
-      }
-
-      const stage = await storage.createPipelineStage(parsed.data);
+      const stage = await storage.createPipelineStage({
+        ...req.validatedBody,
+        pipelineId,
+      });
       broadcast("pipeline:stage:created", stage);
-      res.status(201).json(stage);
-    } catch (error) {
-      console.error("Error creating pipeline stage:", error);
-      res.status(500).json({ message: "Failed to create pipeline stage" });
-    }
-  });
+      sendSuccess(res, stage, 201);
+    }),
+  );
 
+  // PATCH /api/pipelines/:pipelineId/stages/:id - Atualizar stage (admin only)
   app.patch(
     "/api/pipelines/:pipelineId/stages/:id",
     isAuthenticated,
     requireRole("admin"),
-    async (req: any, res) => {
-      try {
-        const id = parseInt(req.params.id);
-        if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+    validateParams(pipelineStageParamsSchema),
+    validateBody(updatePipelineStageSchema),
+    asyncHandler(async (req: any, res) => {
+      const { id } = req.validatedParams;
 
-        const parsed = updatePipelineStageSchema.safeParse(req.body);
-        if (!parsed.success) {
-          return res.status(400).json({ message: "Invalid data", errors: parsed.error.issues });
-        }
-
-        const stage = await storage.updatePipelineStage(id, parsed.data);
-        if (!stage) return res.status(404).json({ message: "Stage not found" });
-        broadcast("pipeline:stage:updated", stage);
-        res.json(stage);
-      } catch (error) {
-        console.error("Error updating pipeline stage:", error);
-        res.status(500).json({ message: "Failed to update pipeline stage" });
+      const stage = await storage.updatePipelineStage(id, req.validatedBody);
+      if (!stage) {
+        return sendNotFound(res, "Stage not found");
       }
-    },
+      broadcast("pipeline:stage:updated", stage);
+      sendSuccess(res, stage);
+    }),
   );
 
+  // DELETE /api/pipelines/:pipelineId/stages/:id - Excluir stage (admin only)
   app.delete(
     "/api/pipelines/:pipelineId/stages/:id",
     isAuthenticated,
     requireRole("admin"),
-    async (req: any, res) => {
-      try {
-        const id = parseInt(req.params.id);
-        if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+    validateParams(pipelineStageParamsSchema),
+    asyncHandler(async (req: any, res) => {
+      const { id } = req.validatedParams;
 
-        await storage.deletePipelineStage(id);
-        broadcast("pipeline:stage:deleted", { id });
-        res.status(204).send();
-      } catch (error) {
-        console.error("Error deleting pipeline stage:", error);
-        res.status(500).json({ message: "Failed to delete pipeline stage" });
-      }
-    },
+      await storage.deletePipelineStage(id);
+      broadcast("pipeline:stage:deleted", { id });
+      res.status(204).send();
+    }),
   );
 }
-

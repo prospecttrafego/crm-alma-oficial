@@ -1,91 +1,105 @@
 import type { Express } from "express";
-import { insertEmailTemplateSchema } from "@shared/schema";
-import { isAuthenticated } from "../auth";
+import {
+  insertEmailTemplateSchema,
+  updateEmailTemplateSchema,
+  idParamSchema,
+} from "../validation";
+import {
+  isAuthenticated,
+  validateBody,
+  validateParams,
+  asyncHandler,
+} from "../middleware";
+import { sendSuccess, sendNotFound } from "../response";
 import { storage } from "../storage";
 
-const updateEmailTemplateSchema = insertEmailTemplateSchema
-  .partial()
-  .omit({ organizationId: true, createdBy: true });
-
 export function registerEmailTemplateRoutes(app: Express) {
-  // Email Templates endpoints
-  app.get("/api/email-templates", isAuthenticated, async (_req: any, res) => {
-    try {
+  // GET /api/email-templates - Listar templates de email
+  app.get(
+    "/api/email-templates",
+    isAuthenticated,
+    asyncHandler(async (_req: any, res) => {
       const org = await storage.getDefaultOrganization();
-      if (!org) return res.json([]);
+      if (!org) return sendSuccess(res, []);
       const templates = await storage.getEmailTemplates(org.id);
-      res.json(templates);
-    } catch (error) {
-      console.error("Error fetching email templates:", error);
-      res.status(500).json({ message: "Failed to fetch email templates" });
-    }
-  });
+      sendSuccess(res, templates);
+    }),
+  );
 
-  app.get("/api/email-templates/:id", isAuthenticated, async (req: any, res) => {
-    try {
+  // GET /api/email-templates/:id - Obter template por ID
+  app.get(
+    "/api/email-templates/:id",
+    isAuthenticated,
+    validateParams(idParamSchema),
+    asyncHandler(async (req: any, res) => {
       const org = await storage.getDefaultOrganization();
-      if (!org) return res.status(404).json({ message: "Organization not found" });
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+      if (!org) {
+        return sendNotFound(res, "Organization not found");
+      }
+      const { id } = req.validatedParams;
       const template = await storage.getEmailTemplate(id, org.id);
-      if (!template) return res.status(404).json({ message: "Template not found" });
-      res.json(template);
-    } catch (error) {
-      console.error("Error fetching email template:", error);
-      res.status(500).json({ message: "Failed to fetch email template" });
-    }
-  });
+      if (!template) {
+        return sendNotFound(res, "Template not found");
+      }
+      sendSuccess(res, template);
+    }),
+  );
 
-  app.post("/api/email-templates", isAuthenticated, async (req: any, res) => {
-    try {
+  // POST /api/email-templates - Criar template de email
+  app.post(
+    "/api/email-templates",
+    isAuthenticated,
+    validateBody(insertEmailTemplateSchema),
+    asyncHandler(async (req: any, res) => {
       const org = await storage.getDefaultOrganization();
-      if (!org) return res.status(400).json({ message: "No organization" });
+      if (!org) {
+        return sendNotFound(res, "No organization");
+      }
       const userId = (req.user as any).id;
 
-      const parsed = insertEmailTemplateSchema.safeParse({ ...req.body, organizationId: org.id, createdBy: userId });
-      if (!parsed.success) {
-        return res.status(400).json({ message: "Invalid data", errors: parsed.error.issues });
-      }
-      const template = await storage.createEmailTemplate(parsed.data);
-      res.status(201).json(template);
-    } catch (error) {
-      console.error("Error creating email template:", error);
-      res.status(500).json({ message: "Failed to create email template" });
-    }
-  });
+      const template = await storage.createEmailTemplate({
+        ...req.validatedBody,
+        organizationId: org.id,
+        createdBy: userId,
+      });
+      sendSuccess(res, template, 201);
+    }),
+  );
 
-  app.patch("/api/email-templates/:id", isAuthenticated, async (req: any, res) => {
-    try {
+  // PATCH /api/email-templates/:id - Atualizar template de email
+  app.patch(
+    "/api/email-templates/:id",
+    isAuthenticated,
+    validateParams(idParamSchema),
+    validateBody(updateEmailTemplateSchema),
+    asyncHandler(async (req: any, res) => {
       const org = await storage.getDefaultOrganization();
-      if (!org) return res.status(404).json({ message: "Organization not found" });
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
-
-      const parsed = updateEmailTemplateSchema.safeParse(req.body);
-      if (!parsed.success) {
-        return res.status(400).json({ message: "Invalid data", errors: parsed.error.issues });
+      if (!org) {
+        return sendNotFound(res, "Organization not found");
       }
-      const template = await storage.updateEmailTemplate(id, org.id, parsed.data);
-      if (!template) return res.status(404).json({ message: "Template not found" });
-      res.json(template);
-    } catch (error) {
-      console.error("Error updating email template:", error);
-      res.status(500).json({ message: "Failed to update email template" });
-    }
-  });
+      const { id } = req.validatedParams;
 
-  app.delete("/api/email-templates/:id", isAuthenticated, async (req: any, res) => {
-    try {
+      const template = await storage.updateEmailTemplate(id, org.id, req.validatedBody);
+      if (!template) {
+        return sendNotFound(res, "Template not found");
+      }
+      sendSuccess(res, template);
+    }),
+  );
+
+  // DELETE /api/email-templates/:id - Excluir template de email
+  app.delete(
+    "/api/email-templates/:id",
+    isAuthenticated,
+    validateParams(idParamSchema),
+    asyncHandler(async (req: any, res) => {
       const org = await storage.getDefaultOrganization();
-      if (!org) return res.status(404).json({ message: "Organization not found" });
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+      if (!org) {
+        return sendNotFound(res, "Organization not found");
+      }
+      const { id } = req.validatedParams;
       await storage.deleteEmailTemplate(id, org.id);
       res.status(204).send();
-    } catch (error) {
-      console.error("Error deleting email template:", error);
-      res.status(500).json({ message: "Failed to delete email template" });
-    }
-  });
+    }),
+  );
 }
-

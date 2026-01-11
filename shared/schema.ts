@@ -743,55 +743,46 @@ export const googleOAuthTokensRelations = relations(googleOAuthTokens, ({ one })
 }));
 
 // Insert schemas
-// Nota: Para schemas com campos enum, usamos .extend() para garantir tipos corretos
-export const insertUserSchema = createInsertSchema(users).omit({ createdAt: true, updatedAt: true });
-export const insertOrganizationSchema = createInsertSchema(organizations).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertCompanySchema = createInsertSchema(companies).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertContactSchema = createInsertSchema(contacts).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertPipelineSchema = createInsertSchema(pipelines).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertPipelineStageSchema = createInsertSchema(pipelineStages).omit({ id: true, createdAt: true });
-export const insertDealSchema = createInsertSchema(deals).omit({ id: true, createdAt: true, updatedAt: true });
+// Nota: drizzle-zod 0.8.1 ja trata automaticamente:
+// - Campos com generatedAlwaysAsIdentity() (id) - excluidos ou opcionais
+// - Campos com defaultNow() (createdAt, updatedAt) - opcionais
+// Para campos enum, usamos .extend() para garantir tipos corretos
+export const insertUserSchema = createInsertSchema(users);
+export const insertOrganizationSchema = createInsertSchema(organizations);
+export const insertCompanySchema = createInsertSchema(companies);
+export const insertContactSchema = createInsertSchema(contacts);
+export const insertPipelineSchema = createInsertSchema(pipelines);
+export const insertPipelineStageSchema = createInsertSchema(pipelineStages);
+export const insertDealSchema = createInsertSchema(deals);
 export const insertConversationSchema = createInsertSchema(conversations)
-  .omit({ id: true, createdAt: true, updatedAt: true })
   .extend({ channel: z.enum(channelTypes) });
 export const insertMessageSchema = createInsertSchema(messages)
-  .omit({ id: true, createdAt: true })
   .extend({ contentType: z.enum(messageContentTypes).optional() });
 export const insertActivitySchema = createInsertSchema(activities)
-  .omit({ id: true, createdAt: true, updatedAt: true })
   .extend({ type: z.enum(activityTypes) });
 export const insertNotificationSchema = createInsertSchema(notifications)
-  .omit({ id: true, createdAt: true })
   .extend({ type: z.enum(notificationTypes) });
 export const insertSavedViewSchema = createInsertSchema(savedViews)
-  .omit({ id: true, createdAt: true, updatedAt: true })
   .extend({ type: z.enum(savedViewTypes) });
-export const insertEmailTemplateSchema = createInsertSchema(emailTemplates).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertEmailTemplateSchema = createInsertSchema(emailTemplates);
 export const insertAuditLogSchema = createInsertSchema(auditLogs)
-  .omit({ id: true, createdAt: true })
   .extend({
     action: z.enum(auditLogActions),
     entityType: z.enum(auditLogEntityTypes),
   });
 export const insertFileSchema = createInsertSchema(files)
-  .omit({ id: true, createdAt: true })
   .extend({ entityType: z.enum(fileEntityTypes) });
 export const insertLeadScoreSchema = createInsertSchema(leadScores)
-  .omit({ id: true, createdAt: true })
   .extend({ entityType: z.enum(leadScoreEntityTypes) });
 export const insertCalendarEventSchema = createInsertSchema(calendarEvents)
-  .omit({ id: true, createdAt: true, updatedAt: true })
   .extend({
     type: z.enum(calendarEventTypes).nullable().optional(),
     syncSource: z.enum(calendarSyncSources).nullable().optional(),
   });
 export const insertChannelConfigSchema = createInsertSchema(channelConfigs)
-  .omit({ id: true, createdAt: true, updatedAt: true })
   .extend({ type: z.enum(channelConfigTypes) });
-export const insertPushTokenSchema = createInsertSchema(pushTokens)
-  .omit({ id: true, createdAt: true, lastUsedAt: true });
+export const insertPushTokenSchema = createInsertSchema(pushTokens);
 export const insertGoogleOAuthTokenSchema = createInsertSchema(googleOAuthTokens)
-  .omit({ id: true, createdAt: true, updatedAt: true })
   .extend({ syncStatus: z.enum(googleCalendarSyncStatuses).optional() });
 
 // Types - usamos z.infer para schemas com enum estendidos e $inferSelect para select types

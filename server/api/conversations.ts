@@ -1,18 +1,46 @@
 import type { Express } from "express";
-import { insertConversationSchema, insertMessageSchema } from "@shared/schema";
-import { isAuthenticated } from "../auth";
+import { z } from "zod";
+import {
+  insertConversationSchema,
+  updateConversationSchema,
+  insertMessageSchema,
+  idParamSchema,
+  paginationQuerySchema,
+} from "../validation";
+import {
+  isAuthenticated,
+  validateBody,
+  validateParams,
+  validateQuery,
+  asyncHandler,
+} from "../middleware";
+import { sendSuccess, sendNotFound } from "../response";
 import { storage } from "../storage";
 import { broadcast } from "../ws/index";
 
-const updateConversationSchema = insertConversationSchema.partial().omit({ organizationId: true });
+// Schema estendido para query de conversas
+const conversationsQuerySchema = paginationQuerySchema.extend({
+  status: z.string().optional(),
+  channel: z.string().optional(),
+  assignedToId: z.string().optional(),
+});
+
+// Schema para paginacao de mensagens
+const messagesQuerySchema = z.object({
+  cursor: z.coerce.number().int().positive().optional(),
+  limit: z.coerce.number().int().positive().max(50).optional().default(30),
+});
 
 export function registerConversationRoutes(app: Express) {
-  // Conversations - supports pagination via query params (?page=1&limit=20&search=...&status=...&channel=...)
-  app.get("/api/conversations", isAuthenticated, async (req: any, res) => {
-    try {
+  // GET /api/conversations - Listar conversas (com paginacao e filtros opcionais)
+  app.get(
+    "/api/conversations",
+    isAuthenticated,
+    validateQuery(conversationsQuerySchema),
+    asyncHandler(async (req: any, res) => {
       const org = await storage.getDefaultOrganization();
       if (!org) {
-        return res.json({ data: [], pagination: { page: 1, limit: 20, total: 0, totalPages: 0, hasMore: false } });
+        return sendSuccess(res, { data: [], pagination: { page: 1, limit: 20, total: 0, totalPages: 0, hasMore: false } });
       }
 
       // Helper function to enrich conversations
@@ -51,109 +79,111 @@ export function registerConversationRoutes(app: Express) {
         );
       };
 
+      const { page, limit, search, status, channel, assignedToId } = req.validatedQuery;
+
       // Check if pagination is requested
-      const { page, limit, search, status, channel, assignedToId } = req.query;
       if (page || limit || search || status || channel) {
         const result = await storage.getConversationsPaginated(org.id, {
-          page: page ? parseInt(page) : undefined,
-          limit: limit ? parseInt(limit) : undefined,
-          search: search as string,
-          status: status as string,
-          channel: channel as string,
-          assignedToId: assignedToId as string,
+          page,
+          limit,
+          search,
+          status,
+          channel,
+          assignedToId,
         });
         const enrichedData = await enrichConversations(result.data);
-        return res.json({ ...result, data: enrichedData });
+        return sendSuccess(res, { ...result, data: enrichedData });
       }
 
       // Fallback to non-paginated (for backward compatibility)
       const allConversations = await storage.getConversations(org.id);
       const enrichedConversations = await enrichConversations(allConversations);
-      res.json(enrichedConversations);
-    } catch (error) {
-      console.error("Error fetching conversations:", error);
-      res.status(500).json({ message: "Failed to fetch conversations" });
-    }
-  });
+      sendSuccess(res, enrichedConversations);
+    }),
+  );
 
-  app.get("/api/conversations/:id", isAuthenticated, async (req: any, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+  // GET /api/conversations/:id - Obter conversa por ID
+  app.get(
+    "/api/conversations/:id",
+    isAuthenticated,
+    validateParams(idParamSchema),
+    asyncHandler(async (req: any, res) => {
+      const { id } = req.validatedParams;
       const conversation = await storage.getConversation(id);
-      if (!conversation) return res.status(404).json({ message: "Conversation not found" });
+      if (!conversation) {
+        return sendNotFound(res, "Conversation not found");
+      }
       const conversationMessages = await storage.getMessages(id);
-      res.json({ ...conversation, messages: conversationMessages });
-    } catch (error) {
-      console.error("Error fetching conversation:", error);
-      res.status(500).json({ message: "Failed to fetch conversation" });
-    }
-  });
+      sendSuccess(res, { ...conversation, messages: conversationMessages });
+    }),
+  );
 
-  app.post("/api/conversations", isAuthenticated, async (req: any, res) => {
-    try {
+  // POST /api/conversations - Criar conversa
+  app.post(
+    "/api/conversations",
+    isAuthenticated,
+    validateBody(insertConversationSchema),
+    asyncHandler(async (req: any, res) => {
       const org = await storage.getDefaultOrganization();
-      if (!org) return res.status(400).json({ message: "No organization" });
-
-      const parsed = insertConversationSchema.safeParse({ ...req.body, organizationId: org.id });
-      if (!parsed.success) {
-        return res.status(400).json({ message: "Invalid data", errors: parsed.error.issues });
+      if (!org) {
+        return sendNotFound(res, "No organization");
       }
-      const conversation = await storage.createConversation(parsed.data);
+
+      const conversation = await storage.createConversation({
+        ...req.validatedBody,
+        organizationId: org.id,
+      });
       broadcast("conversation:created", conversation);
-      res.status(201).json(conversation);
-    } catch (error) {
-      console.error("Error creating conversation:", error);
-      res.status(500).json({ message: "Failed to create conversation" });
-    }
-  });
+      sendSuccess(res, conversation, 201);
+    }),
+  );
 
-  app.patch("/api/conversations/:id", isAuthenticated, async (req: any, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+  // PATCH /api/conversations/:id - Atualizar conversa
+  app.patch(
+    "/api/conversations/:id",
+    isAuthenticated,
+    validateParams(idParamSchema),
+    validateBody(updateConversationSchema),
+    asyncHandler(async (req: any, res) => {
+      const { id } = req.validatedParams;
 
-      const parsed = updateConversationSchema.safeParse(req.body);
-      if (!parsed.success) {
-        return res.status(400).json({ message: "Invalid data", errors: parsed.error.issues });
+      const conversation = await storage.updateConversation(id, req.validatedBody);
+      if (!conversation) {
+        return sendNotFound(res, "Conversation not found");
       }
-      const conversation = await storage.updateConversation(id, parsed.data);
-      if (!conversation) return res.status(404).json({ message: "Conversation not found" });
-      res.json(conversation);
-    } catch (error) {
-      console.error("Error updating conversation:", error);
-      res.status(500).json({ message: "Failed to update conversation" });
-    }
-  });
+      sendSuccess(res, conversation);
+    }),
+  );
 
-  app.get("/api/conversations/:id/messages", isAuthenticated, async (req: any, res) => {
-    try {
-      const conversationId = parseInt(req.params.id);
-      if (isNaN(conversationId)) return res.status(400).json({ message: "Invalid ID" });
-
-      // Parse cursor and limit for pagination
-      const cursor = req.query.cursor ? parseInt(req.query.cursor as string) : undefined;
-      const limit = req.query.limit ? Math.min(parseInt(req.query.limit as string), 50) : 30;
+  // GET /api/conversations/:id/messages - Listar mensagens da conversa
+  app.get(
+    "/api/conversations/:id/messages",
+    isAuthenticated,
+    validateParams(idParamSchema),
+    validateQuery(messagesQuerySchema),
+    asyncHandler(async (req: any, res) => {
+      const { id: conversationId } = req.validatedParams;
+      const { cursor, limit } = req.validatedQuery;
 
       const result = await storage.getMessages(conversationId, { cursor, limit });
-      res.json(result);
-    } catch (error) {
-      console.error("Error fetching messages:", error);
-      res.status(500).json({ message: "Failed to fetch messages" });
-    }
-  });
+      sendSuccess(res, result);
+    }),
+  );
 
-  app.post("/api/conversations/:id/messages", isAuthenticated, async (req: any, res) => {
-    try {
-      const conversationId = parseInt(req.params.id);
+  // POST /api/conversations/:id/messages - Criar mensagem na conversa
+  app.post(
+    "/api/conversations/:id/messages",
+    isAuthenticated,
+    validateParams(idParamSchema),
+    validateBody(insertMessageSchema),
+    asyncHandler(async (req: any, res) => {
+      const { id: conversationId } = req.validatedParams;
       const senderId = (req.user as any).id;
-      if (isNaN(conversationId)) return res.status(400).json({ message: "Invalid ID" });
 
-      const parsed = insertMessageSchema.safeParse({ ...req.body, conversationId });
-      if (!parsed.success) {
-        return res.status(400).json({ message: "Invalid data", errors: parsed.error.issues });
-      }
-      const message = await storage.createMessage(parsed.data);
+      const message = await storage.createMessage({
+        ...req.validatedBody,
+        conversationId,
+      });
       broadcast("message:created", message);
 
       // Create notification for assigned user if not the sender
@@ -206,30 +236,25 @@ export function registerConversationRoutes(app: Express) {
         }
       }
 
-      res.status(201).json(message);
-    } catch (error) {
-      console.error("Error creating message:", error);
-      res.status(500).json({ message: "Failed to create message" });
-    }
-  });
+      sendSuccess(res, message, 201);
+    }),
+  );
 
-  // Mark messages as read
-  app.post("/api/conversations/:id/read", isAuthenticated, async (req: any, res) => {
-    try {
-      const conversationId = parseInt(req.params.id);
+  // POST /api/conversations/:id/read - Marcar mensagens como lidas
+  app.post(
+    "/api/conversations/:id/read",
+    isAuthenticated,
+    validateParams(idParamSchema),
+    asyncHandler(async (req: any, res) => {
+      const { id: conversationId } = req.validatedParams;
       const userId = (req.user as any).id;
-      if (isNaN(conversationId)) return res.status(400).json({ message: "Invalid ID" });
 
       const count = await storage.markMessagesAsRead(conversationId, userId);
 
       // Broadcast read event to other users
       broadcast("message:read", { conversationId, userId, count });
 
-      res.json({ success: true, count });
-    } catch (error) {
-      console.error("Error marking messages as read:", error);
-      res.status(500).json({ message: "Failed to mark messages as read" });
-    }
-  });
+      sendSuccess(res, { success: true, count });
+    }),
+  );
 }
-

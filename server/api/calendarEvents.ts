@@ -1,107 +1,112 @@
 import type { Express } from "express";
-import { insertCalendarEventSchema } from "@shared/schema";
-import { isAuthenticated } from "../auth";
+import { z } from "zod";
+import {
+  insertCalendarEventSchema,
+  updateCalendarEventSchema,
+  idParamSchema,
+} from "../validation";
+import {
+  isAuthenticated,
+  validateBody,
+  validateParams,
+  validateQuery,
+  asyncHandler,
+} from "../middleware";
+import { sendSuccess, sendNotFound } from "../response";
 import { storage } from "../storage";
 import { broadcast } from "../ws/index";
 
-const updateCalendarEventSchema = insertCalendarEventSchema.partial().omit({ organizationId: true });
+// Schema para query de eventos do calendario
+const calendarEventsQuerySchema = z.object({
+  startDate: z.coerce.date().optional(),
+  endDate: z.coerce.date().optional(),
+});
 
 export function registerCalendarEventRoutes(app: Express) {
-  app.get("/api/calendar-events", isAuthenticated, async (req: any, res) => {
-    try {
+  // GET /api/calendar-events - Listar eventos do calendario
+  app.get(
+    "/api/calendar-events",
+    isAuthenticated,
+    validateQuery(calendarEventsQuerySchema),
+    asyncHandler(async (req: any, res) => {
       const org = await storage.getDefaultOrganization();
-      if (!org) return res.json([]);
+      if (!org) return sendSuccess(res, []);
 
-      const startDate = req.query.startDate ? new Date(req.query.startDate as string) : new Date();
-      const endDate = req.query.endDate
-        ? new Date(req.query.endDate as string)
-        : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      const { startDate, endDate } = req.validatedQuery;
+      const start = startDate || new Date();
+      const end = endDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
-      const events = await storage.getCalendarEvents(org.id, startDate, endDate);
-      res.json(events);
-    } catch (error) {
-      console.error("Error fetching calendar events:", error);
-      res.status(500).json({ message: "Failed to fetch calendar events" });
-    }
-  });
+      const events = await storage.getCalendarEvents(org.id, start, end);
+      sendSuccess(res, events);
+    }),
+  );
 
-  app.get("/api/calendar-events/:id", isAuthenticated, async (req: any, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+  // GET /api/calendar-events/:id - Obter evento por ID
+  app.get(
+    "/api/calendar-events/:id",
+    isAuthenticated,
+    validateParams(idParamSchema),
+    asyncHandler(async (req: any, res) => {
+      const { id } = req.validatedParams;
       const event = await storage.getCalendarEvent(id);
-      if (!event) return res.status(404).json({ message: "Event not found" });
-      res.json(event);
-    } catch (error) {
-      console.error("Error fetching calendar event:", error);
-      res.status(500).json({ message: "Failed to fetch calendar event" });
-    }
-  });
+      if (!event) {
+        return sendNotFound(res, "Event not found");
+      }
+      sendSuccess(res, event);
+    }),
+  );
 
-  app.post("/api/calendar-events", isAuthenticated, async (req: any, res) => {
-    try {
+  // POST /api/calendar-events - Criar evento no calendario
+  app.post(
+    "/api/calendar-events",
+    isAuthenticated,
+    validateBody(insertCalendarEventSchema),
+    asyncHandler(async (req: any, res) => {
       const org = await storage.getDefaultOrganization();
-      if (!org) return res.status(400).json({ message: "No organization" });
+      if (!org) {
+        return sendNotFound(res, "No organization");
+      }
       const userId = (req.user as any).id;
 
-      const body = {
-        ...req.body,
-        startTime: req.body.startTime ? new Date(req.body.startTime) : undefined,
-        endTime: req.body.endTime ? new Date(req.body.endTime) : undefined,
+      const event = await storage.createCalendarEvent({
+        ...req.validatedBody,
         organizationId: org.id,
         userId,
-      };
-
-      const parsed = insertCalendarEventSchema.safeParse(body);
-      if (!parsed.success) {
-        return res.status(400).json({ message: "Invalid data", errors: parsed.error.issues });
-      }
-      const event = await storage.createCalendarEvent(parsed.data);
+      });
       broadcast("calendar:event:created", event);
-      res.status(201).json(event);
-    } catch (error) {
-      console.error("Error creating calendar event:", error);
-      res.status(500).json({ message: "Failed to create calendar event" });
-    }
-  });
+      sendSuccess(res, event, 201);
+    }),
+  );
 
-  app.patch("/api/calendar-events/:id", isAuthenticated, async (req: any, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+  // PATCH /api/calendar-events/:id - Atualizar evento do calendario
+  app.patch(
+    "/api/calendar-events/:id",
+    isAuthenticated,
+    validateParams(idParamSchema),
+    validateBody(updateCalendarEventSchema),
+    asyncHandler(async (req: any, res) => {
+      const { id } = req.validatedParams;
 
-      const body = {
-        ...req.body,
-        startTime: req.body.startTime ? new Date(req.body.startTime) : undefined,
-        endTime: req.body.endTime ? new Date(req.body.endTime) : undefined,
-      };
-
-      const parsed = updateCalendarEventSchema.safeParse(body);
-      if (!parsed.success) {
-        return res.status(400).json({ message: "Invalid data", errors: parsed.error.issues });
+      const event = await storage.updateCalendarEvent(id, req.validatedBody);
+      if (!event) {
+        return sendNotFound(res, "Event not found");
       }
-      const event = await storage.updateCalendarEvent(id, parsed.data);
-      if (!event) return res.status(404).json({ message: "Event not found" });
       broadcast("calendar:event:updated", event);
-      res.json(event);
-    } catch (error) {
-      console.error("Error updating calendar event:", error);
-      res.status(500).json({ message: "Failed to update calendar event" });
-    }
-  });
+      sendSuccess(res, event);
+    }),
+  );
 
-  app.delete("/api/calendar-events/:id", isAuthenticated, async (req: any, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+  // DELETE /api/calendar-events/:id - Excluir evento do calendario
+  app.delete(
+    "/api/calendar-events/:id",
+    isAuthenticated,
+    validateParams(idParamSchema),
+    asyncHandler(async (req: any, res) => {
+      const { id } = req.validatedParams;
 
       await storage.deleteCalendarEvent(id);
       broadcast("calendar:event:deleted", { id });
       res.status(204).send();
-    } catch (error) {
-      console.error("Error deleting calendar event:", error);
-      res.status(500).json({ message: "Failed to delete calendar event" });
-    }
-  });
+    }),
+  );
 }
-
