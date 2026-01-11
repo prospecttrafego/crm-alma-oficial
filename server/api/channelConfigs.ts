@@ -1,5 +1,5 @@
 import type { Express } from "express";
-import type { InsertChannelConfig } from "../../shared/schema";
+import type { InsertChannelConfig } from "@shared/schema";
 import {
   insertChannelConfigSchema,
   updateChannelConfigSchema,

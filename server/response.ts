@@ -1,69 +1,34 @@
 /**
  * Standardized API Response Utilities
  * Provides consistent response formatting across all endpoints
+ *
+ * Types are imported from shared/types/api.ts to ensure consistency
+ * between frontend and backend
  */
 
 import type { Response } from "express";
 
-// Standard API response structure
-export interface ApiResponse<T = unknown> {
-  success: boolean;
-  data?: T;
-  error?: {
-    code: string;
-    message: string;
-    details?: unknown;
-  };
-  meta?: {
-    requestId?: string;
-    timestamp: string;
-  };
-}
+// Re-export types from shared for convenience
+export type {
+  ApiResponse,
+  PaginatedResponse,
+  ApiError,
+  ValidationError,
+  ResponseMeta,
+  PaginationMeta,
+  ErrorCode,
+} from "@shared/types/api";
 
-// Standard pagination response
-export interface PaginatedApiResponse<T> extends ApiResponse<T[]> {
-  pagination: {
-    page: number;
-    limit: number;
-    total: number;
-    totalPages: number;
-    hasMore: boolean;
-  };
-}
+export { ErrorCodes } from "@shared/types/api";
 
-// Error codes for consistent error handling
-export const ErrorCodes = {
-  // Authentication & Authorization
-  UNAUTHORIZED: "UNAUTHORIZED",
-  FORBIDDEN: "FORBIDDEN",
-  INVALID_CREDENTIALS: "INVALID_CREDENTIALS",
-  SESSION_EXPIRED: "SESSION_EXPIRED",
-
-  // Validation
-  VALIDATION_ERROR: "VALIDATION_ERROR",
-  INVALID_INPUT: "INVALID_INPUT",
-  MISSING_REQUIRED_FIELD: "MISSING_REQUIRED_FIELD",
-
-  // Resources
-  NOT_FOUND: "NOT_FOUND",
-  ALREADY_EXISTS: "ALREADY_EXISTS",
-  CONFLICT: "CONFLICT",
-
-  // Rate Limiting
-  RATE_LIMITED: "RATE_LIMITED",
-  TOO_MANY_REQUESTS: "TOO_MANY_REQUESTS",
-
-  // Server Errors
-  INTERNAL_ERROR: "INTERNAL_ERROR",
-  SERVICE_UNAVAILABLE: "SERVICE_UNAVAILABLE",
-  EXTERNAL_SERVICE_ERROR: "EXTERNAL_SERVICE_ERROR",
-
-  // Integration Errors
-  INTEGRATION_NOT_CONFIGURED: "INTEGRATION_NOT_CONFIGURED",
-  INTEGRATION_ERROR: "INTEGRATION_ERROR",
-} as const;
-
-export type ErrorCode = (typeof ErrorCodes)[keyof typeof ErrorCodes];
+// Import types for internal use
+import type {
+  ApiResponse,
+  PaginatedResponse,
+  PaginationMeta,
+  ErrorCode,
+} from "@shared/types/api";
+import { ErrorCodes } from "@shared/types/api";
 
 /**
  * Send a successful response
@@ -86,9 +51,9 @@ export function sendSuccess<T>(res: Response, data: T, statusCode: number = 200)
 export function sendPaginatedSuccess<T>(
   res: Response,
   data: T[],
-  pagination: PaginatedApiResponse<T>["pagination"]
+  pagination: PaginationMeta
 ): void {
-  const response: PaginatedApiResponse<T> = {
+  const response: PaginatedResponse<T> = {
     success: true,
     data,
     pagination,
@@ -110,17 +75,13 @@ export function sendError(
   statusCode: number = 500,
   details?: unknown
 ): void {
-  const error: ApiResponse["error"] = {
-    code,
-    message,
-  };
-  if (details !== undefined) {
-    error.details = details;
-  }
-
   const response: ApiResponse = {
     success: false,
-    error,
+    error: {
+      code,
+      message,
+      ...(details !== undefined && { details: details as any }),
+    },
     meta: {
       requestId: (res.req as any).requestId,
       timestamp: new Date().toISOString(),
@@ -158,3 +119,13 @@ export const sendInternalError = (res: Response, message: string = "Erro interno
 
 export const sendIntegrationError = (res: Response, service: string, message: string) =>
   sendError(res, ErrorCodes.INTEGRATION_ERROR, `Erro na integração ${service}: ${message}`, 502);
+
+export const sendServiceUnavailable = (res: Response, message: string = "Serviço indisponível") =>
+  sendError(res, ErrorCodes.SERVICE_UNAVAILABLE, message, 503);
+
+// User utility - strips sensitive fields
+export function toSafeUser<T extends { passwordHash?: unknown }>(user: T) {
+  if (!user) return user;
+  const { passwordHash: _passwordHash, ...safeUser } = user as any;
+  return safeUser as Omit<T, "passwordHash">;
+}

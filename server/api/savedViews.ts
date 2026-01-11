@@ -1,6 +1,6 @@
 import type { Express } from "express";
 import { z } from "zod";
-import { savedViewTypes } from "../../shared/schema";
+import { savedViewTypes } from "@shared/schema";
 import {
   insertSavedViewSchema,
   updateSavedViewSchema,

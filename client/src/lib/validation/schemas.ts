@@ -1,9 +1,36 @@
 /**
  * Frontend Validation Schemas - Zod schemas for form validation
  * These schemas provide client-side validation with type coercion
+ *
+ * Enums are imported from shared/schema.ts to ensure consistency
+ * between frontend and backend
  */
 
 import { z } from 'zod';
+
+// Import enums from shared schema - single source of truth
+import {
+  activityTypes,
+  activityStatuses,
+  calendarEventTypes,
+  channelTypes,
+  conversationStatuses,
+  messageContentTypes,
+  channelConfigTypes,
+  savedViewTypes,
+} from '@shared/schema';
+
+// Re-export enums for convenience (maintains backwards compatibility)
+export {
+  activityTypes,
+  activityStatuses,
+  calendarEventTypes,
+  channelTypes,
+  conversationStatuses,
+  messageContentTypes,
+  channelConfigTypes,
+  savedViewTypes,
+};
 
 // ===== CONTACTS =====
 
@@ -88,9 +115,6 @@ export const updatePipelineStageSchema = createPipelineStageSchema.partial();
 
 // ===== ACTIVITIES =====
 
-export const activityTypes = ['call', 'email', 'meeting', 'note', 'task'] as const;
-export const activityStatuses = ['pending', 'completed', 'cancelled'] as const;
-
 export const createActivitySchema = z.object({
   type: z.enum(activityTypes),
   title: z.string().min(1, 'Título é obrigatório'),
@@ -106,8 +130,6 @@ export const updateActivitySchema = createActivitySchema.partial().extend({
 });
 
 // ===== CALENDAR EVENTS =====
-
-export const calendarEventTypes = ['meeting', 'call', 'task', 'reminder', 'other'] as const;
 
 export const createCalendarEventSchema = z.object({
   title: z.string().min(1, 'Título é obrigatório'),
@@ -125,9 +147,6 @@ export const updateCalendarEventSchema = createCalendarEventSchema.partial();
 
 // ===== CONVERSATIONS =====
 
-export const channelTypes = ['email', 'whatsapp', 'sms', 'internal', 'phone'] as const;
-export const conversationStatuses = ['open', 'closed', 'pending'] as const;
-
 export const createConversationSchema = z.object({
   channel: z.enum(channelTypes),
   subject: z.string().optional().or(z.literal('')),
@@ -144,8 +163,6 @@ export const updateConversationSchema = z.object({
 
 // ===== MESSAGES =====
 
-export const messageContentTypes = ['text', 'audio', 'image', 'file', 'video'] as const;
-
 export const attachmentSchema = z.object({
   name: z.string(),
   url: z.string(),
@@ -161,8 +178,6 @@ export const createMessageSchema = z.object({
 });
 
 // ===== CHANNEL CONFIGS =====
-
-export const channelConfigTypes = ['email', 'whatsapp'] as const;
 
 export const createChannelConfigSchema = z.object({
   name: z.string().min(1, 'Nome é obrigatório'),
@@ -187,8 +202,6 @@ export const createEmailTemplateSchema = z.object({
 export const updateEmailTemplateSchema = createEmailTemplateSchema.partial();
 
 // ===== SAVED VIEWS =====
-
-export const savedViewTypes = ['contacts', 'companies', 'deals', 'activities'] as const;
 
 export const createSavedViewSchema = z.object({
   name: z.string().min(1, 'Nome é obrigatório'),

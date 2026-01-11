@@ -5,23 +5,22 @@ import { broadcast } from "../ws/index";
 import { evolutionApi } from "../integrations/evolution/api";
 import { evolutionHandler, type EvolutionWebhookEvent } from "../integrations/evolution/handler";
 import { whatsappLogger } from "../logger";
+import { asyncHandler } from "../middleware";
+import { sendSuccess } from "../response";
 
 export function registerEvolutionRoutes(app: Express) {
   // Check if Evolution API is configured
-  app.get("/api/evolution/status", isAuthenticated, async (_req: any, res) => {
-    try {
+  app.get(
+    "/api/evolution/status",
+    isAuthenticated,
+    asyncHandler(async (_req, res) => {
       const config = evolutionApi.getConfiguration();
-      res.json({
+      sendSuccess(res, {
         configured: config.configured,
         url: config.configured ? config.url : null,
       });
-    } catch (error) {
-      whatsappLogger.error("Error checking Evolution API status", {
-        error: error instanceof Error ? error.message : String(error),
-      });
-      res.status(500).json({ message: "Failed to check Evolution API status" });
-    }
-  });
+    })
+  );
 
   // Evolution API Webhook (receives messages from WhatsApp)
   // Note: This endpoint does NOT require authentication as it's called by Evolution API

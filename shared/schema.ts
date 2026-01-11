@@ -184,6 +184,10 @@ export const deals = pgTable(
 export const channelTypes = ["email", "whatsapp", "sms", "internal", "phone"] as const;
 export type ChannelType = (typeof channelTypes)[number];
 
+// Conversation statuses
+export const conversationStatuses = ["open", "closed", "pending"] as const;
+export type ConversationStatus = (typeof conversationStatuses)[number];
+
 // Conversations table
 export const conversations = pgTable(
   "conversations",
@@ -243,8 +247,12 @@ export const messages = pgTable(
 export const activityTypes = ["call", "email", "meeting", "note", "task"] as const;
 export type ActivityType = (typeof activityTypes)[number];
 
+// Activity statuses
+export const activityStatuses = ["pending", "completed", "cancelled"] as const;
+export type ActivityStatus = (typeof activityStatuses)[number];
+
 // Saved view types
-export const savedViewTypes = ["pipeline", "inbox"] as const;
+export const savedViewTypes = ["pipeline", "inbox", "contacts", "companies", "deals", "activities"] as const;
 export type SavedViewType = (typeof savedViewTypes)[number];
 
 // Saved views table

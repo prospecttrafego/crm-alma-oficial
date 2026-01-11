@@ -37,7 +37,7 @@ import {
   calendarSyncSources,
   channelConfigTypes,
   notificationTypes,
-} from '../../shared/schema';
+} from '@shared/schema';
 
 // ============================================================================
 // CONTACTS
