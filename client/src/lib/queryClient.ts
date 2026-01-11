@@ -1,12 +1,44 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
+import { ApiRequestError } from "./api";
 
+/**
+ * Helper to throw structured errors from non-ok responses
+ */
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
-    const text = (await res.text()) || res.statusText;
-    throw new Error(`${res.status}: ${text}`);
+    let errorData;
+    try {
+      errorData = await res.json();
+    } catch {
+      // If response is not JSON, create a generic error
+      errorData = {
+        error: {
+          code: 'UNKNOWN_ERROR',
+          message: res.statusText || 'Erro desconhecido',
+        }
+      };
+    }
+
+    // Throw structured error if available
+    if (errorData.error) {
+      throw new ApiRequestError(errorData.error, res.status);
+    }
+
+    // Fallback for legacy responses
+    throw new ApiRequestError(
+      {
+        code: 'UNKNOWN_ERROR',
+        message: errorData.message || res.statusText || 'Erro desconhecido',
+      },
+      res.status
+    );
   }
 }
 
+/**
+ * Generic API request function for mutations
+ * @deprecated Use the new typed API client from @/lib/api instead
+ */
 export async function apiRequest(
   method: string,
   url: string,
@@ -24,6 +56,10 @@ export async function apiRequest(
 }
 
 type UnauthorizedBehavior = "returnNull" | "throw";
+
+/**
+ * Query function factory with configurable 401 handling
+ */
 export const getQueryFn: <T>(options: {
   on401: UnauthorizedBehavior;
 }) => QueryFunction<T> =
@@ -37,8 +73,40 @@ export const getQueryFn: <T>(options: {
       return null;
     }
 
-    await throwIfResNotOk(res);
-    return await res.json();
+    if (!res.ok) {
+      let errorData;
+      try {
+        errorData = await res.json();
+      } catch {
+        errorData = {
+          error: {
+            code: 'UNKNOWN_ERROR',
+            message: res.statusText || 'Erro desconhecido',
+          }
+        };
+      }
+
+      if (errorData.error) {
+        throw new ApiRequestError(errorData.error, res.status);
+      }
+
+      throw new ApiRequestError(
+        {
+          code: 'UNKNOWN_ERROR',
+          message: errorData.message || res.statusText || 'Erro desconhecido',
+        },
+        res.status
+      );
+    }
+
+    const json = await res.json();
+
+    // Extract data from ApiResponse wrapper if present
+    if (json && typeof json === 'object' && 'success' in json && json.data !== undefined) {
+      return json.data;
+    }
+
+    return json;
   };
 
 export const queryClient = new QueryClient({
