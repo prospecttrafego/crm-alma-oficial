@@ -20,13 +20,15 @@ Estrutura atual (nível alto):
   server/
     api/            # Rotas HTTP por domínio
     ws/             # WebSocket
-    validation/     # Schemas Zod centralizados
+    validation/     # Schemas Zod centralizados (shared/contracts)
+    storage/        # DAL por domínio (contacts, deals, etc.)
     integrations/   # Integrações externas
     jobs/           # Background jobs
     middleware.ts   # Middlewares padronizados
     response.ts     # Helpers de resposta API
   shared/
     schema.ts       # Drizzle schema + enums
+    contracts.ts    # Schemas Zod + DTOs gerados do schema
     types/          # Tipos compartilhados
   scripts/
   script/
@@ -109,7 +111,8 @@ O que você encontra (pastas e arquivos principais):
 server/
   api/                # Rotas HTTP por domínio
   ws/                 # WebSocket
-  validation/         # Schemas Zod centralizados
+  validation/         # Schemas Zod centralizados (a partir de shared/contracts)
+  storage/            # DAL por domínio (contacts, deals, etc.)
   integrations/       # Integrações externas
   jobs/               # Background jobs
   middleware.ts       # Middlewares (asyncHandler, validateBody/Params/Query)
@@ -122,7 +125,8 @@ E também existem arquivos importantes "soltos" dentro de `server/` (por exemplo
 
 - `server/middleware.ts`: Middlewares padronizados como `asyncHandler` (captura erros automaticamente), `validateBody`, `validateParams`, `validateQuery` (validação Zod).
 - `server/response.ts`: Funções helper para respostas HTTP padronizadas (`sendSuccess`, `sendError`, `sendNotFound`, `sendValidationError`, `toSafeUser`, etc.).
-- `server/validation/`: Pasta com schemas Zod centralizados para validação de entrada (importa tipos base de `@shared/schema`).
+- `server/validation/`: Pasta com schemas Zod centralizados para validação de entrada (importa de `shared/contracts`).
+- `server/storage.ts`: Facade que re-exporta os módulos do `server/storage/` (DAL por domínio).
 
 ### `server/api/` — Rotas HTTP do sistema (endpoints `/api/...`)
 - O que é: aqui estão as “portas de entrada” do backend (as URLs que o frontend chama).
@@ -131,7 +135,6 @@ E também existem arquivos importantes "soltos" dentro de `server/` (por exemplo
 
 O que você encontra aqui (exemplos reais):
 - `server/api/contacts.ts`: tudo de contatos (`/api/contacts`)
-- `server/api/companies.ts`: tudo de empresas (`/api/companies`) — *backend ativo, frontend desabilitado*
 - `server/api/deals.ts`: deals (`/api/deals`)
 - `server/api/conversations.ts`: inbox (conversas/mensagens)
 - `server/api/files.ts`: arquivos (upload/download/transcrição)

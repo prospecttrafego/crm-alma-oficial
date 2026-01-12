@@ -111,12 +111,9 @@ Quando uma mensagem chega via WhatsApp (Evolution API), o sistema automaticament
    - Titulo: "Lead WhatsApp: {nome ou telefone}"
    - Source: "whatsapp", Probability: 10%, Status: "open"
 
-#### Modulos Desabilitados (Reversiveis)
-- **Companies**: O modulo de empresas esta temporariamente desabilitado no menu e rotas.
-  Para reativar, descomentar as linhas marcadas em:
-  - `client/src/components/app-sidebar.tsx` (menu)
-  - `client/src/App.tsx` (rota)
-  - `client/src/components/command-palette.tsx` (paleta de comandos)
+#### Empresas (Companies) — uso interno
+- O modulo de empresas nao possui mais rotas ou paginas dedicadas.
+- Empresas sao criadas/atualizadas automaticamente via `companyName` ao criar contatos e usadas internamente em deals e conversas.
 
 ---
 
@@ -182,7 +179,6 @@ CRM_Oficial/
 │       ├── contexts/            # Contextos (ex.: idioma)
 │       ├── hooks/               # Hooks (auth, websocket, push, toast…)
 │       ├── lib/                 # Infra do frontend (query client, firebase, utils)
-│       │   └── validation/      # Schemas Zod (importa de @shared/schema)
 │       ├── locales/             # Traducoes (pt-BR/en)
 │       └── pages/               # Paginas (dashboard, pipeline, inbox, settings…)
 ├── server/
@@ -191,14 +187,12 @@ CRM_Oficial/
 │   ├── routes.ts                # Agregador (auth + rate limit + API + WebSocket)
 │   ├── middleware.ts            # Middlewares padronizados (asyncHandler, validate*)
 │   ├── response.ts              # Helpers de resposta (sendSuccess, sendError, toSafeUser)
-│   ├── validation/              # Schemas Zod centralizados
+│   ├── validation/              # Schemas Zod centralizados (a partir de shared/contracts)
 │   │   ├── index.ts             # Re-exports
-│   │   ├── schemas.ts           # Schemas de validação
-│   │   └── factory.ts           # Factory drizzle-zod
+│   │   └── schemas.ts           # Schemas de validação
 │   ├── api/                     # Rotas HTTP por domínio (módulos) - TODOS padronizados
 │   │   ├── index.ts             # Registra todos os módulos de API
 │   │   ├── contacts.ts          # Contatos
-│   │   ├── companies.ts         # Empresas
 │   │   ├── deals.ts             # Deals
 │   │   ├── pipelines.ts         # Pipelines/estágios
 │   │   ├── conversations.ts     # Inbox (conversas/mensagens)
@@ -214,7 +208,8 @@ CRM_Oficial/
 │   │   └── handlers.ts          # Handlers: transcricao, lead score, sync
 │   ├── logger.ts                # Logs estruturados (requestId + loggers de integrações)
 │   ├── health.ts                # Health check (DB + integrações opcionais)
-│   ├── storage.ts               # Camada de acesso ao banco (DAL)
+│   ├── storage/                 # DAL por dominio (contacts, deals, etc.)
+│   ├── storage.ts               # Facade do storage (re-export dos modulos)
 │   ├── auth.ts                  # Passport.js + sessoes
 │   ├── db.ts                    # Drizzle + conexao Postgres (Pool)
 │   ├── tenant.ts                # Single-tenant (organizacao da instalacao)
@@ -230,6 +225,7 @@ CRM_Oficial/
 │   └── vite.ts                  # Integracao Vite em dev
 ├── shared/                      # Fonte unica de verdade (tipos e enums)
 │   ├── schema.ts                # Schema Drizzle + enums + tipos inferidos
+│   ├── contracts.ts             # Schemas Zod + DTOs gerados do schema
 │   └── types/                   # Tipos compartilhados frontend/backend
 │       ├── api.ts               # ApiResponse, ErrorCodes, PaginationMeta
 │       └── dto.ts               # DTOs para transferencia de dados
@@ -447,6 +443,8 @@ CRM_Oficial/
 
 ## API Endpoints
 
+**Padrao de resposta:** endpoints JSON retornam `{ success, data }` (e erros padronizados). Respostas `204` nao possuem corpo.
+
 ### Autenticacao e Usuario
 
 ```
@@ -497,15 +495,9 @@ PATCH  /api/contacts/:id                # Atualizar contato
 DELETE /api/contacts/:id                # Excluir contato
 ```
 
-### Empresas
+### Empresas (interno)
 
-```
-GET    /api/companies                   # Listar empresas
-POST   /api/companies                   # Criar empresa
-GET    /api/companies/:id               # Detalhes da empresa
-PATCH  /api/companies/:id               # Atualizar empresa
-DELETE /api/companies/:id               # Excluir empresa
-```
+O modulo de empresas nao possui endpoints publicos. Empresas sao geradas/atualizadas via `companyName` nos contatos.
 
 ### Pipelines, Estagios e Deals
 
@@ -544,6 +536,7 @@ POST   /api/conversations/:id/read      # Marcar mensagens como lidas
 
 ```
 GET    /api/activities                  # Listar atividades
+GET    /api/contacts/:id/activities     # Listar atividades por contato
 POST   /api/activities                  # Criar atividade
 PATCH  /api/activities/:id              # Atualizar atividade
 DELETE /api/activities/:id              # Excluir atividade

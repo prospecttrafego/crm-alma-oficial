@@ -1,7 +1,7 @@
 # Diagnóstico completo — Alma CRM
 
 Data do diagnóstico: 2026-01-11 (atualizado)
-Commit analisado (base): `be376d4` (após simplificação de contatos + auto-deal WhatsApp)
+Commit analisado (base): `1acb09c` (apos limpeza arquitetural e padronizacao de schemas/DTOs)
 Ambiente usado para validações: Node `v25.2.1`, npm `11.6.2` (o projeto documenta Node 20+)
 
 Este documento foi criado para:
@@ -10,7 +10,7 @@ Este documento foi criado para:
 - Fazer um **diagnóstico focado em funcionalidades (principalmente backend e integrações)**.
 - Listar o que está **alinhado** e o que está **desalinhado** entre código e documentação.
 
-Plano de ação (milestones + checkboxes): `PLANO_DE_ACAO.md`.
+Plano de ação (milestones + checkboxes): `ARCH_CLEANUP_PLAN.md` (concluido).
 
 ---
 
@@ -132,21 +132,18 @@ client/                Frontend (React)
     pages/             Páginas (pipeline, inbox, contatos, etc.)
     hooks/             Hooks (auth, websocket, push, toast…)
     lib/               Infra do frontend (query client, firebase, utils)
-      validation/      Schemas Zod (importa de @shared/schema)
 
 server/                Backend (Express)
   index.ts             Entry point (Express + Vite dev + static prod)
   routes.ts            Agregador (auth + rate limit + API + WS)
   middleware.ts        Middlewares padronizados (asyncHandler, validate*)
   response.ts          Helpers de resposta (sendSuccess, sendError, toSafeUser)
-  validation/          Schemas Zod centralizados
+  validation/          Schemas Zod centralizados (a partir de shared/contracts)
     index.ts           Re-exports
     schemas.ts         Schemas de validação
-    factory.ts         Factory drizzle-zod
   api/                 Rotas HTTP por domínio (módulos) — TODOS padronizados
     index.ts           Registra todos os módulos de API
     contacts.ts        Endpoints de contatos
-    companies.ts       Endpoints de empresas
     deals.ts           Endpoints de deals
     pipelines.ts       Endpoints de pipelines/estágios
     conversations.ts   Inbox (conversas/mensagens)
@@ -167,7 +164,8 @@ server/                Backend (Express)
   health.ts            Health check (DB + integrações opcionais)
   auth.ts              Sessões + Passport (login/register/logout/me)
   db.ts                Conexão Postgres + Drizzle
-  storage.ts           "Camada de banco" (CRUD e queries)
+  storage/             "Camada de banco" por domínio (CRUD e queries)
+  storage.ts           Facade do storage (re-export dos módulos)
   tenant.ts            Regra de "single-tenant" (1 organização por instalação)
   static.ts            Servir frontend em produção (dist/public)
   vite.ts              Vite em modo middleware (dev)
@@ -182,6 +180,7 @@ server/                Backend (Express)
 
 shared/                Fonte única de verdade (tipos e enums)
   schema.ts            Schema Drizzle + enums + tipos inferidos
+  contracts.ts         Schemas Zod + DTOs gerados do schema
   types/
     api.ts             ApiResponse, ErrorCodes, PaginationMeta
     dto.ts             DTOs para transferência de dados
@@ -338,11 +337,11 @@ Endpoints `/api` principais (somando `server/auth.ts` e `server/api/*`, registra
 - Deals:  
   `/api/deals`, `/api/deals/:id`, `/api/deals/:id/stage`
 - Contatos:
-  `/api/contacts`, `/api/contacts/:id` (empresas sao criadas automaticamente via `companyName`; endpoints `/api/companies` existem mas frontend desabilitado)
+  `/api/contacts`, `/api/contacts/:id` (empresas sao criadas automaticamente via `companyName`; nao ha endpoint publico de empresas)
 - Inbox:  
   `/api/conversations`, `/api/conversations/:id`, `/api/conversations/:id/messages`, `/api/conversations/:id/read`
 - Atividades:  
-  `/api/activities`, `/api/activities/:id`
+  `/api/activities`, `/api/activities/:id`, `/api/contacts/:id/activities`
 - Notificações:  
   `/api/notifications`, `/api/notifications/unread-count`, `/api/notifications/:id/read`, `/api/notifications/mark-all-read`
 - Email templates:  
@@ -371,11 +370,9 @@ Outros endpoints importantes:
 ## 8) Diagnóstico técnico (o que foi verificado)
 
 ### 8.1 Tipagem / build / lint
-Foram executados:
-- `npm ci` (OK) — reportou `6 vulnerabilities (4 moderate, 2 high)` no audit
+Foram executados nesta atualizacao:
 - `npm run check` (OK) — TypeScript sem erros
-- `npm run build` (OK) — build do client + bundle do server gerados em `dist/`
-- `npm run lint` (OK) — linter configurado; há warnings principalmente de imports/variáveis não usadas
+- `npm run lint` (OK) — linter sem warnings
 
 ### 8.2 Padronização completa do backend (concluída em 2026-01-11)
 
@@ -385,16 +382,17 @@ Todas as 14 rotas de API do backend foram refatoradas para usar o padrão consis
 - **sendSuccess/sendError/sendNotFound**: respostas padronizadas
 
 Arquivos refatorados:
-- `activities.ts`, `calendarEvents.ts`, `channelConfigs.ts`, `companies.ts`, `contacts.ts`
+- `activities.ts`, `calendarEvents.ts`, `channelConfigs.ts`, `contacts.ts`
 - `conversations.ts`, `deals.ts`, `emailTemplates.ts`, `pipelines.ts`, `savedViews.ts`
 - `files.ts`, `jobs.ts`, `lgpd.ts`, `googleCalendar.ts`, `evolution.ts`
 - `users.ts`, `notifications.ts`, `dashboard.ts`, `auditLogs.ts`, `reports.ts`
 - `pushTokens.ts`, `health.ts`, `objects.ts`, `leadScores.ts`
+- `server/storage/*` (DAL por dominio) + `server/storage.ts` (facade)
 
 Eliminação de duplicações:
 - **Tipos de resposta API**: `shared/types/api.ts` é a fonte única (ErrorCodes, ApiResponse)
 - **Enums**: todos definidos em `shared/schema.ts` (savedViewTypes, activityStatuses, etc.)
-- **Schemas Zod**: centralizados em `server/validation/schemas.ts` (importam de @shared/schema)
+- **Schemas Zod**: centralizados em `server/validation/schemas.ts` (importam de `shared/contracts`)
 - **Utilitário toSafeUser**: movido de `server/api/utils.ts` para `server/response.ts`
 
 ### 8.3 Documentação vs código
@@ -427,5 +425,5 @@ Eliminação de duplicações:
 - **Redis:** presença (online/offline) e rate limiting existem; cache ainda é parcial.
 
 ### P2 — Maturidade (qualidade/operacional)
-- **Linter agora existe:** ele roda e ajuda a manter padrão, mas há muitos warnings (limpeza gradual recomendada).
+- **Linter padronizado:** warnings principais foram eliminados e o baseline está limpo.
 - **Vulnerabilidades npm:** o `npm` reportou `6 vulnerabilities` (moderate/high). Precisa triagem e plano de atualização sem quebrar o produto.

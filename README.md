@@ -93,22 +93,21 @@ npm run dev
 │       ├── pages/           # Paginas da aplicacao
 │       ├── hooks/           # React hooks customizados
 │       └── lib/             # Utilitarios e configuracoes
-│           └── validation/  # Schemas Zod (importa de @shared/schema)
 ├── server/                  # Backend Express
 │   ├── index.ts             # Entry point
 │   ├── routes.ts            # Agregador (auth + rate limit + API + WebSocket)
 │   ├── middleware.ts        # Middlewares padronizados (asyncHandler, validate*)
 │   ├── response.ts          # Helpers de resposta (sendSuccess, sendError, etc)
-│   ├── validation/          # Schemas Zod para validacao de entrada
+│   ├── validation/          # Schemas Zod para validacao de entrada (shared/contracts)
 │   │   ├── index.ts         # Re-exports
-│   │   ├── schemas.ts       # Schemas de validacao
-│   │   └── factory.ts       # Factory drizzle-zod
+│   │   └── schemas.ts       # Schemas de validacao
 │   ├── api/                 # Rotas HTTP por domínio (módulos)
 │   ├── ws/                  # WebSocket (/ws) + broadcast
 │   ├── jobs/                # Background jobs (Redis/fallback memoria)
 │   ├── logger.ts            # Logs estruturados (requestId + integrações)
 │   ├── health.ts            # Health check (DB + integrações opcionais)
-│   ├── storage.ts           # Camada de acesso ao banco (DAL)
+│   ├── storage/             # DAL por dominio (contacts, deals, etc.)
+│   ├── storage.ts           # Facade do storage (re-export dos modulos)
 │   ├── auth.ts              # Autenticacao Passport.js
 │   ├── db.ts                # Drizzle + conexao Postgres
 │   ├── tenant.ts            # Single-tenant (organizacao)
@@ -124,6 +123,7 @@ npm run dev
 │   └── vite.ts              # Vite middleware (dev)
 ├── shared/                  # Codigo compartilhado (fonte unica de verdade)
 │   ├── schema.ts            # Schema Drizzle + tipos + enums
+│   ├── contracts.ts         # Schemas Zod e DTOs derivados do schema
 │   └── types/               # Tipos compartilhados frontend/backend
 │       ├── api.ts           # ApiResponse, ErrorCodes, PaginationMeta
 │       └── dto.ts           # DTOs para transferencia de dados
@@ -132,6 +132,10 @@ npm run dev
 └── script/
     └── build.ts             # Script de build
 ```
+
+Notas importantes:
+- `shared/contracts.ts` e `shared/schema.ts` sao a fonte unica de verdade para schemas e DTOs.
+- A validacao no backend usa apenas schemas derivados do Drizzle (nao ha validacao manual duplicada).
 
 ## Variaveis de Ambiente
 
@@ -188,6 +192,10 @@ npm run db:migrate-ptbr # Ajustes pontuais (dados legados PT-BR)
 ## Health check
 
 - `GET /api/health` retorna status do banco e integrações opcionais (Redis/Supabase/Evolution API) quando configuradas.
+
+## Padrao de Resposta da API
+
+- Endpoints JSON retornam `{ success, data }` (erros padronizados). Respostas `204` nao possuem corpo.
 
 ## Deploy em VPS (Ubuntu)
 
