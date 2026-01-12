@@ -184,10 +184,13 @@ export interface IStorage {
     totalDeals: number;
     openDeals: number;
     wonDeals: number;
-    totalValue: string;
+    lostDeals: number;
+    totalValue: number;
     contacts: number;
     companies: number;
+    newContacts: number;
     pendingActivities: number;
+    openConversations: number;
     unreadConversations: number;
   }>;
   getReportData(

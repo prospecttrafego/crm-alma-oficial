@@ -30,6 +30,7 @@ export function FileUploader({
 
   const { data: files, isLoading: filesLoading } = useQuery<FileRecord[]>({
     queryKey: ["/api/files", entityType, entityId],
+    queryFn: () => filesApi.listByEntity(entityType, entityId),
     enabled: showExistingFiles && entityId > 0,
   });
 
@@ -227,6 +228,7 @@ interface FileListProps {
 export function FileList({ entityType, entityId, inline = false }: FileListProps) {
   const { data: files } = useQuery<FileRecord[]>({
     queryKey: ["/api/files", entityType, entityId],
+    queryFn: () => filesApi.listByEntity(entityType, entityId),
     enabled: entityId > 0,
   });
 

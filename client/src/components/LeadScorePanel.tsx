@@ -16,6 +16,7 @@ export function LeadScorePanel({ entityType, entityId }: LeadScorePanelProps) {
   const { t } = useTranslation();
   const { data: leadScore, isLoading } = useQuery<LeadScore | null>({
     queryKey: ["/api/lead-scores", entityType, entityId],
+    queryFn: () => leadScoresApi.get(entityType, entityId),
   });
 
   const calculateMutation = useMutation({

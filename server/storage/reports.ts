@@ -8,17 +8,20 @@ import {
   users,
 } from "@shared/schema";
 import { db } from "../db";
-import { and, count, eq, sql } from "drizzle-orm";
+import { and, count, eq, gte, sql } from "drizzle-orm";
 import { getTenantOrganizationId } from "./helpers";
 
 export async function getDashboardStats(_organizationId: number): Promise<{
   totalDeals: number;
   openDeals: number;
   wonDeals: number;
-  totalValue: string;
+  lostDeals: number;
+  totalValue: number;
   contacts: number;
   companies: number;
+  newContacts: number;
   pendingActivities: number;
+  openConversations: number;
   unreadConversations: number;
 }> {
   const tenantOrganizationId = await getTenantOrganizationId();
@@ -27,6 +30,7 @@ export async function getDashboardStats(_organizationId: number): Promise<{
       total: count(),
       open: sql<number>`count(*) filter (where ${deals.status} = 'open')`,
       won: sql<number>`count(*) filter (where ${deals.status} = 'won')`,
+      lost: sql<number>`count(*) filter (where ${deals.status} = 'lost')`,
       totalValue: sql<string>`coalesce(sum(${deals.value}), 0)`,
     })
     .from(deals)
@@ -36,6 +40,18 @@ export async function getDashboardStats(_organizationId: number): Promise<{
     .select({ count: count() })
     .from(contacts)
     .where(eq(contacts.organizationId, tenantOrganizationId));
+  const monthStart = new Date();
+  monthStart.setDate(1);
+  monthStart.setHours(0, 0, 0, 0);
+  const [newContactsCount] = await db
+    .select({ count: count() })
+    .from(contacts)
+    .where(
+      and(
+        eq(contacts.organizationId, tenantOrganizationId),
+        gte(contacts.createdAt, monthStart),
+      ),
+    );
   const [companiesCount] = await db
     .select({ count: count() })
     .from(companies)
@@ -44,8 +60,11 @@ export async function getDashboardStats(_organizationId: number): Promise<{
     .select({ count: count() })
     .from(activities)
     .where(and(eq(activities.organizationId, tenantOrganizationId), eq(activities.status, "pending")));
-  const [unreadCount] = await db
-    .select({ count: sql<number>`count(*) filter (where ${conversations.unreadCount} > 0)` })
+  const [conversationStats] = await db
+    .select({
+      open: sql<number>`count(*) filter (where ${conversations.status} != 'closed')`,
+      unread: sql<number>`count(*) filter (where ${conversations.unreadCount} > 0)`,
+    })
     .from(conversations)
     .where(eq(conversations.organizationId, tenantOrganizationId));
 
@@ -53,11 +72,14 @@ export async function getDashboardStats(_organizationId: number): Promise<{
     totalDeals: Number(dealsStats?.total) || 0,
     openDeals: Number(dealsStats?.open) || 0,
     wonDeals: Number(dealsStats?.won) || 0,
-    totalValue: String(dealsStats?.totalValue || "0"),
+    lostDeals: Number(dealsStats?.lost) || 0,
+    totalValue: Number(dealsStats?.totalValue) || 0,
     contacts: contactsCount?.count || 0,
     companies: companiesCount?.count || 0,
+    newContacts: newContactsCount?.count || 0,
     pendingActivities: pendingCount?.count || 0,
-    unreadConversations: Number(unreadCount?.count) || 0,
+    openConversations: Number(conversationStats?.open) || 0,
+    unreadConversations: Number(conversationStats?.unread) || 0,
   };
 }
 

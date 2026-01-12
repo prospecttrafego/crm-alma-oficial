@@ -9,6 +9,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useTranslation } from "@/contexts/LanguageContext";
 import { pipelinesApi } from "@/lib/api/pipelines";
+import { dealsApi } from "@/lib/api/deals";
+import { contactsApi } from "@/lib/api/contacts";
 import { useDealMutations } from "@/hooks/mutations";
 import {
   Dialog,
@@ -71,6 +73,7 @@ export default function PipelinePage() {
 
   const { data: allPipelines } = useQuery<PipelineWithStages[]>({
     queryKey: ["/api/pipelines"],
+    queryFn: pipelinesApi.list,
   });
 
   const { data: pipeline, isLoading: pipelineLoading } = useQuery<PipelineWithStages>({
@@ -92,10 +95,12 @@ export default function PipelinePage() {
 
   const { data: deals, isLoading: dealsLoading } = useQuery<DealWithRelations[]>({
     queryKey: ["/api/deals"],
+    queryFn: dealsApi.list,
   });
 
   const { data: contacts } = useQuery<Contact[]>({
     queryKey: ["/api/contacts"],
+    queryFn: contactsApi.list,
   });
 
   const { moveDeal, createDeal } = useDealMutations();

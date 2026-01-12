@@ -71,6 +71,18 @@ export function registerActivityRoutes(app: Express) {
     }),
   );
 
+  // GET /api/contacts/:id/activities - Listar atividades de um contato
+  app.get(
+    "/api/contacts/:id/activities",
+    isAuthenticated,
+    validateParams(idParamSchema),
+    asyncHandler(async (req: any, res) => {
+      const { id } = req.validatedParams;
+      const activities = await storage.getActivitiesByContact(id);
+      sendSuccess(res, activities);
+    }),
+  );
+
   // POST /api/activities - Criar atividade
   app.post(
     "/api/activities",

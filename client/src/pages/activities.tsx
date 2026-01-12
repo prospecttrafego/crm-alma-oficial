@@ -25,6 +25,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useActivityMutations } from "@/hooks/mutations";
+import { activitiesApi } from "@/lib/api/activities";
+import { contactsApi } from "@/lib/api/contacts";
+import { dealsApi } from "@/lib/api/deals";
 import { Plus, Search, Phone, Mail, Calendar, FileText, CheckSquare, Clock, Check } from "lucide-react";
 import type { Activity, Contact, Deal } from "@shared/schema";
 
@@ -51,14 +54,17 @@ export default function ActivitiesPage() {
 
   const { data: activities, isLoading } = useQuery<ActivityWithRelations[]>({
     queryKey: ["/api/activities"],
+    queryFn: activitiesApi.list,
   });
 
   const { data: contacts } = useQuery<Contact[]>({
     queryKey: ["/api/contacts"],
+    queryFn: contactsApi.list,
   });
 
   const { data: deals } = useQuery<Deal[]>({
     queryKey: ["/api/deals"],
+    queryFn: dealsApi.list,
   });
 
   const handleCreateActivity = (e: React.FormEvent<HTMLFormElement>) => {

@@ -32,6 +32,8 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { useContactMutations } from "@/hooks/mutations";
+import { contactsApi } from "@/lib/api/contacts";
+import { activitiesApi } from "@/lib/api/activities";
 import { Plus, Search, Mail, Phone, Building2, User, MoreHorizontal, Calendar, FileText, CheckSquare } from "lucide-react";
 import { EntityHistory } from "@/components/entity-history";
 import { LeadScorePanel } from "@/components/LeadScorePanel";
@@ -50,12 +52,14 @@ export default function ContactsPage() {
 
   const { data: contacts, isLoading } = useQuery<ContactWithRelations[]>({
     queryKey: ["/api/contacts"],
+    queryFn: contactsApi.list,
   });
 
   // REMOVIDO - Não precisa mais carregar lista de empresas
   // Agora usamos input de texto com auto-criação de empresa no backend
   const { data: activities } = useQuery<Activity[]>({
     queryKey: ["/api/contacts", selectedContact?.id, "activities"],
+    queryFn: () => activitiesApi.listByContact(selectedContact!.id),
     enabled: !!selectedContact,
   });
 

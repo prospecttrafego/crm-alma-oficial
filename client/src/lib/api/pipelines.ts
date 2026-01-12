@@ -20,7 +20,7 @@ export const pipelinesApi = {
   /**
    * List all pipelines
    */
-  list: () => api.get<Pipeline[]>('/api/pipelines'),
+  list: () => api.get<PipelineWithStages[]>('/api/pipelines'),
 
   /**
    * Get a single pipeline by ID (includes stages)

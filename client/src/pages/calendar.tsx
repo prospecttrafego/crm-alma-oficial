@@ -25,6 +25,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { useCalendarMutations } from "@/hooks/mutations";
 import { calendarEventsApi } from "@/lib/api/calendarEvents";
+import { contactsApi } from "@/lib/api/contacts";
+import { dealsApi } from "@/lib/api/deals";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   ChevronLeft,
@@ -578,10 +580,12 @@ export default function CalendarPage() {
 
   const { data: contacts = [] } = useQuery<Contact[]>({
     queryKey: ["/api/contacts"],
+    queryFn: contactsApi.list,
   });
 
   const { data: deals = [] } = useQuery<Deal[]>({
     queryKey: ["/api/deals"],
+    queryFn: dealsApi.list,
   });
 
   const handleNavigate = (direction: "prev" | "next") => {

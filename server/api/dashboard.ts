@@ -15,10 +15,13 @@ export function registerDashboardRoutes(app: Express) {
           totalDeals: 0,
           openDeals: 0,
           wonDeals: 0,
-          totalValue: "0",
+          lostDeals: 0,
+          totalValue: 0,
           contacts: 0,
           companies: 0,
+          newContacts: 0,
           pendingActivities: 0,
+          openConversations: 0,
           unreadConversations: 0,
         });
       }

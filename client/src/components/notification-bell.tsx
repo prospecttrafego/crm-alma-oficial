@@ -44,10 +44,12 @@ export function NotificationBell() {
 
   const { data: notifications, isLoading } = useQuery<Notification[]>({
     queryKey: ["/api/notifications"],
+    queryFn: notificationsApi.list,
   });
 
   const { data: unreadData } = useQuery<{ count: number }>({
     queryKey: ["/api/notifications/unread-count"],
+    queryFn: notificationsApi.unreadCount,
     refetchInterval: 30000,
   });
 

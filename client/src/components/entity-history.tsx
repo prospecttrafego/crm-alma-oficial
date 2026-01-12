@@ -6,6 +6,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { AuditLog, AuditLogAction, AuditLogEntityType } from "@shared/schema";
 import { useTranslation } from "@/contexts/LanguageContext";
+import { api } from "@/lib/api";
 
 type EnrichedAuditLog = AuditLog & {
   user: { id: string; firstName: string | null; lastName: string | null } | null;
@@ -35,6 +36,7 @@ const actionColors: Record<AuditLogAction, string> = {
 export function EntityHistory({ entityType, entityId }: EntityHistoryProps) {
   const { data: logs, isLoading } = useQuery<EnrichedAuditLog[]>({
     queryKey: ["/api/audit-logs/entity", entityType, entityId],
+    queryFn: () => api.get<EnrichedAuditLog[]>(`/api/audit-logs/entity/${entityType}/${entityId}`),
   });
   const { t, language } = useTranslation();
   const locale = language === "pt-BR" ? ptBR : enUS;

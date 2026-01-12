@@ -15,6 +15,7 @@ import { useWebSocket } from "@/hooks/useWebSocket";
 import { useTranslation } from "@/contexts/LanguageContext";
 import { conversationsApi } from "@/lib/api/conversations";
 import { filesApi } from "@/lib/api/files";
+import { emailTemplatesApi } from "@/lib/api/emailTemplates";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -167,6 +168,7 @@ export default function InboxPage() {
 
   const { data: conversations, isLoading: conversationsLoading } = useQuery<ConversationWithRelations[]>({
     queryKey: ["/api/conversations"],
+    queryFn: conversationsApi.list,
   });
 
   // Ref for Virtuoso to control scroll
@@ -245,6 +247,7 @@ export default function InboxPage() {
 
   const { data: emailTemplates } = useQuery<EmailTemplate[]>({
     queryKey: ["/api/email-templates"],
+    queryFn: emailTemplatesApi.list,
   });
 
   // Emoji picker handlers

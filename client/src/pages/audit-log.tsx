@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/table";
 import type { AuditLog, AuditLogAction, AuditLogEntityType } from "@shared/schema";
 import { useTranslation } from "@/contexts/LanguageContext";
+import { api } from "@/lib/api";
 
 type EnrichedAuditLog = AuditLog & {
   user: { id: string; firstName: string | null; lastName: string | null } | null;
@@ -66,6 +67,7 @@ export default function AuditLogPage() {
   const locale = language === "pt-BR" ? ptBR : enUS;
   const { data: logs, isLoading } = useQuery<EnrichedAuditLog[]>({
     queryKey: ["/api/audit-logs"],
+    queryFn: () => api.get<EnrichedAuditLog[]>("/api/audit-logs"),
   });
 
   const formatUserName = (user: EnrichedAuditLog["user"]) => {

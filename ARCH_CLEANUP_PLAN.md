@@ -16,7 +16,7 @@ Status key: [ ] pending, [x] done, [~] in progress
 ## Milestone 3: API Client and Response Consistency
 - [x] Make ApiClient unwrap `{ success, data }` consistently
 - [x] Replace manual `fetch`/`apiRequest` usage across pages/components
-- [~] Normalize query keys + query functions to avoid raw response usage
+- [x] Normalize query keys + query functions to avoid raw response usage
 
 ## Milestone 4: Remove Dead/Legacy Layers
 - [~] Remove deprecated API call paths and unused hooks/wrappers

@@ -39,6 +39,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useTranslation } from "@/contexts/LanguageContext";
 import { queryClient } from "@/lib/queryClient";
 import { authApi } from "@/lib/api/auth";
+import { pipelinesApi } from "@/lib/api/pipelines";
 import { useQuery } from "@tanstack/react-query";
 import type { Pipeline } from "@shared/schema";
 
@@ -53,6 +54,7 @@ export function AppSidebar() {
   const { data: pipelines = [] } = useQuery<Pipeline[]>({
     queryKey: ["/api/pipelines"],
     enabled: !!user,
+    queryFn: pipelinesApi.list,
   });
 
   const mainNavItems = [

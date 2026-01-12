@@ -28,6 +28,7 @@ import {
 import { Filter, Save, X, ChevronDown, Trash2, Calendar } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { savedViewsApi } from "@/lib/api/savedViews";
+import { usersApi } from "@/lib/api/users";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { enUS, ptBR } from "date-fns/locale";
@@ -72,6 +73,7 @@ export function FilterPanel({ type, filters, onFiltersChange, stages }: FilterPa
 
   const { data: users } = useQuery<User[]>({
     queryKey: ["/api/users"],
+    queryFn: usersApi.list,
   });
 
   const saveViewMutation = useMutation({

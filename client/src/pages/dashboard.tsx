@@ -16,10 +16,14 @@ import {
   CheckSquare,
 } from "lucide-react";
 import { useTranslation } from "@/contexts/LanguageContext";
-import type { Deal, Contact, Conversation, Activity } from "@shared/schema";
+import type { Deal, Activity } from "@shared/schema";
+import { api } from "@/lib/api";
+import { dealsApi } from "@/lib/api/deals";
+import { activitiesApi } from "@/lib/api/activities";
 
 interface DashboardStats {
   totalDeals: number;
+  openDeals: number;
   totalValue: number;
   openConversations: number;
   newContacts: number;
@@ -33,14 +37,17 @@ export default function Dashboard() {
 
   const { data: stats, isLoading: statsLoading } = useQuery<DashboardStats>({
     queryKey: ["/api/dashboard/stats"],
+    queryFn: () => api.get<DashboardStats>("/api/dashboard/stats"),
   });
 
   const { data: recentDeals, isLoading: dealsLoading } = useQuery<Deal[]>({
     queryKey: ["/api/deals"],
+    queryFn: dealsApi.list,
   });
 
   const { data: recentActivities, isLoading: activitiesLoading } = useQuery<Activity[]>({
     queryKey: ["/api/activities"],
+    queryFn: activitiesApi.list,
   });
 
   return (
@@ -67,7 +74,7 @@ export default function Dashboard() {
                   R$ {(stats?.totalValue || 0).toLocaleString("pt-BR")}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  {t("dashboard.openDealsCount", { count: stats?.totalDeals || 0 })}
+                  {t("dashboard.openDealsCount", { count: stats?.openDeals || 0 })}
                 </p>
               </>
             )}
@@ -127,9 +134,12 @@ export default function Dashboard() {
             ) : (
               <>
                 <div className="text-2xl font-bold" data-testid="text-win-rate">
-                  {stats?.wonDeals && stats?.lostDeals
-                    ? Math.round((stats.wonDeals / (stats.wonDeals + stats.lostDeals)) * 100)
-                    : 0}%
+                  {(() => {
+                    const won = stats?.wonDeals || 0;
+                    const lost = stats?.lostDeals || 0;
+                    const total = won + lost;
+                    return total > 0 ? Math.round((won / total) * 100) : 0;
+                  })()}%
                 </div>
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <span className="flex items-center text-green-600 dark:text-green-400">
