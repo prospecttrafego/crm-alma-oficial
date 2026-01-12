@@ -24,9 +24,9 @@ Status key: [ ] pending, [x] done, [~] in progress
 - [ ] Prune unused types/DTOs after client/server alignment
 
 ## Milestone 5: Storage Refactor (God Class Split)
-- [ ] Split `server/storage.ts` into domain modules
-- [ ] Extract shared helpers (pagination, normalization, tenant utils)
-- [ ] Preserve public storage interface and update imports
+- [x] Split `server/storage.ts` into domain modules
+- [x] Extract shared helpers (pagination, normalization, tenant utils)
+- [x] Preserve public storage interface and update imports
 
 ## Milestone 6: Validation and Sanity Checks
 - [ ] Run typecheck and lint
