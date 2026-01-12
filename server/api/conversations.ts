@@ -183,6 +183,8 @@ export function registerConversationRoutes(app: Express) {
       const message = await storage.createMessage({
         ...req.validatedBody,
         conversationId,
+        senderId,
+        senderType: "user",
       });
       broadcast("message:created", message);
 

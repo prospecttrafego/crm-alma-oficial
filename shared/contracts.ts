@@ -38,29 +38,61 @@ import {
 // ===== CONTACTS =====
 
 export const createContactSchema = baseInsertContactSchema
-  .omit({ organizationId: true, phoneNormalized: true })
+  .omit({
+    id: true,
+    organizationId: true,
+    phoneNormalized: true,
+    createdAt: true,
+    updatedAt: true,
+  })
   .extend({
     companyName: z.string().optional(),
   });
 
 export const updateContactSchema = baseUpdateContactSchema
-  .omit({ organizationId: true, phoneNormalized: true });
+  .omit({
+    id: true,
+    organizationId: true,
+    phoneNormalized: true,
+    createdAt: true,
+    updatedAt: true,
+  });
 
 // ===== COMPANIES =====
 
 export const createCompanySchema = baseInsertCompanySchema
-  .omit({ organizationId: true });
+  .omit({
+    id: true,
+    organizationId: true,
+    createdAt: true,
+    updatedAt: true,
+  });
 
 export const updateCompanySchema = baseUpdateCompanySchema
-  .omit({ organizationId: true });
+  .omit({
+    id: true,
+    organizationId: true,
+    createdAt: true,
+    updatedAt: true,
+  });
 
 // ===== DEALS =====
 
 export const createDealSchema = baseInsertDealSchema
-  .omit({ organizationId: true });
+  .omit({
+    id: true,
+    organizationId: true,
+    createdAt: true,
+    updatedAt: true,
+  });
 
 export const updateDealSchema = baseUpdateDealSchema
-  .omit({ organizationId: true });
+  .omit({
+    id: true,
+    organizationId: true,
+    createdAt: true,
+    updatedAt: true,
+  });
 
 export const moveDealSchema = z.object({
   stageId: z.number().int().positive(),
@@ -69,73 +101,186 @@ export const moveDealSchema = z.object({
 // ===== PIPELINES =====
 
 export const createPipelineStageInlineSchema = baseInsertPipelineStageSchema
-  .omit({ pipelineId: true });
+  .omit({
+    id: true,
+    pipelineId: true,
+    createdAt: true,
+  });
 
 export const createPipelineSchema = baseInsertPipelineSchema
-  .omit({ organizationId: true })
+  .omit({
+    id: true,
+    organizationId: true,
+    createdAt: true,
+    updatedAt: true,
+  })
   .extend({
     stages: z.array(createPipelineStageInlineSchema).optional(),
   });
 
 export const updatePipelineSchema = baseUpdatePipelineSchema
-  .omit({ organizationId: true });
+  .omit({
+    id: true,
+    organizationId: true,
+    createdAt: true,
+    updatedAt: true,
+  });
 
-export const createPipelineStageSchema = baseInsertPipelineStageSchema;
+export const createPipelineStageSchema = baseInsertPipelineStageSchema
+  .omit({
+    id: true,
+    createdAt: true,
+  });
 
 export const updatePipelineStageSchema = baseUpdatePipelineStageSchema
-  .omit({ pipelineId: true });
+  .omit({
+    id: true,
+    pipelineId: true,
+    createdAt: true,
+  });
 
 // ===== CONVERSATIONS =====
 
 export const createConversationSchema = baseInsertConversationSchema
-  .omit({ organizationId: true });
+  .omit({
+    id: true,
+    organizationId: true,
+    lastMessageAt: true,
+    unreadCount: true,
+    createdAt: true,
+    updatedAt: true,
+  });
 
 export const updateConversationSchema = baseUpdateConversationSchema
-  .omit({ organizationId: true });
+  .omit({
+    id: true,
+    organizationId: true,
+    lastMessageAt: true,
+    unreadCount: true,
+    createdAt: true,
+    updatedAt: true,
+  });
 
 // ===== MESSAGES =====
 
-export const createMessageSchema = baseInsertMessageSchema;
+export const createMessageSchema = baseInsertMessageSchema
+  .omit({
+    id: true,
+    conversationId: true,
+    senderId: true,
+    senderType: true,
+    readBy: true,
+    externalId: true,
+    createdAt: true,
+  });
 
 // ===== ACTIVITIES =====
 
 export const createActivitySchema = baseInsertActivitySchema
-  .omit({ organizationId: true });
+  .omit({
+    id: true,
+    organizationId: true,
+    createdAt: true,
+    updatedAt: true,
+  });
 
 export const updateActivitySchema = baseUpdateActivitySchema
-  .omit({ organizationId: true });
+  .omit({
+    id: true,
+    organizationId: true,
+    createdAt: true,
+    updatedAt: true,
+  });
 
 // ===== EMAIL TEMPLATES =====
 
 export const createEmailTemplateSchema = baseInsertEmailTemplateSchema
-  .omit({ organizationId: true });
+  .omit({
+    id: true,
+    organizationId: true,
+    createdBy: true,
+    createdAt: true,
+    updatedAt: true,
+  });
 
 export const updateEmailTemplateSchema = baseUpdateEmailTemplateSchema
-  .omit({ organizationId: true });
+  .omit({
+    id: true,
+    organizationId: true,
+    createdBy: true,
+    createdAt: true,
+    updatedAt: true,
+  });
 
 // ===== SAVED VIEWS =====
 
 export const createSavedViewSchema = baseInsertSavedViewSchema
-  .omit({ organizationId: true });
+  .omit({
+    id: true,
+    organizationId: true,
+    userId: true,
+    createdAt: true,
+    updatedAt: true,
+  });
 
 export const updateSavedViewSchema = baseUpdateSavedViewSchema
-  .omit({ organizationId: true });
+  .omit({
+    id: true,
+    organizationId: true,
+    userId: true,
+    createdAt: true,
+    updatedAt: true,
+  });
 
 // ===== CALENDAR EVENTS =====
 
 export const createCalendarEventSchema = baseInsertCalendarEventSchema
-  .omit({ organizationId: true });
+  .omit({
+    id: true,
+    organizationId: true,
+    userId: true,
+    googleEventId: true,
+    googleCalendarId: true,
+    syncSource: true,
+    lastSyncedAt: true,
+    createdAt: true,
+    updatedAt: true,
+  });
 
 export const updateCalendarEventSchema = baseUpdateCalendarEventSchema
-  .omit({ organizationId: true });
+  .omit({
+    id: true,
+    organizationId: true,
+    userId: true,
+    googleEventId: true,
+    googleCalendarId: true,
+    syncSource: true,
+    lastSyncedAt: true,
+    createdAt: true,
+    updatedAt: true,
+  });
 
 // ===== CHANNEL CONFIGS =====
 
 export const createChannelConfigSchema = baseInsertChannelConfigSchema
-  .omit({ organizationId: true });
+  .omit({
+    id: true,
+    organizationId: true,
+    createdBy: true,
+    lastSyncAt: true,
+    createdAt: true,
+    updatedAt: true,
+  });
 
 export const updateChannelConfigSchema = baseUpdateChannelConfigSchema
-  .omit({ organizationId: true });
+  .omit({
+    id: true,
+    organizationId: true,
+    createdBy: true,
+    lastSyncAt: true,
+    createdAt: true,
+    updatedAt: true,
+  });
 
 // ===== USERS =====
 
@@ -157,7 +302,13 @@ export const updateUserProfileSchema = baseUpdateUserSchema
 // ===== FILES =====
 
 const baseCreateFileSchema = baseInsertFileSchema
-  .omit({ organizationId: true, uploadedBy: true, objectPath: true });
+  .omit({
+    id: true,
+    organizationId: true,
+    uploadedBy: true,
+    objectPath: true,
+    createdAt: true,
+  });
 
 export const createFileSchema = baseCreateFileSchema.extend({
   objectPath: z.string().optional(),
@@ -168,7 +319,12 @@ export const createFileSchema = baseCreateFileSchema.extend({
 // ===== PUSH TOKENS =====
 
 export const createPushTokenSchema = baseInsertPushTokenSchema
-  .omit({ userId: true })
+  .omit({
+    id: true,
+    userId: true,
+    lastUsedAt: true,
+    createdAt: true,
+  })
   .extend({
     oldToken: z.string().optional(),
   });

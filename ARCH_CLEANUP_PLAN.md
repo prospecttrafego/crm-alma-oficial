@@ -3,14 +3,14 @@
 Status key: [ ] pending, [x] done, [~] in progress
 
 ## Milestone 1: Inventory and Plan Alignment
-- [ ] Confirm scope and decide on feature removals (e.g., Companies UI)
-- [~] Map all validation sources, API call sites, and legacy layers
-- [~] Identify response-shape inconsistencies and client-side unwrap gaps
+- [x] Confirm scope and decide on feature removals (e.g., Companies UI)
+- [x] Map all validation sources, API call sites, and legacy layers
+- [x] Identify response-shape inconsistencies and client-side unwrap gaps
 
 ## Milestone 2: Single Source of Truth for Schemas
 - [x] Generate/centralize insert/update schemas from Drizzle in shared
 - [x] Update server validation to consume shared schemas only
-- [~] Align DTOs to shared schemas (add missing fields like companyName)
+- [x] Align DTOs to shared schemas (add missing fields like companyName)
 - [x] Remove unused client validation layer or replace with shared schemas
 
 ## Milestone 3: API Client and Response Consistency
