@@ -19,17 +19,6 @@ export const activitiesApi = {
     api.get<Activity[]>(`/api/contacts/${contactId}/activities`),
 
   /**
-   * Get activities for a deal
-   */
-  listByDeal: (dealId: number) =>
-    api.get<Activity[]>(`/api/deals/${dealId}/activities`),
-
-  /**
-   * Get a single activity by ID
-   */
-  get: (id: number) => api.get<Activity>(`/api/activities/${id}`),
-
-  /**
    * Create a new activity
    */
   create: (data: CreateActivityDTO) => api.post<Activity>('/api/activities', data),

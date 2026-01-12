@@ -13,11 +13,6 @@ export const contactsApi = {
   list: () => api.get<Contact[]>('/api/contacts'),
 
   /**
-   * Get a single contact by ID
-   */
-  get: (id: number) => api.get<Contact>(`/api/contacts/${id}`),
-
-  /**
    * Create a new contact
    */
   create: (data: CreateContactDTO) => api.post<Contact>('/api/contacts', data),

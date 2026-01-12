@@ -33,11 +33,6 @@ export const channelConfigsApi = {
   list: () => api.get<ChannelConfig[]>('/api/channel-configs'),
 
   /**
-   * Get a single channel config by ID
-   */
-  get: (id: number) => api.get<ChannelConfig>(`/api/channel-configs/${id}`),
-
-  /**
    * Create a new channel config
    */
   create: (data: CreateChannelConfigDTO) =>
@@ -84,12 +79,4 @@ export const channelConfigsApi = {
    */
   testConnection: (id: number) =>
     api.post<ChannelConfigTestResult>(`/api/channel-configs/${id}/test`, {}),
-
-  // ===== EMAIL =====
-
-  /**
-   * Sync email inbox
-   */
-  syncEmail: (id: number) =>
-    api.post<{ synced: number }>(`/api/channel-configs/${id}/email/sync`, {}),
 };

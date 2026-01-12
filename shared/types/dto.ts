@@ -5,8 +5,6 @@
 export type {
   CreateContactDTO,
   UpdateContactDTO,
-  CreateCompanyDTO,
-  UpdateCompanyDTO,
   CreateDealDTO,
   UpdateDealDTO,
   MoveDealDTO,
@@ -14,7 +12,6 @@ export type {
   UpdatePipelineDTO,
   CreatePipelineStageDTO,
   UpdatePipelineStageDTO,
-  CreatePipelineStageInlineDTO,
   CreateConversationDTO,
   UpdateConversationDTO,
   CreateMessageDTO,
@@ -27,9 +24,7 @@ export type {
   CreateEmailTemplateDTO,
   UpdateEmailTemplateDTO,
   CreateSavedViewDTO,
-  UpdateSavedViewDTO,
   UpdateUserProfileDTO,
   CreateFileDTO,
   CreatePushTokenDTO,
-  DeletePushTokenDTO,
 } from "../contracts";

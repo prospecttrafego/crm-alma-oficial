@@ -3,7 +3,6 @@ import { registerActivityRoutes } from "./activities";
 import { registerAuditLogRoutes } from "./auditLogs";
 import { registerCalendarEventRoutes } from "./calendarEvents";
 import { registerChannelConfigRoutes } from "./channelConfigs";
-import { registerCompanyRoutes } from "./companies";
 import { registerContactRoutes } from "./contacts";
 import { registerConversationRoutes } from "./conversations";
 import { registerDashboardRoutes } from "./dashboard";
@@ -31,7 +30,6 @@ export function registerApiRoutes(app: Express) {
   registerPipelineRoutes(app);
   registerDealRoutes(app);
   registerContactRoutes(app);
-  registerCompanyRoutes(app);
   registerConversationRoutes(app);
   registerActivityRoutes(app);
   registerNotificationRoutes(app);
@@ -50,4 +48,3 @@ export function registerApiRoutes(app: Express) {
   registerLgpdRoutes(app);
   registerJobRoutes(app);
 }
-

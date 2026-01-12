@@ -33,11 +33,6 @@ export type GoogleCalendarSyncResult = {
 
 export const calendarEventsApi = {
   /**
-   * List all calendar events
-   */
-  list: () => api.get<CalendarEvent[]>('/api/calendar-events'),
-
-  /**
    * Get events in a date range
    */
   listByRange: (start: Date, end: Date) => {
@@ -46,11 +41,6 @@ export const calendarEventsApi = {
     params.set('endDate', end.toISOString());
     return api.get<CalendarEvent[]>(`/api/calendar-events?${params.toString()}`);
   },
-
-  /**
-   * Get a single calendar event by ID
-   */
-  get: (id: number) => api.get<CalendarEvent>(`/api/calendar-events/${id}`),
 
   /**
    * Create a new calendar event

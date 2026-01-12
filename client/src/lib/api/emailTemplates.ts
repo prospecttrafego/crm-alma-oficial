@@ -13,11 +13,6 @@ export const emailTemplatesApi = {
   list: () => api.get<EmailTemplate[]>('/api/email-templates'),
 
   /**
-   * Get a single email template by ID
-   */
-  get: (id: number) => api.get<EmailTemplate>(`/api/email-templates/${id}`),
-
-  /**
    * Create a new email template
    */
   create: (data: CreateEmailTemplateDTO) =>

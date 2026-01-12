@@ -13,11 +13,6 @@ export const dealsApi = {
   list: () => api.get<Deal[]>('/api/deals'),
 
   /**
-   * Get a single deal by ID
-   */
-  get: (id: number) => api.get<Deal>(`/api/deals/${id}`),
-
-  /**
    * Create a new deal
    */
   create: (data: CreateDealDTO) => api.post<Deal>('/api/deals', data),

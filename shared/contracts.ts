@@ -10,7 +10,6 @@ import {
   insertActivitySchema as baseInsertActivitySchema,
   insertCalendarEventSchema as baseInsertCalendarEventSchema,
   insertChannelConfigSchema as baseInsertChannelConfigSchema,
-  insertCompanySchema as baseInsertCompanySchema,
   insertContactSchema as baseInsertContactSchema,
   insertConversationSchema as baseInsertConversationSchema,
   insertDealSchema as baseInsertDealSchema,
@@ -24,7 +23,6 @@ import {
   updateActivitySchema as baseUpdateActivitySchema,
   updateCalendarEventSchema as baseUpdateCalendarEventSchema,
   updateChannelConfigSchema as baseUpdateChannelConfigSchema,
-  updateCompanySchema as baseUpdateCompanySchema,
   updateContactSchema as baseUpdateContactSchema,
   updateConversationSchema as baseUpdateConversationSchema,
   updateDealSchema as baseUpdateDealSchema,
@@ -54,24 +52,6 @@ export const updateContactSchema = baseUpdateContactSchema
     id: true,
     organizationId: true,
     phoneNormalized: true,
-    createdAt: true,
-    updatedAt: true,
-  });
-
-// ===== COMPANIES =====
-
-export const createCompanySchema = baseInsertCompanySchema
-  .omit({
-    id: true,
-    organizationId: true,
-    createdAt: true,
-    updatedAt: true,
-  });
-
-export const updateCompanySchema = baseUpdateCompanySchema
-  .omit({
-    id: true,
-    organizationId: true,
     createdAt: true,
     updatedAt: true,
   });
@@ -338,9 +318,6 @@ export const deletePushTokenSchema = baseInsertPushTokenSchema.pick({
 export type CreateContactDTO = z.infer<typeof createContactSchema>;
 export type UpdateContactDTO = z.infer<typeof updateContactSchema>;
 
-export type CreateCompanyDTO = z.infer<typeof createCompanySchema>;
-export type UpdateCompanyDTO = z.infer<typeof updateCompanySchema>;
-
 export type CreateDealDTO = z.infer<typeof createDealSchema>;
 export type UpdateDealDTO = z.infer<typeof updateDealSchema>;
 export type MoveDealDTO = z.infer<typeof moveDealSchema>;
@@ -349,7 +326,6 @@ export type CreatePipelineDTO = z.infer<typeof createPipelineSchema>;
 export type UpdatePipelineDTO = z.infer<typeof updatePipelineSchema>;
 export type CreatePipelineStageDTO = z.infer<typeof createPipelineStageSchema>;
 export type UpdatePipelineStageDTO = z.infer<typeof updatePipelineStageSchema>;
-export type CreatePipelineStageInlineDTO = z.infer<typeof createPipelineStageInlineSchema>;
 
 export type CreateConversationDTO = z.infer<typeof createConversationSchema>;
 export type UpdateConversationDTO = z.infer<typeof updateConversationSchema>;
@@ -369,11 +345,9 @@ export type CreateEmailTemplateDTO = z.infer<typeof createEmailTemplateSchema>;
 export type UpdateEmailTemplateDTO = z.infer<typeof updateEmailTemplateSchema>;
 
 export type CreateSavedViewDTO = z.infer<typeof createSavedViewSchema>;
-export type UpdateSavedViewDTO = z.infer<typeof updateSavedViewSchema>;
 
 export type UpdateUserProfileDTO = z.infer<typeof updateUserProfileSchema>;
 
 export type CreateFileDTO = z.infer<typeof createFileSchema>;
 
 export type CreatePushTokenDTO = z.infer<typeof createPushTokenSchema>;
-export type DeletePushTokenDTO = z.infer<typeof deletePushTokenSchema>;

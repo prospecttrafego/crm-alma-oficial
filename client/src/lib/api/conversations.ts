@@ -55,11 +55,6 @@ export const conversationsApi = {
   list: () => api.get<ConversationWithRelations[]>('/api/conversations'),
 
   /**
-   * Get a single conversation by ID
-   */
-  get: (id: number) => api.get<ConversationWithRelations>(`/api/conversations/${id}`),
-
-  /**
    * Create a new conversation
    */
   create: (data: CreateConversationDTO) =>

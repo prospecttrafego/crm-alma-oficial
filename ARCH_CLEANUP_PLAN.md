@@ -19,9 +19,9 @@ Status key: [ ] pending, [x] done, [~] in progress
 - [x] Normalize query keys + query functions to avoid raw response usage
 
 ## Milestone 4: Remove Dead/Legacy Layers
-- [~] Remove deprecated API call paths and unused hooks/wrappers
+- [x] Remove deprecated API call paths and unused hooks/wrappers
 - [x] Remove disabled/unused routes/pages/components (e.g., Companies UI)
-- [ ] Prune unused types/DTOs after client/server alignment
+- [x] Prune unused types/DTOs after client/server alignment
 
 ## Milestone 5: Storage Refactor (God Class Split)
 - [x] Split `server/storage.ts` into domain modules
