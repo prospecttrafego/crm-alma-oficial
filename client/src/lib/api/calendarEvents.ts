@@ -4,32 +4,21 @@
 
 import { api } from './index';
 import type { CalendarEvent } from '@shared/schema';
-import type { CreateCalendarEventDTO, UpdateCalendarEventDTO } from '@shared/types';
+import type {
+  CreateCalendarEventDTO,
+  UpdateCalendarEventDTO,
+  GoogleCalendarConfigured,
+  GoogleCalendarStatus,
+  GoogleCalendarAuth,
+  GoogleCalendarSyncResult,
+} from '@shared/types';
 
-export type GoogleCalendarConfigured = {
-  configured: boolean;
-};
-
-export type GoogleCalendarStatus = {
-  connected: boolean;
-  email: string | null;
-  lastSyncAt: string | null;
-  syncStatus: string | null;
-  syncError?: string | null;
-};
-
-export type GoogleCalendarAuth = {
-  authUrl: string;
-};
-
-export type GoogleCalendarSyncResult = {
-  imported?: number;
-  updated?: number;
-  deleted?: number;
-  message?: string;
-  jobId?: string | number;
-  status?: string;
-};
+export type {
+  GoogleCalendarConfigured,
+  GoogleCalendarStatus,
+  GoogleCalendarAuth,
+  GoogleCalendarSyncResult,
+} from '@shared/types';
 
 export const calendarEventsApi = {
   /**

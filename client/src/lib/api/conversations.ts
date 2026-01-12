@@ -3,36 +3,21 @@
  */
 
 import { api } from './index';
-import type { Conversation, Message, Contact, Deal, Company, User } from '@shared/schema';
+import type { Conversation, Message } from '@shared/schema';
 import type {
   CreateConversationDTO,
   UpdateConversationDTO,
   CreateMessageDTO,
+  ConversationWithRelations,
+  MessagesResponse,
 } from '@shared/types';
 
-// Extended types
-type SafeUser = Omit<User, "passwordHash">;
-
-export interface ContactWithCompany extends Contact {
-  company?: Company | null;
-}
-
-export interface ConversationWithRelations extends Conversation {
-  contact?: ContactWithCompany | null;
-  deal?: Deal | null;
-  company?: Company | null;
-  assignedTo?: SafeUser | null;
-}
-
-export interface MessageWithSender extends Message {
-  sender?: SafeUser | null;
-}
-
-export interface MessagesResponse {
-  messages: MessageWithSender[];
-  nextCursor: number | null;
-  hasMore: boolean;
-}
+export type {
+  ConversationWithRelations,
+  MessagesResponse,
+  ContactWithCompany,
+  MessageWithSender,
+} from '@shared/types';
 
 export const conversationsApi = {
   /**
