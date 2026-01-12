@@ -38,9 +38,25 @@ export function registerConversationRoutes(app: Express) {
     isAuthenticated,
     validateQuery(conversationsQuerySchema),
     asyncHandler(async (req: any, res) => {
+      const paginationOrFilterRequested =
+        req.query?.page !== undefined ||
+        req.query?.limit !== undefined ||
+        req.query?.search !== undefined ||
+        req.query?.sortBy !== undefined ||
+        req.query?.sortOrder !== undefined ||
+        req.query?.status !== undefined ||
+        req.query?.channel !== undefined ||
+        req.query?.assignedToId !== undefined;
+
       const org = await storage.getDefaultOrganization();
       if (!org) {
-        return sendSuccess(res, { data: [], pagination: { page: 1, limit: 20, total: 0, totalPages: 0, hasMore: false } });
+        if (!paginationOrFilterRequested) return sendSuccess(res, []);
+        const page = req.validatedQuery.page ?? 1;
+        const limit = req.validatedQuery.limit ?? 20;
+        return sendSuccess(res, {
+          data: [],
+          pagination: { page, limit, total: 0, totalPages: 0, hasMore: false },
+        });
       }
 
       // Helper function to enrich conversations
@@ -82,7 +98,7 @@ export function registerConversationRoutes(app: Express) {
       const { page, limit, search, status, channel, assignedToId } = req.validatedQuery;
 
       // Check if pagination is requested
-      if (page || limit || search || status || channel) {
+      if (paginationOrFilterRequested) {
         const result = await storage.getConversationsPaginated(org.id, {
           page,
           limit,

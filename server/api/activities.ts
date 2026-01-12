@@ -30,15 +30,31 @@ export function registerActivityRoutes(app: Express) {
     isAuthenticated,
     validateQuery(activitiesQuerySchema),
     asyncHandler(async (req: any, res) => {
+      const paginationOrFilterRequested =
+        req.query?.page !== undefined ||
+        req.query?.limit !== undefined ||
+        req.query?.search !== undefined ||
+        req.query?.sortBy !== undefined ||
+        req.query?.sortOrder !== undefined ||
+        req.query?.type !== undefined ||
+        req.query?.status !== undefined ||
+        req.query?.userId !== undefined;
+
       const org = await storage.getDefaultOrganization();
       if (!org) {
-        return sendSuccess(res, { data: [], pagination: { page: 1, limit: 20, total: 0, totalPages: 0, hasMore: false } });
+        if (!paginationOrFilterRequested) return sendSuccess(res, []);
+        const page = req.validatedQuery.page ?? 1;
+        const limit = req.validatedQuery.limit ?? 20;
+        return sendSuccess(res, {
+          data: [],
+          pagination: { page, limit, total: 0, totalPages: 0, hasMore: false },
+        });
       }
 
       const { page, limit, search, type, status, userId } = req.validatedQuery;
 
       // Check if pagination is requested
-      if (page || limit || search || type || status) {
+      if (paginationOrFilterRequested) {
         const result = await storage.getActivitiesPaginated(org.id, {
           page,
           limit,

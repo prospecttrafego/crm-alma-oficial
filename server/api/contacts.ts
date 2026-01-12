@@ -22,15 +22,28 @@ export function registerContactRoutes(app: Express) {
     isAuthenticated,
     validateQuery(paginationQuerySchema),
     asyncHandler(async (req: any, res) => {
+      const paginationRequested =
+        req.query?.page !== undefined ||
+        req.query?.limit !== undefined ||
+        req.query?.search !== undefined ||
+        req.query?.sortBy !== undefined ||
+        req.query?.sortOrder !== undefined;
+
       const org = await storage.getDefaultOrganization();
       if (!org) {
-        return sendSuccess(res, { data: [], pagination: { page: 1, limit: 20, total: 0, totalPages: 0, hasMore: false } });
+        if (!paginationRequested) return sendSuccess(res, []);
+        const page = req.validatedQuery.page ?? 1;
+        const limit = req.validatedQuery.limit ?? 20;
+        return sendSuccess(res, {
+          data: [],
+          pagination: { page, limit, total: 0, totalPages: 0, hasMore: false },
+        });
       }
 
       const { page, limit, search, sortBy, sortOrder } = req.validatedQuery;
 
       // Check if pagination is requested
-      if (page || limit || search) {
+      if (paginationRequested) {
         const result = await storage.getContactsPaginated(org.id, {
           page,
           limit,

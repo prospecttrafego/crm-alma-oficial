@@ -32,15 +32,31 @@ export function registerDealRoutes(app: Express) {
     isAuthenticated,
     validateQuery(dealsQuerySchema),
     asyncHandler(async (req: any, res) => {
+      const paginationOrFilterRequested =
+        req.query?.page !== undefined ||
+        req.query?.limit !== undefined ||
+        req.query?.search !== undefined ||
+        req.query?.sortBy !== undefined ||
+        req.query?.sortOrder !== undefined ||
+        req.query?.pipelineId !== undefined ||
+        req.query?.stageId !== undefined ||
+        req.query?.status !== undefined;
+
       const org = await storage.getDefaultOrganization();
       if (!org) {
-        return sendSuccess(res, { data: [], pagination: { page: 1, limit: 20, total: 0, totalPages: 0, hasMore: false } });
+        if (!paginationOrFilterRequested) return sendSuccess(res, []);
+        const page = req.validatedQuery.page ?? 1;
+        const limit = req.validatedQuery.limit ?? 20;
+        return sendSuccess(res, {
+          data: [],
+          pagination: { page, limit, total: 0, totalPages: 0, hasMore: false },
+        });
       }
 
       const { page, limit, search, sortBy, sortOrder, pipelineId, stageId, status } = req.validatedQuery;
 
       // Check if pagination/filtering is requested
-      if (page || limit || search || pipelineId || status) {
+      if (paginationOrFilterRequested) {
         const result = await storage.getDealsPaginated(org.id, {
           page,
           limit,
