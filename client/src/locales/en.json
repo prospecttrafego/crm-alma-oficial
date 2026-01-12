@@ -521,6 +521,10 @@
       "teamPerformance": "Team Performance",
       "teamPerformanceDesc": "Performance metrics by member",
       "teamDetails": "Team Details",
+      "topPerformers": "Top Performers",
+      "topPerformersDesc": "This month",
+      "conversionFunnel": "Conversion Funnel",
+      "conversionFunnelDesc": "Stage distribution",
       "activitySummary": "Activity Summary",
       "activitySummaryDesc": "Overview of recent activities",
       "activityBreakdown": "Activity Breakdown"

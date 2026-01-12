@@ -29,7 +29,7 @@ const actionColors: Record<AuditLogAction, string> = {
   create: "text-green-500",
   update: "text-blue-500",
   delete: "text-red-500",
-  lgpd_export: "text-purple-500",
+  lgpd_export: "text-primary",
   lgpd_delete: "text-orange-500",
 };
 

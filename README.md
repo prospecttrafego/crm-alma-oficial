@@ -54,6 +54,10 @@ Sistema de CRM (Customer Relationship Management) desenvolvido para a agencia di
 | Real-time | WebSocket (ws) | 8.18.0 |
 | AI | OpenAI | 6.10.0 |
 
+## Design System
+
+O guia definitivo do sistema visual (tokens de tema, padrões de componentes e regras de UI) fica em `DESIGN_SYSTEM.md`.
+
 ## Inicio Rapido
 
 ```bash

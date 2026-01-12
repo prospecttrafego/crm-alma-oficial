@@ -1,11 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import EmojiPicker, { Theme, EmojiClickData } from "emoji-picker-react";
-import { useQuery, useMutation, useInfiniteQuery } from "@tanstack/react-query";
-import { Virtuoso, VirtuosoHandle } from "react-virtuoso";
+import { useInfiniteQuery, useMutation, useQuery } from "@tanstack/react-query";
+import type { VirtuosoHandle } from "react-virtuoso";
+
 import { queryClient } from "@/lib/queryClient";
-import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useWebSocket } from "@/hooks/useWebSocket";
@@ -13,77 +10,22 @@ import { useTranslation } from "@/contexts/LanguageContext";
 import {
   conversationsApi,
   type ConversationWithRelations,
-  type ContactWithCompany,
   type MessagesResponse,
 } from "@/lib/api/conversations";
 import { filesApi } from "@/lib/api/files";
 import { emailTemplatesApi } from "@/lib/api/emailTemplates";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
-  Search,
-  Send,
-  MessageSquare,
-  User,
-  Building2,
-  AtSign,
-  FileText,
-  ChevronDown,
-  Image,
-  File as FileIcon,
-  Loader2,
-  X,
-  Smile,
-  Mic,
-  Plus,
-  Square,
-  Trash2,
-  ArrowLeft,
-  Check,
-  CheckCheck,
-  PanelRightClose,
-  PanelRightOpen,
-} from "lucide-react";
-import { FilterPanel, type InboxFilters } from "@/components/filter-panel";
-import { FileList } from "@/components/file-uploader";
-import { AudioRecordingPreview } from "@/components/audio-waveform";
 import { useNotificationSound } from "@/hooks/useNotificationSound";
-import type { Deal, User as UserType, EmailTemplate, Company } from "@shared/schema";
-
-function substituteVariables(
-  template: string,
-  context: {
-    contact?: ContactWithCompany | null;
-    deal?: Deal | null;
-    company?: Company | null;
-    user?: UserType | null;
-  }
-): string {
-  const { contact, deal, company, user } = context;
-  
-  return template
-    .replace(/\{\{contact\.firstName\}\}/g, contact?.firstName || "")
-    .replace(/\{\{contact\.lastName\}\}/g, contact?.lastName || "")
-    .replace(/\{\{contact\.email\}\}/g, contact?.email || "")
-    .replace(/\{\{contact\.phone\}\}/g, contact?.phone || "")
-    .replace(/\{\{contact\.jobTitle\}\}/g, contact?.jobTitle || "")
-    .replace(/\{\{deal\.title\}\}/g, deal?.title || "")
-    .replace(/\{\{deal\.value\}\}/g, deal?.value ? Number(deal.value).toLocaleString("pt-BR") : "")
-    .replace(/\{\{company\.name\}\}/g, company?.name || "")
-    .replace(/\{\{user\.firstName\}\}/g, user?.firstName || "")
-    .replace(/\{\{user\.lastName\}\}/g, user?.lastName || "");
-}
-
-interface PendingFile {
-  id: string;
-  file: globalThis.File;
-  uploadURL?: string;
-  status: "pending" | "uploading" | "uploaded" | "error";
-}
+import type { EmailTemplate } from "@shared/schema";
+import { ConversationListPanel } from "@/pages/inbox/components/ConversationListPanel";
+import { ContextPanel } from "@/pages/inbox/components/ContextPanel";
+import { EmptyState } from "@/pages/inbox/components/EmptyState";
+import { MessageComposer } from "@/pages/inbox/components/MessageComposer";
+import { MessageList } from "@/pages/inbox/components/MessageList";
+import { ThreadHeader } from "@/pages/inbox/components/ThreadHeader";
+import { TypingIndicator } from "@/pages/inbox/components/TypingIndicator";
+import type { PendingFile, TypingUser } from "@/pages/inbox/types";
+import { formatInboxTime, getChannelLabel, getStatusLabel, substituteVariables } from "@/pages/inbox/utils";
+import type { InboxFilters } from "@/components/filter-panel";
 
 export default function InboxPage() {
   const { toast } = useToast();
@@ -97,16 +39,13 @@ export default function InboxPage() {
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
   const [uploading, setUploading] = useState(false);
 
-  // Emoji Picker
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const emojiPickerRef = useRef<HTMLDivElement>(null);
-
   // Audio Recording
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
 
-  // Context panel collapse (desktop only)
+  // Collapsible panels (desktop / large screens)
+  const [listPanelCollapsed, setListPanelCollapsed] = useState(false);
   const [contextPanelCollapsed, setContextPanelCollapsed] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -228,23 +167,6 @@ export default function InboxPage() {
     queryFn: emailTemplatesApi.list,
   });
 
-  // Emoji picker handlers
-  const onEmojiClick = useCallback((emojiData: EmojiClickData) => {
-    setNewMessage((prev) => prev + emojiData.emoji);
-    setShowEmojiPicker(false);
-  }, []);
-
-  // Close emoji picker when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (emojiPickerRef.current && !emojiPickerRef.current.contains(event.target as Node)) {
-        setShowEmojiPicker(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
   // Audio recording handlers
   const startRecording = useCallback(async () => {
     try {
@@ -341,12 +263,6 @@ export default function InboxPage() {
       toast({ title: t("toast.error"), variant: "destructive" });
     }
   }, [audioBlob, selectedConversation, isInternalComment, t, toast, playMessageSent]);
-
-  const formatRecordingTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, "0")}`;
-  };
 
   const applyTemplate = (template: EmailTemplate) => {
     // Use top-level company from conversation (resolved from contact or deal)
@@ -448,12 +364,6 @@ export default function InboxPage() {
     setPendingFiles((prev) => prev.filter((f) => f.id !== fileId));
   };
 
-  const getFileIcon = (mimeType: string) => {
-    if (mimeType.startsWith("image/")) return <Image className="h-3 w-3" />;
-    if (mimeType.includes("pdf") || mimeType.includes("document")) return <FileText className="h-3 w-3" />;
-    return <FileIcon className="h-3 w-3" />;
-  };
-
   const filteredConversations = conversations?.filter((conv) => {
     if (filters.channel && conv.channel !== filters.channel) return false;
     if (filters.status && conv.status !== filters.status) return false;
@@ -526,590 +436,99 @@ export default function InboxPage() {
     });
   };
 
-  const getTranslatedValue = (key: string, fallback: string) => {
-    const translated = t(key);
-    return translated === key ? fallback : translated;
-  };
-
-  const getChannelLabel = (channel: string) => {
-    return getTranslatedValue(`inbox.channels.${channel}`, channel);
-  };
-
-  const getStatusLabel = (status: string) => {
-    return getTranslatedValue(`inbox.status.${status}`, status);
-  };
-
-  const formatTime = (date: Date | string | null) => {
-    if (!date) return "";
-    const d = new Date(date);
-    const now = new Date();
-    const diff = now.getTime() - d.getTime();
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-
-    if (days === 0) {
-      return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-    } else if (days === 1) {
-      return t("common.yesterday");
-    } else if (days < 7) {
-      return d.toLocaleDateString("pt-BR", { weekday: "short" });
-    }
-    return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
-  };
+  const formatTime = useCallback((date: Date | string | null) => formatInboxTime(t, date), [t]);
+  const channelLabel = useCallback((channel: string) => getChannelLabel(t, channel), [t]);
+  const statusLabel = useCallback((status: string) => getStatusLabel(t, status), [t]);
 
   return (
     <div className="flex h-full">
-      {/* Lista de conversas - esconde no mobile quando conversa selecionada */}
-      <div className={`flex flex-col border-r border-border bg-background w-full md:w-[350px] ${selectedConversation ? "hidden md:flex" : "flex"}`}>
-        {/* Header da lista */}
-        <div className="bg-muted/50 px-4 py-3">
-          <div className="mb-3 flex items-center justify-between gap-2">
-            <h2 className="text-base font-medium text-foreground" data-testid="text-inbox-title">{t("inbox.title")}</h2>
-            <FilterPanel
-              type="inbox"
-              filters={filters}
-              onFiltersChange={(f) => setFilters(f as InboxFilters)}
-            />
-          </div>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <input
-              type="text"
-              placeholder={t("common.search")}
-              className="h-9 w-full rounded-lg border border-border bg-muted pl-10 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-0"
-              style={{ boxShadow: 'none' }}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              data-testid="input-inbox-search"
-            />
-          </div>
-        </div>
-
-        <div className="flex-1 bg-background overflow-hidden">
-          {conversationsLoading ? (
-            <div className="space-y-0">
-              {[...Array(5)].map((_, i) => (
-                <div key={i} className="flex gap-3 border-b border-border px-3 py-3">
-                  <Skeleton className="h-12 w-12 rounded-full" />
-                  <div className="flex-1 space-y-2">
-                    <Skeleton className="h-4 w-32" />
-                    <Skeleton className="h-3 w-48" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : filteredConversations && filteredConversations.length > 0 ? (
-            <Virtuoso
-              style={{ height: "100%" }}
-              data={filteredConversations}
-              itemContent={(index, conversation) => (
-                <button
-                  key={conversation.id}
-                  onClick={() => setSelectedConversation(conversation)}
-                  className={`flex w-full items-start gap-3 border-b border-border px-3 py-3 text-left transition-colors hover:bg-muted/50 ${
-                    selectedConversation?.id === conversation.id
-                      ? "bg-muted"
-                      : ""
-                  }`}
-                  data-testid={`conversation-${conversation.id}`}
-                >
-                  <Avatar className="h-12 w-12 flex-shrink-0">
-                    <AvatarFallback className="bg-primary text-primary-foreground text-sm font-medium">
-                      {conversation.contact
-                        ? `${conversation.contact.firstName?.[0] || ""}${conversation.contact.lastName?.[0] || ""}`
-                        : "?"}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 overflow-hidden min-w-0">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="truncate text-[15px] font-normal text-foreground">
-                        {conversation.contact
-                          ? `${conversation.contact.firstName} ${conversation.contact.lastName}`
-                          : "Desconhecido"}
-                      </span>
-                      <span className={`flex-shrink-0 text-xs ${(conversation.unreadCount || 0) > 0 ? "text-primary" : "text-muted-foreground"}`}>
-                        {formatTime(conversation.lastMessageAt)}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between gap-2 mt-0.5">
-                      <p className="truncate text-[13px] text-muted-foreground">
-                        {conversation.subject || "Sem assunto"}
-                      </p>
-                      {(conversation.unreadCount || 0) > 0 && (
-                        <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-medium text-primary-foreground">
-                          {conversation.unreadCount}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </button>
-              )}
-            />
-          ) : (
-            <div className="flex h-40 items-center justify-center text-muted-foreground">
-              {t("inbox.noConversations")}
-            </div>
-          )}
-        </div>
+      <div
+        className={`flex w-full flex-col border-r border-border bg-background transition-all duration-200 md:w-[350px] ${
+          selectedConversation ? "hidden md:flex" : "flex"
+        } ${listPanelCollapsed ? "lg:w-12" : "lg:w-[350px]"}`}
+      >
+        <ConversationListPanel
+          collapsed={listPanelCollapsed}
+          conversationsLoading={conversationsLoading}
+          filteredConversations={filteredConversations || []}
+          onSelectConversation={setSelectedConversation}
+          selectedConversationId={selectedConversation?.id}
+          searchQuery={searchQuery}
+          onSearchQueryChange={setSearchQuery}
+          filters={filters}
+          onFiltersChange={setFilters}
+          formatTime={formatTime}
+          onExpandFromRail={() => setListPanelCollapsed(false)}
+        />
       </div>
 
       {selectedConversation ? (
         <>
-          {/* Area de chat - full width no mobile */}
           <div className="flex flex-1 flex-col bg-background">
-            {/* Header do chat */}
-            <div className="flex items-center justify-between bg-muted/50 px-4 py-2.5 border-b border-border">
-              <div className="flex items-center gap-3">
-                {/* Botão voltar - apenas mobile */}
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setSelectedConversation(null)}
-                  className="md:hidden h-10 w-10 text-muted-foreground hover:text-foreground"
-                  data-testid="button-back"
-                >
-                  <ArrowLeft className="h-5 w-5" />
-                </Button>
-                <Avatar className="h-10 w-10">
-                  <AvatarFallback className="bg-primary text-primary-foreground text-sm font-medium">
-                    {selectedConversation.contact
-                      ? `${selectedConversation.contact.firstName?.[0] || ""}${selectedConversation.contact.lastName?.[0] || ""}`
-                      : "?"}
-                  </AvatarFallback>
-                </Avatar>
-                <div>
-                  <h3 className="text-[15px] font-medium text-foreground">
-                    {selectedConversation.contact
-                      ? `${selectedConversation.contact.firstName} ${selectedConversation.contact.lastName}`
-                      : "Desconhecido"}
-                  </h3>
-                  <p className="text-xs text-muted-foreground">
-                    {selectedConversation.subject || "Clique para ver informações do contato"}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-4 text-muted-foreground">
-                <Search className="h-5 w-5 cursor-pointer hover:text-foreground" />
-              </div>
-            </div>
+            <ThreadHeader
+              conversation={selectedConversation}
+              onBack={() => setSelectedConversation(null)}
+              listPanelCollapsed={listPanelCollapsed}
+              onToggleListPanel={() => setListPanelCollapsed((prev) => !prev)}
+              contextPanelCollapsed={contextPanelCollapsed}
+              onToggleContextPanel={() => setContextPanelCollapsed((prev) => !prev)}
+            />
 
-            <div className="flex-1 px-[5%] py-4 bg-muted/30 overflow-hidden">
-              {messagesLoading ? (
-                <div className="space-y-4">
-                  {[...Array(3)].map((_, i) => (
-                    <div key={i} className={`flex ${i % 2 === 0 ? "" : "justify-end"}`}>
-                      <Skeleton className="h-16 w-64 rounded-lg" />
-                    </div>
-                  ))}
-                </div>
-              ) : messages && messages.length > 0 ? (
-                <Virtuoso
-                  ref={virtuosoRef}
-                  style={{ height: "100%" }}
-                  data={messages}
-                  firstItemIndex={firstItemIndex}
-                  initialTopMostItemIndex={messages.length - 1}
-                  followOutput="smooth"
-                  startReached={loadMoreMessages}
-                  components={{
-                    Header: () =>
-                      isFetchingNextPage ? (
-                        <div className="flex justify-center py-2">
-                          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                        </div>
-                      ) : hasNextPage ? (
-                        <div className="flex justify-center py-2">
-                          <span className="text-xs text-muted-foreground">
-                            Role para carregar mais mensagens
-                          </span>
-                        </div>
-                      ) : null,
-                  }}
-                  itemContent={(index, message) => (
-                    <div
-                      key={message.id}
-                      className={`flex mb-1 ${message.senderType === "user" ? "justify-end" : ""}`}
-                      data-testid={`message-${message.id}`}
-                    >
-                      <div
-                        className={`max-w-[65%] rounded-lg px-3 py-2 shadow-sm ${
-                          message.isInternal
-                            ? "border border-dashed border-yellow-500/50 bg-yellow-900/30"
-                            : message.senderType === "user"
-                            ? "bg-primary text-primary-foreground"
-                            : "bg-muted text-foreground"
-                        }`}
-                      >
-                        {message.isInternal && (
-                          <div className="mb-1 flex items-center gap-1 text-xs text-yellow-400">
-                            <AtSign className="h-3 w-3" />
-                            Nota interna
-                          </div>
-                        )}
-                        <p className="text-[14px] leading-[19px] whitespace-pre-wrap">{message.content}</p>
-                        <FileList entityType="message" entityId={message.id} inline />
-                        <div className="mt-1 flex items-center justify-end gap-1 text-[11px] text-muted-foreground">
-                          {formatTime(message.createdAt)}
-                          {/* Read receipt indicator for sent messages */}
-                          {message.senderType === "user" && (
-                            message.readBy && message.readBy.length > 0 ? (
-                              <CheckCheck className="h-3.5 w-3.5 text-blue-400" />
-                            ) : (
-                              <Check className="h-3.5 w-3.5" />
-                            )
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                />
-              ) : (
-                <div className="flex h-full items-center justify-center text-muted-foreground">
-                  {t("inbox.noMessages")}
-                </div>
-              )}
-            </div>
-
-            {/* Typing indicator */}
-            {currentTypingUsers.length > 0 && (
-              <div className="px-4 py-1 bg-muted/30 border-t border-border">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <div className="flex gap-1">
-                    <span className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
-                    <span className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
-                    <span className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
-                  </div>
-                  <span>
-                    {currentTypingUsers.length === 1
-                      ? `${currentTypingUsers[0].userName || "Alguém"} está digitando...`
-                      : `${currentTypingUsers.length} pessoas estão digitando...`}
-                  </span>
-                </div>
-              </div>
-            )}
-
-            {/* Area de input */}
-            <form onSubmit={handleSendMessage} className="bg-muted/50 px-4 py-3 border-t border-border">
-              {/* Recording UI */}
-              {isRecording && (
-                <div className="flex items-center gap-3 py-2">
-                  <div className="flex items-center gap-2 flex-1 bg-muted rounded-lg px-4 py-3">
-                    <div className="h-3 w-3 rounded-full bg-red-500 animate-pulse" />
-                    <span className="text-foreground font-mono text-lg">{formatRecordingTime(recordingTime)}</span>
-                    <div className="flex-1 flex items-center gap-1">
-                      {[...Array(20)].map((_, i) => (
-                        <div
-                          key={i}
-                          className="w-1 bg-primary rounded-full animate-pulse"
-                          style={{
-                            height: `${Math.random() * 20 + 8}px`,
-                            animationDelay: `${i * 0.05}s`,
-                          }}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                  <Button
-                    type="button"
-                    size="icon"
-                    onClick={cancelRecording}
-                    className="h-10 w-10 rounded-full bg-red-500/20 hover:bg-red-500/30 text-red-400"
-                    data-testid="button-cancel-recording"
-                  >
-                    <Trash2 className="h-5 w-5" />
-                  </Button>
-                  <Button
-                    type="button"
-                    size="icon"
-                    onClick={stopRecording}
-                    className="h-10 w-10 rounded-full bg-primary hover:bg-primary/90 text-primary-foreground"
-                    data-testid="button-stop-recording"
-                  >
-                    <Square className="h-5 w-5 fill-current" />
-                  </Button>
-                </div>
-              )}
-
-              {/* Audio Preview UI with Waveform */}
-              {!isRecording && audioBlob && (
-                <div className="py-2">
-                  <AudioRecordingPreview
-                    audioBlob={audioBlob}
-                    onSend={sendAudioMessage}
-                    onDiscard={cancelRecording}
-                    isSending={sendMessageMutation.isPending}
-                  />
-                </div>
-              )}
-
-              {/* Normal Input UI */}
-              {!isRecording && !audioBlob && (
-                <>
-              <div className="mb-2 flex items-center gap-2 flex-wrap">
-                <div className="flex gap-1">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setIsInternalComment(false)}
-                    className={`h-7 px-2 text-xs ${!isInternalComment ? "bg-primary text-primary-foreground hover:bg-primary/90" : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}
-                    data-testid="button-reply-mode"
-                  >
-                    Responder
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setIsInternalComment(true)}
-                    className={`h-7 px-2 text-xs ${isInternalComment ? "bg-yellow-600 text-white hover:bg-yellow-600/90" : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}
-                    data-testid="button-internal-mode"
-                  >
-                    <AtSign className="mr-1 h-3 w-3" />
-                    Nota
-                  </Button>
-                </div>
-                {emailTemplates && emailTemplates.length > 0 && (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground hover:bg-muted" data-testid="button-template-picker">
-                        <FileText className="mr-1 h-3 w-3" />
-                        {t("inbox.templates")}
-                        <ChevronDown className="ml-1 h-3 w-3" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-64">
-                      {emailTemplates.map((template) => (
-                        <DropdownMenuItem
-                          key={template.id}
-                          onClick={() => applyTemplate(template)}
-                          data-testid={`menu-template-${template.id}`}
-                        >
-                          <div className="flex flex-col">
-                            <span className="font-medium">{template.name}</span>
-                            <span className="text-xs text-muted-foreground truncate">
-                              {template.subject}
-                            </span>
-                          </div>
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                )}
-              </div>
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                onChange={handleFileSelect}
-                className="hidden"
-                data-testid="input-file-upload"
+            <div className="flex-1 overflow-hidden bg-muted/30 px-[5%] py-4">
+              <MessageList
+                ref={virtuosoRef}
+                messages={messages}
+                isLoading={messagesLoading}
+                firstItemIndex={firstItemIndex}
+                hasNextPage={!!hasNextPage}
+                isFetchingNextPage={!!isFetchingNextPage}
+                loadMoreMessages={loadMoreMessages}
+                formatTime={formatTime}
               />
-              {pendingFiles.length > 0 && (
-                <div className="mb-2 flex flex-wrap gap-2">
-                  {pendingFiles.map((pf) => (
-                    <div
-                      key={pf.id}
-                      className={`inline-flex items-center gap-1 rounded-md bg-muted px-2 py-1 text-xs text-foreground ${
-                        pf.status === "error" ? "border border-red-500 text-red-400" : ""
-                      }`}
-                      data-testid={`pending-file-${pf.id}`}
-                    >
-                      {getFileIcon(pf.file.type)}
-                      <span className="max-w-[120px] truncate">{pf.file.name}</span>
-                      <button
-                        type="button"
-                        onClick={() => removePendingFile(pf.id)}
-                        className="ml-1 rounded-full p-0.5 hover:bg-muted-foreground/20"
-                        data-testid={`button-remove-pending-${pf.id}`}
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-              <div className="flex items-end gap-2">
-                {/* Botão + para anexos */}
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={uploading}
-                  className="h-10 w-10 flex-shrink-0 text-muted-foreground hover:text-foreground hover:bg-transparent"
-                  data-testid="button-attach-file"
-                >
-                  {uploading ? (
-                    <Loader2 className="h-6 w-6 animate-spin" />
-                  ) : (
-                    <Plus className="h-6 w-6" />
-                  )}
-                </Button>
+            </div>
 
-                {/* Campo de input com emoji */}
-                <div className={`relative flex flex-1 items-center rounded-[8px] bg-muted pl-2 pr-3 py-[9px] ${isInternalComment ? "ring-1 ring-yellow-500/50" : ""}`}>
-                  {/* Emoji Picker Popup */}
-                  {showEmojiPicker && (
-                    <div ref={emojiPickerRef} className="absolute bottom-14 left-0 z-50">
-                      <EmojiPicker
-                        onEmojiClick={onEmojiClick}
-                        theme={Theme.DARK}
-                        width={320}
-                        height={400}
-                        searchPlaceHolder="Pesquisar emoji..."
-                        previewConfig={{ showPreview: false }}
-                      />
-                    </div>
-                  )}
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                    className="h-6 w-6 flex-shrink-0 text-muted-foreground hover:text-foreground hover:bg-transparent p-0"
-                    data-testid="button-emoji"
-                  >
-                    <Smile className="h-[26px] w-[26px]" />
-                  </Button>
-                  <input
-                    id="message-input"
-                    type="text"
-                    placeholder={
-                      isInternalComment
-                        ? t("common.notes")
-                        : t("inbox.typeMessage")
-                    }
-                    value={newMessage}
-                    onChange={(e) => {
-                      setNewMessage(e.target.value);
-                      handleTyping();
-                    }}
-                    className="flex-1 bg-transparent border-0 outline-none text-foreground placeholder:text-muted-foreground text-[15px] ml-2 focus:outline-none focus:ring-0 focus:border-0"
-                    style={{ boxShadow: 'none' }}
-                    data-testid="input-message"
-                  />
-                </div>
+            <TypingIndicator typingUsers={currentTypingUsers as TypingUser[]} />
 
-                {/* Botão de enviar ou microfone */}
-                {newMessage.trim() || pendingFiles.length > 0 ? (
-                  <Button
-                    type="submit"
-                    size="icon"
-                    disabled={sendMessageMutation.isPending || uploading}
-                    className="h-10 w-10 flex-shrink-0 rounded-full bg-primary hover:bg-primary/90 text-primary-foreground"
-                    data-testid="button-send-message"
-                  >
-                    <Send className="h-5 w-5" />
-                  </Button>
-                ) : (
-                  <Button
-                    type="button"
-                    size="icon"
-                    onClick={startRecording}
-                    className="h-10 w-10 flex-shrink-0 rounded-full bg-primary hover:bg-primary/90 text-primary-foreground"
-                    data-testid="button-mic"
-                  >
-                    <Mic className="h-5 w-5" />
-                  </Button>
-                )}
-              </div>
-              </>
-              )}
-            </form>
+            <MessageComposer
+              onSubmit={handleSendMessage}
+              isRecording={isRecording}
+              recordingTime={recordingTime}
+              audioBlob={audioBlob}
+              onCancelRecording={cancelRecording}
+              onStopRecording={stopRecording}
+              onSendAudioMessage={sendAudioMessage}
+              isSending={sendMessageMutation.isPending}
+              isInternalComment={isInternalComment}
+              setIsInternalComment={setIsInternalComment}
+              emailTemplates={emailTemplates}
+              onApplyTemplate={applyTemplate}
+              pendingFiles={pendingFiles}
+              uploading={uploading}
+              fileInputRef={fileInputRef}
+              onFileSelect={handleFileSelect}
+              onRemovePendingFile={removePendingFile}
+              newMessage={newMessage}
+              setNewMessage={setNewMessage}
+              onTyping={handleTyping}
+              onStartRecording={startRecording}
+            />
           </div>
 
-          {/* Painel de contexto - esconde no mobile, colapsável no desktop */}
-          <div className={`hidden lg:flex flex-col border-l border-border bg-background transition-all duration-200 ${contextPanelCollapsed ? 'w-12' : 'w-72'}`}>
-            {/* Header com botão de toggle */}
-            <div className={`flex items-center border-b border-border ${contextPanelCollapsed ? 'justify-center p-3' : 'justify-between p-4'}`}>
-              {!contextPanelCollapsed && (
-                <h4 className="text-sm font-medium text-foreground">Contexto</h4>
-              )}
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7"
-                onClick={() => setContextPanelCollapsed(!contextPanelCollapsed)}
-                title={contextPanelCollapsed ? "Expandir painel" : "Recolher painel"}
-              >
-                {contextPanelCollapsed ? (
-                  <PanelRightOpen className="h-4 w-4" />
-                ) : (
-                  <PanelRightClose className="h-4 w-4" />
-                )}
-              </Button>
-            </div>
-
-            {/* Conteúdo do painel - só mostra quando expandido */}
-            {!contextPanelCollapsed && (
-              <div className="flex-1 overflow-y-auto p-4">
-                {selectedConversation.contact && (
-                  <div className="mb-4 rounded-lg bg-muted p-3">
-                    <div className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
-                      <User className="h-4 w-4" />
-                      Contato
-                    </div>
-                    <p className="text-sm font-medium text-foreground">
-                      {selectedConversation.contact.firstName}{" "}
-                      {selectedConversation.contact.lastName}
-                    </p>
-                    {selectedConversation.contact.email && (
-                      <p className="text-xs text-muted-foreground">
-                        {selectedConversation.contact.email}
-                      </p>
-                    )}
-                    {selectedConversation.contact.phone && (
-                      <p className="text-xs text-muted-foreground">
-                        {selectedConversation.contact.phone}
-                      </p>
-                    )}
-                  </div>
-                )}
-
-                {selectedConversation.deal && (
-                  <div className="mb-4 rounded-lg bg-muted p-3">
-                    <div className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
-                      <Building2 className="h-4 w-4" />
-                      Negócio Relacionado
-                    </div>
-                    <p className="text-sm font-medium text-foreground">{selectedConversation.deal.title}</p>
-                    {selectedConversation.deal.value && (
-                      <p className="text-xs text-primary">
-                        R$ {Number(selectedConversation.deal.value).toLocaleString("pt-BR")}
-                      </p>
-                    )}
-                  </div>
-                )}
-
-                <div className="rounded-lg bg-muted p-3">
-                  <div className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
-                    <MessageSquare className="h-4 w-4" />
-                    Info da Conversa
-                  </div>
-                  <div className="space-y-1 text-xs">
-                    <p className="text-muted-foreground">
-                      Canal: <span className="text-foreground">{getChannelLabel(selectedConversation.channel)}</span>
-                    </p>
-                    <p className="text-muted-foreground">
-                      Status: <span className="inline-flex items-center rounded-full bg-primary/20 px-2 py-0.5 text-[10px] font-medium text-primary">{getStatusLabel(selectedConversation.status || "open")}</span>
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
+          <div
+            className={`hidden lg:flex flex-col border-l border-border bg-background transition-all duration-200 ${
+              contextPanelCollapsed ? "w-12" : "w-72"
+            }`}
+          >
+            <ContextPanel
+              conversation={selectedConversation}
+              collapsed={contextPanelCollapsed}
+              getChannelLabel={channelLabel}
+              getStatusLabel={statusLabel}
+            />
           </div>
         </>
       ) : (
-        /* Estado vazio - esconde no mobile (mostra só a lista) */
-        <div className="hidden md:flex flex-1 items-center justify-center bg-background">
-          <div className="text-center">
-            <MessageSquare className="mx-auto mb-4 h-16 w-16 text-muted-foreground/50" />
-            <p className="text-foreground text-lg">{t("inbox.noMessagesDescription")}</p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Use <kbd className="rounded bg-muted px-1.5 py-0.5 text-foreground">j</kbd>/<kbd className="rounded bg-muted px-1.5 py-0.5 text-foreground">k</kbd> para navegar
-            </p>
-          </div>
-        </div>
+        <EmptyState />
       )}
     </div>
   );

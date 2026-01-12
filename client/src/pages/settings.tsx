@@ -83,7 +83,14 @@ const createStageFormSchema = (t: Translator) =>
 type StageFormData = z.infer<ReturnType<typeof createStageFormSchema>>;
 
 const STAGE_COLORS = [
-  "#605be5", "#22c55e", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#06b6d4", "#14b8a6"
+  "#41B6E6", // Action Cyan
+  "#041E42", // Brand Navy
+  "#14B8A6", // Teal
+  "#22C55E", // Success
+  "#F59E0B", // Warning
+  "#EF4444", // Danger
+  "#0EA5E9", // Sky
+  "#64748B", // Slate
 ];
 
 function PipelineDialog({ 
@@ -118,11 +125,11 @@ function PipelineDialog({
   const createMutation = useMutation({
     mutationFn: async (data: PipelineFormData) => {
       const defaultStages = [
-        { name: t("settings.pipelines.defaultStages.lead"), order: 0, color: "#605be5", isWon: false, isLost: false },
-        { name: t("settings.pipelines.defaultStages.qualified"), order: 1, color: "#22c55e", isWon: false, isLost: false },
-        { name: t("settings.pipelines.defaultStages.proposal"), order: 2, color: "#f59e0b", isWon: false, isLost: false },
-        { name: t("settings.pipelines.defaultStages.won"), order: 3, color: "#22c55e", isWon: true, isLost: false },
-        { name: t("settings.pipelines.defaultStages.lost"), order: 4, color: "#ef4444", isWon: false, isLost: true },
+        { name: t("settings.pipelines.defaultStages.lead"), order: 0, color: "#41B6E6", isWon: false, isLost: false },
+        { name: t("settings.pipelines.defaultStages.qualified"), order: 1, color: "#22C55E", isWon: false, isLost: false },
+        { name: t("settings.pipelines.defaultStages.proposal"), order: 2, color: "#F59E0B", isWon: false, isLost: false },
+        { name: t("settings.pipelines.defaultStages.won"), order: 3, color: "#22C55E", isWon: true, isLost: false },
+        { name: t("settings.pipelines.defaultStages.lost"), order: 4, color: "#EF4444", isWon: false, isLost: true },
       ];
       await pipelinesApi.create({ ...data, stages: defaultStages });
     },
@@ -242,7 +249,7 @@ function StageDialog({
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: "",
-      color: "#605be5",
+      color: "#41B6E6",
       isWon: false,
       isLost: false,
     },
@@ -252,7 +259,7 @@ function StageDialog({
     if (open) {
       form.reset({
         name: stage?.name || "",
-        color: stage?.color || "#605be5",
+        color: stage?.color || "#41B6E6",
         isWon: stage?.isWon || false,
         isLost: stage?.isLost || false,
       });
@@ -629,7 +636,7 @@ function PipelineManagementSection() {
                             <GripVertical className="h-4 w-4 text-muted-foreground" />
                             <div
                               className="h-3 w-3 rounded-full"
-                              style={{ backgroundColor: stage.color || "#605be5" }}
+                              style={{ backgroundColor: stage.color || "hsl(var(--primary))" }}
                             />
                             <span className="text-sm font-medium">{stage.name}</span>
                             {stage.isWon && (

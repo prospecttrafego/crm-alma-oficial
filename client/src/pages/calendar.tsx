@@ -64,7 +64,7 @@ type ViewMode = "month" | "week" | "day";
 const eventTypeColors: Record<CalendarEventType, string> = {
   meeting: "bg-blue-500/20 text-blue-600 dark:text-blue-400 border-blue-500/30",
   call: "bg-green-500/20 text-green-600 dark:text-green-400 border-green-500/30",
-  task: "bg-purple-500/20 text-purple-600 dark:text-purple-400 border-purple-500/30",
+  task: "bg-primary/10 text-primary border-primary/20",
   reminder: "bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 border-yellow-500/30",
   other: "bg-gray-500/20 text-gray-600 dark:text-gray-400 border-gray-500/30",
 };

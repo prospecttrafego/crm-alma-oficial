@@ -36,6 +36,7 @@ Estrutura atual (nível alto):
   node_modules/
   .claude/
   .git/
+  DESIGN_SYSTEM.md   # Sistema de design (Frontend - tokens/padrões)
 ```
 
 ---
@@ -72,6 +73,8 @@ client/
 - O que é: as “páginas” do sistema (ex.: pipeline, inbox, contatos, settings).
 - Como usar: quando você quer criar uma nova tela principal, geralmente nasce aqui.
 - O que pode mudar: dividir páginas muito grandes, criar novas páginas, reorganizar navegação (mantendo rotas consistentes).
+- Observação: páginas grandes podem ter uma **subpasta** ao lado do arquivo principal para organizar componentes locais.
+  - Ex.: `client/src/pages/inbox/` e `client/src/pages/reports/` (componentes e utilitários específicos dessas páginas).
 
 #### `client/src/components/`
 - O que é: peças reutilizáveis das páginas (cards, listas, modais, componentes de feature).

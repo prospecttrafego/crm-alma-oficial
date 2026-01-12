@@ -181,6 +181,9 @@ CRM_Oficial/
 │       ├── lib/                 # Infra do frontend (query client, firebase, utils)
 │       ├── locales/             # Traducoes (pt-BR/en)
 │       └── pages/               # Paginas (dashboard, pipeline, inbox, settings…)
+│           ├── inbox/           # UI/partes do Inbox (3 painéis)
+│           ├── reports/         # UI/partes de Reports (dashboard executivo)
+│           └── ...
 ├── server/
 │   ├── index.ts                 # Entry point, inicia servidor
 │   ├── env.ts                   # Loader de .env (staging/prod) com fallback
@@ -243,6 +246,8 @@ CRM_Oficial/
 ├── components.json              # Configuracao shadcn/ui
 ├── .env.example
 ├── README.md
+├── DESIGN_SYSTEM.md             # Sistema de design (Frontend - fonte da verdade)
+├── ESTRUTURA_DE_PASTAS.md       # Documentacao: estrutura do repositorio
 └── CLAUDE.md                    # Este arquivo
 ```
 

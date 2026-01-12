@@ -338,7 +338,7 @@ export default function PipelinePage() {
               <div className="flex items-center gap-2">
                 <div
                   className="h-3 w-3 rounded-full"
-                  style={{ backgroundColor: stage.color || "#605be5" }}
+                  style={{ backgroundColor: stage.color || "hsl(var(--primary))" }}
                 />
                 <h3 className="font-semibold">{stage.name}</h3>
                 <Badge variant="secondary" className="text-xs">
