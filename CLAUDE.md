@@ -636,14 +636,17 @@ npm run lint:fix
 ### Banco de Dados
 
 ```bash
-# Aplicar schema no banco (criar/atualizar tabelas)
-npm run db:push
+# Aplicar migrations no banco (criar/atualizar tabelas)
+npm run db:migrate
+
+# (Somente dev/local) Sincronizar schema direto
+npm run db:push:dev
 
 # Ajustes pontuais (dados legados PT-BR)
 npm run db:migrate-ptbr
 
 # Gerar migracoes (se necessario)
-npx drizzle-kit generate
+npm run db:generate
 ```
 
 ### Producao
@@ -804,8 +807,8 @@ nano .env.production  # Editar com credenciais reais
 #### 3. Configurar Banco de Dados
 
 ```bash
-# Aplicar schema
-npm run db:push
+# Aplicar migrations
+npm run db:migrate
 
 # Verificar tabelas criadas
 # (conectar no banco e listar tabelas)
@@ -815,6 +818,12 @@ npm run db:push
 
 ```bash
 npm run build
+```
+
+#### 4.1 Aplicar migrations em producao
+
+```bash
+npm run db:migrate:prod
 ```
 
 #### 5. Configurar PM2

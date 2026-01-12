@@ -65,8 +65,11 @@ cp .env.example .env.staging
 cp .env.example .env.production
 # Editar os arquivos com suas credenciais
 
-# Aplicar schema no banco
-npm run db:push
+# Aplicar migrations no banco
+npm run db:migrate
+
+# (Somente dev/local) Sincronizar schema direto
+npm run db:push:dev
 
 # Desenvolvimento (usa .env.staging quando APP_ENV=staging)
 APP_ENV=staging npm run dev
@@ -185,7 +188,9 @@ npm run check     # Verifica tipos TypeScript
 npm run test      # Alias para verificacao de tipos
 npm run lint      # Lint (ESLint)
 npm run lint:fix  # Lint + autofix (opcional)
-npm run db:push   # Aplica schema no banco
+npm run db:migrate   # Aplica migrations no banco
+npm run db:push:dev  # Sincroniza schema direto (somente dev/local)
+npm run db:generate  # Gera novas migrations a partir do schema
 npm run db:migrate-ptbr # Ajustes pontuais (dados legados PT-BR)
 ```
 
@@ -218,19 +223,22 @@ npm install
 cp .env.example .env.production
 nano .env.production  # Preencher credenciais
 
-# 4. Aplicar schema no banco
-npm run db:push
+# 4. Aplicar migrations no banco
+npm run db:migrate
 
 # 5. Build de producao
 npm run build
 
-# 6. Instalar PM2 globalmente
+# 6. Aplicar migrations em producao
+npm run db:migrate:prod
+
+# 7. Instalar PM2 globalmente
 npm install -g pm2
 
-# 7. Iniciar aplicacao
+# 8. Iniciar aplicacao
 pm2 start dist/index.cjs --name "crm-alma"
 
-# 8. Configurar auto-start
+# 9. Configurar auto-start
 pm2 save
 pm2 startup
 ```

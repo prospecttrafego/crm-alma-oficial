@@ -12,6 +12,17 @@ import { logger } from "./logger";
 export { isAuthenticated, requireRole, rateLimitMiddleware } from "./auth";
 export { requestIdMiddleware, requestLoggingMiddleware } from "./logger";
 
+export const securityHeaders: RequestHandler = (_req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "SAMEORIGIN");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader("X-DNS-Prefetch-Control", "off");
+  if (process.env.NODE_ENV === "production") {
+    res.setHeader("Strict-Transport-Security", "max-age=15552000; includeSubDomains");
+  }
+  next();
+};
+
 /**
  * Validate request body against a Zod schema
  * Returns parsed data in req.validatedBody

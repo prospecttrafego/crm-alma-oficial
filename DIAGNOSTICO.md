@@ -208,10 +208,10 @@ Se você usa Supabase:
 O que fazer:
 - Crie um banco Postgres (pode ser Supabase, Neon, Railway, VPS, etc.).
 - Coloque a `DATABASE_URL` no `.env.staging`/`.env.production`.
-- Rode `npm run db:push` para criar as tabelas.
+- Rode `npm run db:migrate` para aplicar as migrations.
 
 Ponto importante (pode causar erro no deploy):
-- O schema usa `gen_random_uuid()` para gerar `users.id`. Em alguns Postgres você precisa habilitar a extensão **pgcrypto** (no Supabase normalmente já vem pronto). Se o `db:push` falhar citando `gen_random_uuid`, esse é o motivo.
+- O schema usa `gen_random_uuid()` para gerar `users.id`. Em alguns Postgres você precisa habilitar a extensão **pgcrypto** (no Supabase normalmente já vem pronto). Se o `db:migrate` falhar citando `gen_random_uuid`, esse é o motivo.
 
 ### 6.2 Sessões/Login — **obrigatório**
 Para manter o usuário logado, o sistema usa cookies e uma tabela `sessions` no Postgres.
@@ -221,7 +221,7 @@ O que você fornece:
 
 O que fazer:
 - Gere uma chave forte (ex.: `openssl rand -base64 32`) e coloque no `.env.staging`/`.env.production`.
-- Confirme que `npm run db:push` criou a tabela `sessions`.
+- Confirme que `npm run db:migrate` criou a tabela `sessions`.
 
 ### 6.3 Organização (modo “single-tenant”) — **obrigatório para o app funcionar**
 Este CRM está rodando em modo “uma empresa por instalação” (single-tenant).
