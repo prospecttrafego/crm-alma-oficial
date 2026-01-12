@@ -33,6 +33,7 @@ import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { enUS, ptBR } from "date-fns/locale";
 import type { SavedView, User, PipelineStage } from "@shared/schema";
+import type { CreateSavedViewDTO } from "@shared/types";
 import { useTranslation } from "@/contexts/LanguageContext";
 
 export interface PipelineFilters {
@@ -77,7 +78,7 @@ export function FilterPanel({ type, filters, onFiltersChange, stages }: FilterPa
   });
 
   const saveViewMutation = useMutation({
-    mutationFn: async (data: { name: string; type: string; filters: Record<string, unknown> }) => {
+    mutationFn: async (data: CreateSavedViewDTO) => {
       await savedViewsApi.create(data);
     },
     onSuccess: () => {

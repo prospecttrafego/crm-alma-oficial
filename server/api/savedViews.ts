@@ -13,7 +13,7 @@ import {
   validateQuery,
   asyncHandler,
 } from "../middleware";
-import { sendSuccess, sendNotFound, sendValidationError } from "../response";
+import { sendSuccess, sendNotFound } from "../response";
 import { storage } from "../storage";
 
 // Schema para query de saved views

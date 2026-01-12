@@ -169,9 +169,12 @@ export function AudioWaveform({
         throw new Error("Cannot transcribe blob without file ID");
       }
 
-      setTranscription(result.text);
+      const text = result.text ?? "";
+      setTranscription(text);
       setShowTranscription(true);
-      onTranscribed?.(result.text);
+      if (text) {
+        onTranscribed?.(text);
+      }
     } catch (error) {
       console.error("Transcription error:", error);
     } finally {

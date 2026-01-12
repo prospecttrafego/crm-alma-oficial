@@ -35,7 +35,7 @@ function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
   const { t } = useTranslation();
 
   // Inicializar WebSocket para usuarios autenticados com info de presenca
-  const { isConnected } = useWebSocket({
+  useWebSocket({
     userId: user?.id,
     userName: user ? `${user.firstName} ${user.lastName}` : undefined,
   });

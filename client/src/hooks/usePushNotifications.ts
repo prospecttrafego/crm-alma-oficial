@@ -11,7 +11,6 @@ import {
   isFirebaseConfigured,
   requestNotificationPermission,
   onForegroundMessage,
-  areNotificationsEnabled,
   getNotificationPermissionStatus,
 } from "@/lib/firebase";
 

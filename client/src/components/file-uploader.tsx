@@ -28,7 +28,7 @@ export function FileUploader({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
 
-  const { data: files, isLoading: filesLoading } = useQuery<FileRecord[]>({
+  const { data: files } = useQuery<FileRecord[]>({
     queryKey: ["/api/files", entityType, entityId],
     queryFn: () => filesApi.listByEntity(entityType, entityId),
     enabled: showExistingFiles && entityId > 0,

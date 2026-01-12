@@ -29,5 +29,5 @@ Status key: [ ] pending, [x] done, [~] in progress
 - [x] Preserve public storage interface and update imports
 
 ## Milestone 6: Validation and Sanity Checks
-- [ ] Run typecheck and lint
-- [ ] Fix regressions or unsafe assumptions discovered by refactor
+- [x] Run typecheck and lint
+- [x] Fix regressions or unsafe assumptions discovered by refactor

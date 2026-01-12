@@ -17,7 +17,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { AvatarUpload } from "@/components/avatar-upload";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -32,7 +31,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import {
   Form,
@@ -53,15 +51,17 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { User, Bell, Palette, Shield, LogOut, Mail, Plus, Pencil, Trash2, FileText, Copy, GitBranch, Star, GripVertical, MessageSquare, CheckCircle, XCircle, Loader2, BellRing, BellOff, Languages, Smartphone, Wifi, WifiOff, QrCode, Calendar, RefreshCw, Unplug, Link2 } from "lucide-react";
+import { User, Bell, Palette, Shield, LogOut, Mail, Plus, Pencil, Trash2, FileText, Copy, GitBranch, Star, GripVertical, MessageSquare, CheckCircle, Loader2, BellRing, BellOff, Languages, Wifi, WifiOff, QrCode, Calendar, RefreshCw, Unplug, Link2 } from "lucide-react";
 import { WhatsAppQRModal } from "@/components/whatsapp-qr-modal";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { useNotificationSound } from "@/hooks/useNotificationSound";
-import { useTranslation, languageLabels, languages, type Language } from "@/contexts/LanguageContext";
+import { useTranslation, languageLabels, languages } from "@/contexts/LanguageContext";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { EmailTemplate, PipelineStage, ChannelConfig } from "@shared/schema";
+import type { CreateChannelConfigDTO, UpdateChannelConfigDTO } from "@shared/types";
 import type { PipelineWithStages } from "@/lib/api/pipelines";
+import type { GoogleCalendarStatus } from "@/lib/api/calendarEvents";
 
 type Translator = (key: string, params?: Record<string, string | number>) => string;
 
@@ -848,7 +848,7 @@ function ChannelConfigDialog({
   }, [open, config, emailForm, whatsappForm]);
 
   const createMutation = useMutation({
-    mutationFn: async (data: { type: string; name: string; emailConfig?: Record<string, unknown>; whatsappConfig?: Record<string, unknown> }) => {
+    mutationFn: async (data: CreateChannelConfigDTO) => {
       await channelConfigsApi.create(data);
     },
     onSuccess: () => {
@@ -862,7 +862,7 @@ function ChannelConfigDialog({
   });
 
   const updateMutation = useMutation({
-    mutationFn: async (data: { name: string; emailConfig?: Record<string, unknown>; whatsappConfig?: Record<string, unknown> }) => {
+    mutationFn: async (data: UpdateChannelConfigDTO) => {
       if (!config?.id) {
         throw new Error(t("errors.generic"));
       }
@@ -879,7 +879,7 @@ function ChannelConfigDialog({
   });
 
   const onEmailSubmit = (data: EmailConfigFormData) => {
-    const emailConfig: Record<string, unknown> = {
+    const emailConfig: NonNullable<CreateChannelConfigDTO["emailConfig"]> = {
       imapHost: data.imapHost,
       imapPort: data.imapPort,
       imapSecure: data.imapSecure,
@@ -888,13 +888,9 @@ function ChannelConfigDialog({
       smtpSecure: data.smtpSecure,
       email: data.email,
       fromName: data.fromName,
+      password: data.password ?? "",
     };
-    if (data.password) {
-      emailConfig.password = data.password;
-    } else if (!isEditing) {
-      emailConfig.password = "";
-    }
-    const payload = {
+    const payload: CreateChannelConfigDTO = {
       type: "email",
       name: data.name,
       emailConfig,
@@ -907,7 +903,7 @@ function ChannelConfigDialog({
   };
 
   const onWhatsappSubmit = (data: WhatsappConfigFormData) => {
-    const payload = {
+    const payload: CreateChannelConfigDTO = {
       type: "whatsapp",
       name: data.name,
       whatsappConfig: {},
@@ -1236,7 +1232,7 @@ function IntegrationsSection() {
   const [testingId, setTestingId] = useState<number | null>(null);
 
   // Channel configs (Email & WhatsApp)
-  const { data: configs, isLoading } = useQuery<ChannelConfig[]>({
+  const { data: configs } = useQuery<ChannelConfig[]>({
     queryKey: ["/api/channel-configs"],
     queryFn: channelConfigsApi.list,
   });
@@ -1247,13 +1243,7 @@ function IntegrationsSection() {
     queryFn: calendarEventsApi.getGoogleCalendarConfigured,
   });
 
-  const { data: gcStatus, refetch: refetchGcStatus } = useQuery<{
-    connected: boolean;
-    email: string | null;
-    lastSyncAt: string | null;
-    syncStatus: string | null;
-    syncError: string | null;
-  }>({
+  const { data: gcStatus, refetch: refetchGcStatus } = useQuery<GoogleCalendarStatus>({
     queryKey: ["/api/integrations/google-calendar/status"],
     queryFn: calendarEventsApi.getGoogleCalendarStatus,
     enabled: gcConfigStatus?.configured,

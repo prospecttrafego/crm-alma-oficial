@@ -13,7 +13,7 @@ import {
 import { createSchemaFactory } from "drizzle-zod";
 import { z } from "zod";
 
-const { createInsertSchema, createUpdateSchema, createSelectSchema } = createSchemaFactory({
+const { createInsertSchema, createUpdateSchema } = createSchemaFactory({
   coerce: {
     date: true,
   },

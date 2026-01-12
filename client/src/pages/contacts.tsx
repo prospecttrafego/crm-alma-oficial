@@ -63,9 +63,6 @@ export default function ContactsPage() {
     enabled: !!selectedContact,
   });
 
-  // Tipo para criação de contato (usa companyName em vez de companyId)
-  type CreateContactData = Omit<Partial<Contact>, 'companyId'> & { companyName?: string };
-
   const handleCreateContact = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
@@ -184,10 +181,10 @@ export default function ContactsPage() {
                 </Button>
                 <Button
                   type="submit"
-                  disabled={createContactMutation.isPending}
+                  disabled={createContact.isPending}
                   data-testid="button-create-contact-submit"
                 >
-                  {createContactMutation.isPending ? t("common.saving") : t("common.create")}
+                  {createContact.isPending ? t("common.saving") : t("common.create")}
                 </Button>
               </DialogFooter>
             </form>

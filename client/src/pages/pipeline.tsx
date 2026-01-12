@@ -35,7 +35,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, DollarSign, User, Building2, GripVertical, ChevronDown } from "lucide-react";
+import { Plus, DollarSign, User, Building2, GripVertical } from "lucide-react";
 import { FilterPanel, type PipelineFilters } from "@/components/filter-panel";
 import { EntityHistory } from "@/components/entity-history";
 import { LeadScorePanel } from "@/components/LeadScorePanel";
@@ -69,7 +69,7 @@ export default function PipelinePage() {
     if (urlPipelineId && urlPipelineId !== selectedPipelineId) {
       setSelectedPipelineId(urlPipelineId);
     }
-  }, [urlPipelineId]);
+  }, [urlPipelineId, selectedPipelineId]);
 
   const { data: allPipelines } = useQuery<PipelineWithStages[]>({
     queryKey: ["/api/pipelines"],

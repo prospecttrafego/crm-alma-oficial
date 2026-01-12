@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { isAuthenticated } from "../auth";
 import { ObjectStorageService, ObjectNotFoundError, ObjectPermission } from "../integrations/supabase/storage";
 import { asyncHandler, getCurrentUser } from "../middleware";
-import { sendUnauthorized, sendNotFound, sendInternalError } from "../response";
+import { sendUnauthorized, sendNotFound } from "../response";
 
 export function registerObjectRoutes(app: Express) {
   // Serve object files

@@ -2,8 +2,6 @@ import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "@/contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -36,7 +34,6 @@ import {
   Clock,
   MapPin,
   Trash2,
-  Edit,
   Phone,
   Video,
   CheckSquare,
@@ -56,13 +53,11 @@ import {
   isSameMonth,
   isSameDay,
   isToday,
-  parseISO,
-  startOfDay,
-  endOfDay,
 } from "date-fns";
 import { enUS, ptBR } from "date-fns/locale";
 import type { Locale } from "date-fns";
 import type { CalendarEvent, Contact, Deal, CalendarEventType } from "@shared/schema";
+import type { CreateCalendarEventDTO } from "@shared/types";
 
 type ViewMode = "month" | "week" | "day";
 
@@ -91,7 +86,7 @@ function EventForm({
   t,
 }: {
   event?: CalendarEvent;
-  onSubmit: (data: Partial<CalendarEvent>) => void;
+  onSubmit: (data: CreateCalendarEventDTO) => void;
   onCancel: () => void;
   contacts: Contact[];
   deals: Deal[];
@@ -610,7 +605,7 @@ export default function CalendarPage() {
     setIsDialogOpen(true);
   };
 
-  const handleSubmit = (data: Partial<CalendarEvent>) => {
+  const handleSubmit = (data: CreateCalendarEventDTO) => {
     if (selectedEvent) {
       updateEvent.mutate(
         { id: selectedEvent.id, data },

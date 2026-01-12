@@ -3,7 +3,6 @@ import { z } from "zod";
 import {
   createPipelineSchema,
   updatePipelineSchema,
-  createPipelineStageSchema,
   updatePipelineStageSchema,
   createPipelineStageInlineSchema,
   idParamSchema,

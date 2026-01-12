@@ -37,7 +37,6 @@ import {
 
 export const createContactSchema = baseInsertContactSchema
   .omit({
-    id: true,
     organizationId: true,
     phoneNormalized: true,
     createdAt: true,
@@ -49,7 +48,6 @@ export const createContactSchema = baseInsertContactSchema
 
 export const updateContactSchema = baseUpdateContactSchema
   .omit({
-    id: true,
     organizationId: true,
     phoneNormalized: true,
     createdAt: true,
@@ -60,7 +58,6 @@ export const updateContactSchema = baseUpdateContactSchema
 
 export const createDealSchema = baseInsertDealSchema
   .omit({
-    id: true,
     organizationId: true,
     createdAt: true,
     updatedAt: true,
@@ -68,7 +65,6 @@ export const createDealSchema = baseInsertDealSchema
 
 export const updateDealSchema = baseUpdateDealSchema
   .omit({
-    id: true,
     organizationId: true,
     createdAt: true,
     updatedAt: true,
@@ -82,14 +78,12 @@ export const moveDealSchema = z.object({
 
 export const createPipelineStageInlineSchema = baseInsertPipelineStageSchema
   .omit({
-    id: true,
     pipelineId: true,
     createdAt: true,
   });
 
 export const createPipelineSchema = baseInsertPipelineSchema
   .omit({
-    id: true,
     organizationId: true,
     createdAt: true,
     updatedAt: true,
@@ -100,7 +94,6 @@ export const createPipelineSchema = baseInsertPipelineSchema
 
 export const updatePipelineSchema = baseUpdatePipelineSchema
   .omit({
-    id: true,
     organizationId: true,
     createdAt: true,
     updatedAt: true,
@@ -108,13 +101,11 @@ export const updatePipelineSchema = baseUpdatePipelineSchema
 
 export const createPipelineStageSchema = baseInsertPipelineStageSchema
   .omit({
-    id: true,
     createdAt: true,
   });
 
 export const updatePipelineStageSchema = baseUpdatePipelineStageSchema
   .omit({
-    id: true,
     pipelineId: true,
     createdAt: true,
   });
@@ -123,7 +114,6 @@ export const updatePipelineStageSchema = baseUpdatePipelineStageSchema
 
 export const createConversationSchema = baseInsertConversationSchema
   .omit({
-    id: true,
     organizationId: true,
     lastMessageAt: true,
     unreadCount: true,
@@ -133,7 +123,6 @@ export const createConversationSchema = baseInsertConversationSchema
 
 export const updateConversationSchema = baseUpdateConversationSchema
   .omit({
-    id: true,
     organizationId: true,
     lastMessageAt: true,
     unreadCount: true,
@@ -145,7 +134,6 @@ export const updateConversationSchema = baseUpdateConversationSchema
 
 export const createMessageSchema = baseInsertMessageSchema
   .omit({
-    id: true,
     conversationId: true,
     senderId: true,
     senderType: true,
@@ -158,7 +146,6 @@ export const createMessageSchema = baseInsertMessageSchema
 
 export const createActivitySchema = baseInsertActivitySchema
   .omit({
-    id: true,
     organizationId: true,
     createdAt: true,
     updatedAt: true,
@@ -166,7 +153,6 @@ export const createActivitySchema = baseInsertActivitySchema
 
 export const updateActivitySchema = baseUpdateActivitySchema
   .omit({
-    id: true,
     organizationId: true,
     createdAt: true,
     updatedAt: true,
@@ -176,7 +162,6 @@ export const updateActivitySchema = baseUpdateActivitySchema
 
 export const createEmailTemplateSchema = baseInsertEmailTemplateSchema
   .omit({
-    id: true,
     organizationId: true,
     createdBy: true,
     createdAt: true,
@@ -185,7 +170,6 @@ export const createEmailTemplateSchema = baseInsertEmailTemplateSchema
 
 export const updateEmailTemplateSchema = baseUpdateEmailTemplateSchema
   .omit({
-    id: true,
     organizationId: true,
     createdBy: true,
     createdAt: true,
@@ -196,7 +180,6 @@ export const updateEmailTemplateSchema = baseUpdateEmailTemplateSchema
 
 export const createSavedViewSchema = baseInsertSavedViewSchema
   .omit({
-    id: true,
     organizationId: true,
     userId: true,
     createdAt: true,
@@ -205,7 +188,6 @@ export const createSavedViewSchema = baseInsertSavedViewSchema
 
 export const updateSavedViewSchema = baseUpdateSavedViewSchema
   .omit({
-    id: true,
     organizationId: true,
     userId: true,
     createdAt: true,
@@ -216,7 +198,6 @@ export const updateSavedViewSchema = baseUpdateSavedViewSchema
 
 export const createCalendarEventSchema = baseInsertCalendarEventSchema
   .omit({
-    id: true,
     organizationId: true,
     userId: true,
     googleEventId: true,
@@ -229,7 +210,6 @@ export const createCalendarEventSchema = baseInsertCalendarEventSchema
 
 export const updateCalendarEventSchema = baseUpdateCalendarEventSchema
   .omit({
-    id: true,
     organizationId: true,
     userId: true,
     googleEventId: true,
@@ -244,7 +224,6 @@ export const updateCalendarEventSchema = baseUpdateCalendarEventSchema
 
 export const createChannelConfigSchema = baseInsertChannelConfigSchema
   .omit({
-    id: true,
     organizationId: true,
     createdBy: true,
     lastSyncAt: true,
@@ -254,7 +233,6 @@ export const createChannelConfigSchema = baseInsertChannelConfigSchema
 
 export const updateChannelConfigSchema = baseUpdateChannelConfigSchema
   .omit({
-    id: true,
     organizationId: true,
     createdBy: true,
     lastSyncAt: true,
@@ -283,7 +261,6 @@ export const updateUserProfileSchema = baseUpdateUserSchema
 
 const baseCreateFileSchema = baseInsertFileSchema
   .omit({
-    id: true,
     organizationId: true,
     uploadedBy: true,
     objectPath: true,
@@ -300,7 +277,6 @@ export const createFileSchema = baseCreateFileSchema.extend({
 
 export const createPushTokenSchema = baseInsertPushTokenSchema
   .omit({
-    id: true,
     userId: true,
     lastUsedAt: true,
     createdAt: true,

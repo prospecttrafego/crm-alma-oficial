@@ -3,7 +3,7 @@
  */
 
 import { api } from './index';
-import type { Conversation, Message } from '@shared/schema';
+import type { Conversation, Message, Contact, Deal, Company, User } from '@shared/schema';
 import type {
   CreateConversationDTO,
   UpdateConversationDTO,
@@ -11,35 +11,21 @@ import type {
 } from '@shared/types';
 
 // Extended types
+type SafeUser = Omit<User, "passwordHash">;
+
+export interface ContactWithCompany extends Contact {
+  company?: Company | null;
+}
+
 export interface ConversationWithRelations extends Conversation {
-  contact?: {
-    id: number;
-    firstName: string;
-    lastName?: string | null;
-    email?: string | null;
-    company?: {
-      id: number;
-      name: string;
-    } | null;
-  } | null;
-  deal?: {
-    id: number;
-    title: string;
-  } | null;
-  assignedTo?: {
-    id: string;
-    firstName: string;
-    lastName?: string | null;
-  } | null;
+  contact?: ContactWithCompany | null;
+  deal?: Deal | null;
+  company?: Company | null;
+  assignedTo?: SafeUser | null;
 }
 
 export interface MessageWithSender extends Message {
-  sender?: {
-    id: string;
-    firstName: string;
-    lastName?: string | null;
-    profileImageUrl?: string | null;
-  } | null;
+  sender?: SafeUser | null;
 }
 
 export interface MessagesResponse {

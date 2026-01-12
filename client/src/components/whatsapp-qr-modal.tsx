@@ -12,7 +12,6 @@ import { Loader2, CheckCircle2, XCircle, RefreshCw, Smartphone } from "lucide-re
 import { useTranslation } from "@/contexts/LanguageContext";
 import {
   channelConfigsApi,
-  type WhatsAppConnectResponse,
   type WhatsAppStatusResponse,
 } from "@/lib/api/channelConfigs";
 
@@ -24,7 +23,6 @@ interface WhatsAppQRModalProps {
 }
 
 type ConnectionStatus = WhatsAppStatusResponse;
-type ConnectResponse = WhatsAppConnectResponse;
 
 export function WhatsAppQRModal({
   open,

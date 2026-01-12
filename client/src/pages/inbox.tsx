@@ -4,16 +4,18 @@ import { useQuery, useMutation, useInfiniteQuery } from "@tanstack/react-query";
 import { Virtuoso, VirtuosoHandle } from "react-virtuoso";
 import { queryClient } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Textarea } from "@/components/ui/textarea";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { useTranslation } from "@/contexts/LanguageContext";
-import { conversationsApi } from "@/lib/api/conversations";
+import {
+  conversationsApi,
+  type ConversationWithRelations,
+  type ContactWithCompany,
+  type MessagesResponse,
+} from "@/lib/api/conversations";
 import { filesApi } from "@/lib/api/files";
 import { emailTemplatesApi } from "@/lib/api/emailTemplates";
 import {
@@ -26,15 +28,11 @@ import {
   Search,
   Send,
   MessageSquare,
-  Mail,
-  Phone,
   User,
   Building2,
-  Clock,
   AtSign,
   FileText,
   ChevronDown,
-  Paperclip,
   Image,
   File as FileIcon,
   Loader2,
@@ -52,21 +50,9 @@ import {
 } from "lucide-react";
 import { FilterPanel, type InboxFilters } from "@/components/filter-panel";
 import { FileList } from "@/components/file-uploader";
-import { AudioWaveform, AudioRecordingPreview } from "@/components/audio-waveform";
+import { AudioRecordingPreview } from "@/components/audio-waveform";
 import { useNotificationSound } from "@/hooks/useNotificationSound";
-import type { Conversation, Message, Contact, Deal, User as UserType, EmailTemplate, Company, File as FileRecord } from "@shared/schema";
-
-interface ContactWithCompany extends Contact {
-  company?: Company;
-}
-
-interface ConversationWithRelations extends Conversation {
-  contact?: ContactWithCompany;
-  deal?: Deal;
-  company?: Company;
-  messages?: Message[];
-  assignedTo?: UserType;
-}
+import type { Deal, User as UserType, EmailTemplate, Company } from "@shared/schema";
 
 function substituteVariables(
   template: string,
@@ -90,10 +76,6 @@ function substituteVariables(
     .replace(/\{\{company\.name\}\}/g, company?.name || "")
     .replace(/\{\{user\.firstName\}\}/g, user?.firstName || "")
     .replace(/\{\{user\.lastName\}\}/g, user?.lastName || "");
-}
-
-interface MessageWithSender extends Message {
-  sender?: UserType;
 }
 
 interface PendingFile {
@@ -182,11 +164,7 @@ export default function InboxPage() {
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
-  } = useInfiniteQuery<{
-    messages: MessageWithSender[];
-    nextCursor: number | null;
-    hasMore: boolean;
-  }>({
+  } = useInfiniteQuery<MessagesResponse>({
     queryKey: ["/api/conversations", selectedConversation?.id, "messages"],
     enabled: !!selectedConversation,
     initialPageParam: undefined,
@@ -194,7 +172,7 @@ export default function InboxPage() {
       if (!selectedConversation?.id) {
         return { messages: [], nextCursor: null, hasMore: false };
       }
-      return conversationsApi.listMessages(selectedConversation.id, pageParam, 30);
+      return conversationsApi.listMessages(selectedConversation.id, pageParam as number | undefined, 30);
     },
     getNextPageParam: (lastPage) =>
       lastPage.hasMore ? lastPage.nextCursor : undefined,
@@ -294,10 +272,10 @@ export default function InboxPage() {
       recordingIntervalRef.current = setInterval(() => {
         setRecordingTime((prev) => prev + 1);
       }, 1000);
-    } catch (error) {
+    } catch (_error) {
       toast({ title: t("toast.error"), description: t("errors.generic"), variant: "destructive" });
     }
-  }, [toast]);
+  }, [t, toast]);
 
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current && isRecording) {
@@ -359,10 +337,10 @@ export default function InboxPage() {
       setRecordingTime(0);
       playMessageSent();
       toast({ title: t("toast.saved") });
-    } catch (error) {
+    } catch (_error) {
       toast({ title: t("toast.error"), variant: "destructive" });
     }
-  }, [audioBlob, selectedConversation, isInternalComment, toast, playMessageSent]);
+  }, [audioBlob, selectedConversation, isInternalComment, t, toast, playMessageSent]);
 
   const formatRecordingTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -546,19 +524,6 @@ export default function InboxPage() {
       isInternal: isInternalComment,
       attachments: pendingFiles.filter((f) => f.status === "uploaded"),
     });
-  };
-
-  const getChannelIcon = (channel: string) => {
-    switch (channel) {
-      case "email":
-        return <Mail className="h-4 w-4" />;
-      case "whatsapp":
-        return <MessageSquare className="h-4 w-4" />;
-      case "phone":
-        return <Phone className="h-4 w-4" />;
-      default:
-        return <MessageSquare className="h-4 w-4" />;
-    }
   };
 
   const getTranslatedValue = (key: string, fallback: string) => {

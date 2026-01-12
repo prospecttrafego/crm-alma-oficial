@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { enUS, ptBR } from "date-fns/locale";
-import { Plus, Pencil, Trash2, User, Clock, Download, UserX } from "lucide-react";
+import { Plus, Pencil, Trash2, Clock, Download, UserX } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { AuditLog, AuditLogAction, AuditLogEntityType } from "@shared/schema";
