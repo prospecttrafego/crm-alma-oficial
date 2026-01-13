@@ -3,6 +3,7 @@
  */
 
 import type { ApiError } from '@shared/types';
+import type { ZodType } from "zod";
 
 /**
  * Custom error class for API request failures
@@ -58,7 +59,8 @@ export class ApiClient {
   async request<T>(
     method: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE',
     url: string,
-    data?: unknown
+    data?: unknown,
+    schema?: ZodType<T>
   ): Promise<T> {
     const response = await fetch(this.baseUrl + url, {
       method,
@@ -78,54 +80,77 @@ export class ApiClient {
 
     if (!response.ok) {
       throw new ApiRequestError(
-        json.error || {
+        json?.error || {
           code: 'UNKNOWN_ERROR',
-          message: json.message || 'Erro desconhecido',
+          message: json?.message || 'Erro desconhecido',
         },
         response.status
       );
     }
 
-    if (json && typeof json === 'object' && 'success' in json && 'data' in json) {
-      return json.data as T;
+    const payload =
+      json && typeof json === 'object' && 'success' in json && 'data' in json
+        ? (json as any).data
+        : json;
+
+    if (!schema) {
+      return payload as T;
     }
 
-    return json as T;
+    const parsed = schema.safeParse(payload);
+    if (!parsed.success) {
+      console.error('[ApiClient] Invalid response schema', {
+        url,
+        status: response.status,
+        issues: parsed.error.issues,
+        payload,
+      });
+      throw new ApiRequestError(
+        {
+          code: 'INVALID_RESPONSE',
+          message: 'Resposta inválida do servidor',
+          details: parsed.error.issues as unknown,
+        },
+        response.status
+      );
+    }
+
+    return parsed.data;
   }
 
   /**
    * GET request
    */
-  get<T>(url: string) {
-    return this.request<T>('GET', url);
+  get<T>(url: string, schema?: ZodType<T>) {
+    return this.request<T>('GET', url, undefined, schema);
   }
 
   /**
    * POST request
    */
-  post<T>(url: string, data: unknown) {
-    return this.request<T>('POST', url, data);
+  post<T>(url: string, data: unknown, schema?: ZodType<T>) {
+    return this.request<T>('POST', url, data, schema);
   }
 
   /**
    * PATCH request
    */
-  patch<T>(url: string, data: unknown) {
-    return this.request<T>('PATCH', url, data);
+  patch<T>(url: string, data: unknown, schema?: ZodType<T>) {
+    return this.request<T>('PATCH', url, data, schema);
   }
 
   /**
    * PUT request
    */
-  put<T>(url: string, data: unknown) {
-    return this.request<T>('PUT', url, data);
+  put<T>(url: string, data: unknown, schema?: ZodType<T>) {
+    return this.request<T>('PUT', url, data, schema);
   }
 
   /**
    * DELETE request
    */
-  delete<T>(url: string, data?: unknown) {
-    return this.request<T>('DELETE', url, data);
+  delete<T>(url: string, data?: unknown, schema?: ZodType<T>) {
+    return this.request<T>('DELETE', url, data, schema);
   }
 }
 

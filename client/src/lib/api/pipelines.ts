@@ -3,45 +3,43 @@
  */
 
 import { api } from './index';
-import type { Pipeline, PipelineStage } from '@shared/schema';
+import { pipelineWithStagesSchema, pipelineStageSchema } from "@shared/apiSchemas";
+import type { PipelineStage } from '@shared/schema';
 import type {
   CreatePipelineDTO,
   UpdatePipelineDTO,
   CreatePipelineStageDTO,
   UpdatePipelineStageDTO,
 } from '@shared/types';
-
-// Extended type for pipeline with stages
-export interface PipelineWithStages extends Pipeline {
-  stages: PipelineStage[];
-}
+import type { PipelineWithStages } from "@shared/types";
+import { z } from "zod";
 
 export const pipelinesApi = {
   /**
    * List all pipelines
    */
-  list: () => api.get<PipelineWithStages[]>('/api/pipelines'),
+  list: () => api.get<PipelineWithStages[]>('/api/pipelines', z.array(pipelineWithStagesSchema)),
 
   /**
    * Get a single pipeline by ID (includes stages)
    */
-  get: (id: number) => api.get<PipelineWithStages>(`/api/pipelines/${id}`),
+  get: (id: number) => api.get<PipelineWithStages>(`/api/pipelines/${id}`, pipelineWithStagesSchema),
 
   /**
    * Get the default pipeline
    */
-  getDefault: () => api.get<PipelineWithStages>('/api/pipelines/default'),
+  getDefault: () => api.get<PipelineWithStages>('/api/pipelines/default', pipelineWithStagesSchema),
 
   /**
    * Create a new pipeline (can include inline stages)
    */
-  create: (data: CreatePipelineDTO) => api.post<Pipeline>('/api/pipelines', data),
+  create: (data: CreatePipelineDTO) => api.post<PipelineWithStages>('/api/pipelines', data, pipelineWithStagesSchema),
 
   /**
    * Update an existing pipeline
    */
   update: (id: number, data: UpdatePipelineDTO) =>
-    api.patch<Pipeline>(`/api/pipelines/${id}`, data),
+    api.patch<PipelineWithStages>(`/api/pipelines/${id}`, data, pipelineWithStagesSchema),
 
   /**
    * Delete a pipeline
@@ -52,7 +50,7 @@ export const pipelinesApi = {
    * Set a pipeline as default
    */
   setDefault: (id: number) =>
-    api.post<Pipeline>(`/api/pipelines/${id}/set-default`, {}),
+    api.post<PipelineWithStages>(`/api/pipelines/${id}/set-default`, {}, pipelineWithStagesSchema),
 
   // ===== STAGES =====
 
@@ -60,13 +58,13 @@ export const pipelinesApi = {
    * Create a new stage in a pipeline
    */
   createStage: (pipelineId: number, data: Omit<CreatePipelineStageDTO, 'pipelineId'>) =>
-    api.post<PipelineStage>(`/api/pipelines/${pipelineId}/stages`, data),
+    api.post<PipelineStage>(`/api/pipelines/${pipelineId}/stages`, data, pipelineStageSchema),
 
   /**
    * Update a stage
    */
   updateStage: (pipelineId: number, stageId: number, data: UpdatePipelineStageDTO) =>
-    api.patch<PipelineStage>(`/api/pipelines/${pipelineId}/stages/${stageId}`, data),
+    api.patch<PipelineStage>(`/api/pipelines/${pipelineId}/stages/${stageId}`, data, pipelineStageSchema),
 
   /**
    * Delete a stage

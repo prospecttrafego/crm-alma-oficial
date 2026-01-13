@@ -161,6 +161,10 @@ function redactChannelConfigSecrets(config: any) {
       whatsappConfig.hasAccessToken = true;
       delete whatsappConfig.accessToken;
     }
+    if (whatsappConfig.webhookVerifyToken) {
+      whatsappConfig.hasWebhookVerifyToken = true;
+      delete whatsappConfig.webhookVerifyToken;
+    }
     redacted.whatsappConfig = whatsappConfig;
   }
   return redacted;
@@ -332,11 +336,15 @@ export function registerChannelConfigRoutes(app: Express) {
 
         const job = await enqueueJob(JobTypes.SYNC_EMAIL, payload);
 
-        return res.status(202).json({
-          message: "Email sync queued",
-          jobId: job.id,
-          status: job.status,
-        });
+        return sendSuccess(
+          res,
+          {
+            message: "Email sync queued",
+            jobId: job.id,
+            status: job.status,
+          },
+          202
+        );
       }
 
       // Sync mode: sync immediately
@@ -363,7 +371,6 @@ export function registerChannelConfigRoutes(app: Express) {
       });
 
       sendSuccess(res, {
-        success: true,
         newEmails: result.newEmails,
         totalProcessed: result.totalProcessed,
         errors: result.errors,

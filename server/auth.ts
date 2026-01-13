@@ -20,7 +20,7 @@ import {
   resetLoginRateLimit as resetLoginRateLimitRedis,
 } from "./redis";
 import { logger } from "./logger";
-import { sendSuccess, sendError, ErrorCodes } from "./response";
+import { sendSuccess, sendError, sendForbidden, sendUnauthorized, ErrorCodes } from "./response";
 
 const BCRYPT_ROUNDS = 12;
 
@@ -151,10 +151,15 @@ export const rateLimitMiddleware: RequestHandler = async (req, res, next) => {
   res.setHeader("X-RateLimit-Reset", result.reset);
 
   if (!result.success) {
-    return res.status(429).json({
-      message: "Muitas requisicoes. Tente novamente em alguns segundos.",
-      retryAfter: Math.ceil((result.reset - Date.now()) / 1000),
-    });
+    const retryAfter = Math.max(1, Math.ceil((result.reset - Date.now()) / 1000));
+    res.setHeader("Retry-After", String(retryAfter));
+    return sendError(
+      res,
+      ErrorCodes.RATE_LIMITED,
+      "Muitas requisicoes. Tente novamente em alguns segundos.",
+      429,
+      { retryAfter }
+    );
   }
 
   next();
@@ -597,7 +602,7 @@ export async function setupAuth(app: Express) {
  */
 export const isAuthenticated: RequestHandler = (req, res, next) => {
   if (!req.isAuthenticated() || !req.user) {
-    return res.status(401).json({ message: "Nao autorizado" });
+    return sendUnauthorized(res, "Nao autorizado");
   }
   next();
 };
@@ -608,12 +613,12 @@ export const isAuthenticated: RequestHandler = (req, res, next) => {
 export function requireRole(...roles: string[]): RequestHandler {
   return (req, res, next) => {
     if (!req.isAuthenticated() || !req.user) {
-      return res.status(401).json({ message: "Nao autorizado" });
+      return sendUnauthorized(res, "Nao autorizado");
     }
 
     const user = req.user as any;
     if (!roles.includes(user.role)) {
-      return res.status(403).json({ message: "Acesso negado" });
+      return sendForbidden(res, "Acesso negado");
     }
     next();
   };

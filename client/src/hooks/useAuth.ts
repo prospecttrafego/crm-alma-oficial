@@ -3,12 +3,12 @@
  * Verifica se o usuario esta autenticado e retorna seus dados
  */
 import { useQuery } from "@tanstack/react-query";
-import type { User } from "@shared/schema";
+import type { SafeUser } from "@shared/types";
 import { ApiRequestError } from "@/lib/api";
 import { usersApi } from "@/lib/api/users";
 
 export function useAuth() {
-  const { data: user, isLoading, error } = useQuery<User | null>({
+  const { data: user, isLoading, error } = useQuery<SafeUser | null>({
     queryKey: ["/api/auth/me"],
     queryFn: async () => {
       try {

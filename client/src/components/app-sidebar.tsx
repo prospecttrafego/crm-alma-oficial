@@ -41,7 +41,7 @@ import { queryClient } from "@/lib/queryClient";
 import { authApi } from "@/lib/api/auth";
 import { pipelinesApi } from "@/lib/api/pipelines";
 import { useQuery } from "@tanstack/react-query";
-import type { Pipeline } from "@shared/schema";
+import type { PipelineWithStages } from "@shared/types";
 
 export function AppSidebar() {
   const [location] = useLocation();
@@ -51,7 +51,7 @@ export function AppSidebar() {
   const isCollapsed = state === "collapsed";
 
   // Fetch pipelines for submenu
-  const { data: pipelines = [] } = useQuery<Pipeline[]>({
+  const { data: pipelines = [] } = useQuery<PipelineWithStages[]>({
     queryKey: ["/api/pipelines"],
     enabled: !!user,
     queryFn: pipelinesApi.list,

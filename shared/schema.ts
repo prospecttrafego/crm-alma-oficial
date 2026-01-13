@@ -13,7 +13,7 @@ import {
 import { createSchemaFactory } from "drizzle-zod";
 import { z } from "zod";
 
-const { createInsertSchema, createUpdateSchema } = createSchemaFactory({
+const { createSelectSchema, createInsertSchema, createUpdateSchema } = createSchemaFactory({
   coerce: {
     date: true,
   },
@@ -837,6 +837,48 @@ export const updateChannelConfigSchema = createUpdateSchema(channelConfigs)
 export const updatePushTokenSchema = createUpdateSchema(pushTokens);
 export const updateGoogleOAuthTokenSchema = createUpdateSchema(googleOAuthTokens)
   .extend({ syncStatus: z.enum(googleCalendarSyncStatuses).optional() });
+
+// Select schemas (useful for validating API responses)
+export const selectSessionSchema = createSelectSchema(sessions);
+export const selectUserSchema = createSelectSchema(users)
+  .extend({ role: z.enum(userRoles).nullable() });
+export const selectPasswordResetTokenSchema = createSelectSchema(passwordResetTokens);
+export const selectOrganizationSchema = createSelectSchema(organizations);
+export const selectCompanySchema = createSelectSchema(companies);
+export const selectContactSchema = createSelectSchema(contacts);
+export const selectPipelineSchema = createSelectSchema(pipelines);
+export const selectPipelineStageSchema = createSelectSchema(pipelineStages);
+export const selectDealSchema = createSelectSchema(deals);
+export const selectConversationSchema = createSelectSchema(conversations)
+  .extend({ channel: z.enum(channelTypes), status: z.enum(conversationStatuses).nullable() });
+export const selectMessageSchema = createSelectSchema(messages)
+  .extend({ contentType: z.enum(messageContentTypes).nullable() });
+export const selectActivitySchema = createSelectSchema(activities)
+  .extend({ type: z.enum(activityTypes), status: z.enum(activityStatuses).nullable() });
+export const selectNotificationSchema = createSelectSchema(notifications)
+  .extend({ type: z.enum(notificationTypes) });
+export const selectSavedViewSchema = createSelectSchema(savedViews)
+  .extend({ type: z.enum(savedViewTypes) });
+export const selectEmailTemplateSchema = createSelectSchema(emailTemplates);
+export const selectAuditLogSchema = createSelectSchema(auditLogs)
+  .extend({
+    action: z.enum(auditLogActions),
+    entityType: z.enum(auditLogEntityTypes),
+  });
+export const selectFileSchema = createSelectSchema(files)
+  .extend({ entityType: z.enum(fileEntityTypes) });
+export const selectLeadScoreSchema = createSelectSchema(leadScores)
+  .extend({ entityType: z.enum(leadScoreEntityTypes) });
+export const selectCalendarEventSchema = createSelectSchema(calendarEvents)
+  .extend({
+    type: z.enum(calendarEventTypes).nullable(),
+    syncSource: z.enum(calendarSyncSources).nullable(),
+  });
+export const selectChannelConfigSchema = createSelectSchema(channelConfigs)
+  .extend({ type: z.enum(channelConfigTypes) });
+export const selectPushTokenSchema = createSelectSchema(pushTokens);
+export const selectGoogleOAuthTokenSchema = createSelectSchema(googleOAuthTokens)
+  .extend({ syncStatus: z.enum(googleCalendarSyncStatuses).nullable() });
 
 // Types - usamos z.infer para schemas com enum estendidos e $inferSelect para select types
 export type UpsertUser = typeof users.$inferInsert;

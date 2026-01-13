@@ -20,24 +20,15 @@ import type { Deal, Activity } from "@shared/schema";
 import { api } from "@/lib/api";
 import { dealsApi } from "@/lib/api/deals";
 import { activitiesApi } from "@/lib/api/activities";
-
-interface DashboardStats {
-  totalDeals: number;
-  openDeals: number;
-  totalValue: number;
-  openConversations: number;
-  newContacts: number;
-  pendingActivities: number;
-  wonDeals: number;
-  lostDeals: number;
-}
+import { dashboardStatsSchema } from "@shared/apiSchemas";
+import type { DashboardStats } from "@shared/types";
 
 export default function Dashboard() {
   const { t } = useTranslation();
 
   const { data: stats, isLoading: statsLoading } = useQuery<DashboardStats>({
     queryKey: ["/api/dashboard/stats"],
-    queryFn: () => api.get<DashboardStats>("/api/dashboard/stats"),
+    queryFn: () => api.get<DashboardStats>("/api/dashboard/stats", dashboardStatsSchema),
   });
 
   const { data: recentDeals, isLoading: dealsLoading } = useQuery<Deal[]>({

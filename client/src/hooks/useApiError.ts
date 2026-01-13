@@ -10,14 +10,26 @@ export function useApiError() {
   const { toast } = useToast();
   const { t } = useTranslation();
 
+  const isValidationErrorItem = (value: unknown): value is { path: string | string[]; message: string } => {
+    if (!value || typeof value !== "object") return false;
+    const v = value as { path?: unknown; message?: unknown };
+    const pathOk =
+      typeof v.path === "string" ||
+      (Array.isArray(v.path) && v.path.every((p) => typeof p === "string"));
+    return pathOk && typeof v.message === "string";
+  };
+
   /**
    * Handle API errors with appropriate toast messages
    */
   const handleError = (error: unknown) => {
     if (error instanceof ApiRequestError) {
-      if (error.isValidationError() && error.details && error.details.length > 0) {
+      const details = error.details;
+      const validationErrors = Array.isArray(details) ? details.filter(isValidationErrorItem) : [];
+
+      if (error.isValidationError() && validationErrors.length > 0) {
         // Show first validation error with field path
-        const firstError = error.details[0];
+        const firstError = validationErrors[0];
         const path = Array.isArray(firstError.path)
           ? firstError.path.join('.')
           : firstError.path;

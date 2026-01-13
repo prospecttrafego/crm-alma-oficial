@@ -39,16 +39,13 @@ import { Plus, DollarSign, User, Building2, GripVertical } from "lucide-react";
 import { FilterPanel, type PipelineFilters } from "@/components/filter-panel";
 import { EntityHistory } from "@/components/entity-history";
 import { LeadScorePanel } from "@/components/LeadScorePanel";
-import type { Deal, PipelineStage, Pipeline, Contact, Company } from "@shared/schema";
+import type { Deal, PipelineStage, Contact, Company } from "@shared/schema";
+import type { PipelineWithStages } from "@shared/types";
 
 interface DealWithRelations extends Deal {
   contact?: Contact;
   company?: Company;
   stage?: PipelineStage;
-}
-
-interface PipelineWithStages extends Pipeline {
-  stages: PipelineStage[];
 }
 
 export default function PipelinePage() {

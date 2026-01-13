@@ -4,13 +4,12 @@ import { enUS, ptBR } from "date-fns/locale";
 import { Plus, Pencil, Trash2, Clock, Download, UserX } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { AuditLog, AuditLogAction, AuditLogEntityType } from "@shared/schema";
+import type { AuditLogAction, AuditLogEntityType } from "@shared/schema";
 import { useTranslation } from "@/contexts/LanguageContext";
 import { api } from "@/lib/api";
-
-type EnrichedAuditLog = AuditLog & {
-  user: { id: string; firstName: string | null; lastName: string | null } | null;
-};
+import { enrichedAuditLogSchema } from "@shared/apiSchemas";
+import type { EnrichedAuditLog } from "@shared/types";
+import { z } from "zod";
 
 interface EntityHistoryProps {
   entityType: AuditLogEntityType;
@@ -36,7 +35,11 @@ const actionColors: Record<AuditLogAction, string> = {
 export function EntityHistory({ entityType, entityId }: EntityHistoryProps) {
   const { data: logs, isLoading } = useQuery<EnrichedAuditLog[]>({
     queryKey: ["/api/audit-logs/entity", entityType, entityId],
-    queryFn: () => api.get<EnrichedAuditLog[]>(`/api/audit-logs/entity/${entityType}/${entityId}`),
+    queryFn: () =>
+      api.get<EnrichedAuditLog[]>(
+        `/api/audit-logs/entity/${entityType}/${entityId}`,
+        z.array(enrichedAuditLogSchema)
+      ),
   });
   const { t, language } = useTranslation();
   const locale = language === "pt-BR" ? ptBR : enUS;

@@ -1,54 +1,28 @@
 /**
  * Response payload types shared between backend and frontend.
- * These represent API response shapes that are not directly derived from insert/update DTOs.
+ *
+ * Canonical definitions live in `shared/apiSchemas.ts` as Zod schemas, which
+ * also guarantees runtime validation can be enforced at the API boundary.
  */
 
-import type { Company, Contact, Conversation, Deal, Message, User } from "../schema";
-
-export type SafeUser = Omit<User, "passwordHash">;
-
-export type ContactWithCompany = Contact & {
-  company?: Company | null;
-};
-
-export type ConversationWithRelations = Conversation & {
-  contact?: ContactWithCompany | null;
-  deal?: Deal | null;
-  company?: Company | null;
-  assignedTo?: SafeUser | null;
-};
-
-export type MessageWithSender = Message & {
-  sender?: SafeUser | null;
-};
-
-export type MessagesResponse = {
-  messages: MessageWithSender[];
-  nextCursor: number | null;
-  hasMore: boolean;
-};
-
-export type GoogleCalendarConfigured = {
-  configured: boolean;
-};
-
-export type GoogleCalendarStatus = {
-  connected: boolean;
-  email: string | null;
-  lastSyncAt: string | null;
-  syncStatus: string | null;
-  syncError?: string | null;
-};
-
-export type GoogleCalendarAuth = {
-  authUrl: string;
-};
-
-export type GoogleCalendarSyncResult = {
-  imported?: number;
-  updated?: number;
-  deleted?: number;
-  message?: string;
-  jobId?: string | number;
-  status?: string;
-};
+export type {
+  SafeUser,
+  ContactWithCompany,
+  ConversationWithRelations,
+  MessageWithSender,
+  MessagesResponse,
+  GoogleCalendarConfigured,
+  GoogleCalendarStatus,
+  GoogleCalendarAuth,
+  GoogleCalendarSyncResult,
+  DashboardStats,
+  ReportData,
+  ChannelConfigPublic,
+  PipelineWithStages,
+  TranscriptionResult,
+  ChannelConfigTestResult,
+  WhatsAppConnectResponse,
+  WhatsAppStatusResponse,
+  SuccessMessage,
+  EnrichedAuditLog,
+} from "../apiSchemas";

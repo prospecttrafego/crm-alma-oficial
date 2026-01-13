@@ -3,14 +3,16 @@
  */
 
 import { api } from "./index";
-import type { User } from "@shared/schema";
+import { safeUserSchema } from "@shared/apiSchemas";
+import type { SafeUser } from "@shared/types";
 import type { UpdateUserProfileDTO } from "@shared/types";
+import { z } from "zod";
 
 export const usersApi = {
-  me: () => api.get<User>("/api/auth/me"),
+  me: () => api.get<SafeUser>("/api/auth/me", safeUserSchema),
 
-  list: () => api.get<User[]>("/api/users"),
+  list: () => api.get<SafeUser[]>("/api/users", z.array(safeUserSchema)),
 
   updateMe: (data: UpdateUserProfileDTO) =>
-    api.patch<User>("/api/users/me", data),
+    api.patch<SafeUser>("/api/users/me", data, safeUserSchema),
 };

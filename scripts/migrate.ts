@@ -158,8 +158,9 @@ async function main() {
     const publicTables = await pool.query(
       `SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name`
     );
-    console.log(`[DB] Tables in public schema: ${publicTables.rowCount}`);
-    if (publicTables.rowCount > 0) {
+    const publicTableCount = publicTables.rowCount ?? 0;
+    console.log(`[DB] Tables in public schema: ${publicTableCount}`);
+    if (publicTableCount > 0) {
       console.log(`[DB]   ${publicTables.rows.map((r: { table_name: string }) => r.table_name).join(", ")}`);
     }
   } catch (err) {
@@ -184,8 +185,9 @@ async function main() {
   const publicTablesAfter = await pool.query(
     `SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name`
   );
-  console.log(`[DB] Tables in public schema AFTER migration: ${publicTablesAfter.rowCount}`);
-  if (publicTablesAfter.rowCount > 0) {
+  const publicTableCountAfter = publicTablesAfter.rowCount ?? 0;
+  console.log(`[DB] Tables in public schema AFTER migration: ${publicTableCountAfter}`);
+  if (publicTableCountAfter > 0) {
     console.log(`[DB]   ${publicTablesAfter.rows.map((r: { table_name: string }) => r.table_name).join(", ")}`);
   }
 

@@ -14,7 +14,7 @@ import {
   validateQuery,
   asyncHandler,
 } from "../middleware";
-import { sendSuccess, sendNotFound } from "../response";
+import { sendSuccess, sendNotFound, toSafeUser } from "../response";
 import { storage } from "../storage";
 import { broadcast } from "../ws/index";
 
@@ -89,7 +89,7 @@ export function registerConversationRoutes(app: Express) {
               contact: contact ? { ...contact, company } : null,
               deal,
               company,
-              assignedTo,
+              assignedTo: assignedTo ? toSafeUser(assignedTo) : null,
             };
           }),
         );

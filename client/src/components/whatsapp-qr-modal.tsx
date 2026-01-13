@@ -10,10 +10,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Loader2, CheckCircle2, XCircle, RefreshCw, Smartphone } from "lucide-react";
 import { useTranslation } from "@/contexts/LanguageContext";
-import {
-  channelConfigsApi,
-  type WhatsAppStatusResponse,
-} from "@/lib/api/channelConfigs";
+import { channelConfigsApi } from "@/lib/api/channelConfigs";
+import type { WhatsAppStatusResponse } from "@shared/types";
 
 interface WhatsAppQRModalProps {
   open: boolean;

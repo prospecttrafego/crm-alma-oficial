@@ -26,13 +26,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type { AuditLog, AuditLogAction, AuditLogEntityType } from "@shared/schema";
+import type { AuditLogAction, AuditLogEntityType } from "@shared/schema";
 import { useTranslation } from "@/contexts/LanguageContext";
 import { api } from "@/lib/api";
-
-type EnrichedAuditLog = AuditLog & {
-  user: { id: string; firstName: string | null; lastName: string | null } | null;
-};
+import { enrichedAuditLogSchema } from "@shared/apiSchemas";
+import type { EnrichedAuditLog } from "@shared/types";
+import { z } from "zod";
 
 const actionIcons: Record<AuditLogAction, typeof Plus> = {
   create: Plus,
@@ -67,7 +66,7 @@ export default function AuditLogPage() {
   const locale = language === "pt-BR" ? ptBR : enUS;
   const { data: logs, isLoading } = useQuery<EnrichedAuditLog[]>({
     queryKey: ["/api/audit-logs"],
-    queryFn: () => api.get<EnrichedAuditLog[]>("/api/audit-logs"),
+    queryFn: () => api.get<EnrichedAuditLog[]>("/api/audit-logs", z.array(enrichedAuditLogSchema)),
   });
 
   const formatUserName = (user: EnrichedAuditLog["user"]) => {

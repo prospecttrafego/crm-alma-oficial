@@ -13,7 +13,7 @@ export interface ValidationError {
 export interface ApiError {
   code: string;
   message: string;
-  details?: ValidationError[];
+  details?: unknown;
 }
 
 // ===== RESPONSE METADATA =====

@@ -3,6 +3,14 @@
  */
 
 import { api } from './index';
+import {
+  calendarEventSchema,
+  googleCalendarAuthSchema,
+  googleCalendarConfiguredSchema,
+  googleCalendarStatusSchema,
+  googleCalendarSyncResultSchema,
+  successFlagSchema,
+} from "@shared/apiSchemas";
 import type { CalendarEvent } from '@shared/schema';
 import type {
   CreateCalendarEventDTO,
@@ -12,6 +20,7 @@ import type {
   GoogleCalendarAuth,
   GoogleCalendarSyncResult,
 } from '@shared/types';
+import { z } from "zod";
 
 export type {
   GoogleCalendarConfigured,
@@ -28,20 +37,20 @@ export const calendarEventsApi = {
     const params = new URLSearchParams();
     params.set('startDate', start.toISOString());
     params.set('endDate', end.toISOString());
-    return api.get<CalendarEvent[]>(`/api/calendar-events?${params.toString()}`);
+    return api.get<CalendarEvent[]>(`/api/calendar-events?${params.toString()}`, z.array(calendarEventSchema));
   },
 
   /**
    * Create a new calendar event
    */
   create: (data: CreateCalendarEventDTO) =>
-    api.post<CalendarEvent>('/api/calendar-events', data),
+    api.post<CalendarEvent>('/api/calendar-events', data, calendarEventSchema),
 
   /**
    * Update an existing calendar event
    */
   update: (id: number, data: UpdateCalendarEventDTO) =>
-    api.patch<CalendarEvent>(`/api/calendar-events/${id}`, data),
+    api.patch<CalendarEvent>(`/api/calendar-events/${id}`, data, calendarEventSchema),
 
   /**
    * Delete a calendar event
@@ -51,17 +60,17 @@ export const calendarEventsApi = {
   // ===== GOOGLE CALENDAR INTEGRATION =====
 
   getGoogleCalendarConfigured: () =>
-    api.get<GoogleCalendarConfigured>('/api/integrations/google-calendar/configured'),
+    api.get<GoogleCalendarConfigured>('/api/integrations/google-calendar/configured', googleCalendarConfiguredSchema),
 
   getGoogleCalendarStatus: () =>
-    api.get<GoogleCalendarStatus>('/api/integrations/google-calendar/status'),
+    api.get<GoogleCalendarStatus>('/api/integrations/google-calendar/status', googleCalendarStatusSchema),
 
   authorizeGoogleCalendar: () =>
-    api.get<GoogleCalendarAuth>('/api/auth/google/authorize'),
+    api.get<GoogleCalendarAuth>('/api/auth/google/authorize', googleCalendarAuthSchema),
 
   syncGoogleCalendar: () =>
-    api.post<GoogleCalendarSyncResult>('/api/integrations/google-calendar/sync', {}),
+    api.post<GoogleCalendarSyncResult>('/api/integrations/google-calendar/sync', {}, googleCalendarSyncResultSchema),
 
   disconnectGoogleCalendar: () =>
-    api.post<{ success: boolean }>('/api/integrations/google-calendar/disconnect', {}),
+    api.post<{ success: boolean }>('/api/integrations/google-calendar/disconnect', {}, successFlagSchema),
 };

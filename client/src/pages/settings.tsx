@@ -58,10 +58,8 @@ import { useNotificationSound } from "@/hooks/useNotificationSound";
 import { useTranslation, languageLabels, languages } from "@/contexts/LanguageContext";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import type { EmailTemplate, PipelineStage, ChannelConfig } from "@shared/schema";
-import type { CreateChannelConfigDTO, UpdateChannelConfigDTO } from "@shared/types";
-import type { PipelineWithStages } from "@/lib/api/pipelines";
-import type { GoogleCalendarStatus } from "@/lib/api/calendarEvents";
+import type { EmailTemplate, PipelineStage } from "@shared/schema";
+import type { CreateChannelConfigDTO, UpdateChannelConfigDTO, ChannelConfigPublic, PipelineWithStages, GoogleCalendarStatus } from "@shared/types";
 
 type Translator = (key: string, params?: Record<string, string | number>) => string;
 
@@ -763,7 +761,7 @@ function ChannelConfigDialog({
   open,
   onOpenChange,
 }: {
-  config?: ChannelConfig;
+  config?: ChannelConfigPublic;
   channelType: "email" | "whatsapp";
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -800,13 +798,12 @@ function ChannelConfigDialog({
 
   const [qrModalOpen, setQrModalOpen] = useState(false);
 
-  const hasExistingPassword = config?.type === "email" &&
-    (config.emailConfig as Record<string, unknown>)?.hasPassword === true;
+  const hasExistingPassword = config?.type === "email" && config.emailConfig?.hasPassword === true;
 
   // Get WhatsApp connection status
-  const whatsappConfig = config?.type === "whatsapp" ? config.whatsappConfig as Record<string, unknown> : null;
-  const connectionStatus = whatsappConfig?.connectionStatus as string || "disconnected";
-  const instanceName = whatsappConfig?.instanceName as string | undefined;
+  const whatsappConfig = config?.type === "whatsapp" ? config.whatsappConfig : null;
+  const connectionStatus = whatsappConfig?.connectionStatus || "disconnected";
+  const instanceName = whatsappConfig?.instanceName;
   const dialogTitle = channelType === "email"
     ? (isEditing ? t("settings.channels.dialog.editEmailTitle") : t("settings.channels.dialog.addEmailTitle"))
     : (isEditing ? t("settings.channels.dialog.editWhatsappTitle") : t("settings.channels.dialog.addWhatsappTitle"));
@@ -817,18 +814,18 @@ function ChannelConfigDialog({
   useEffect(() => {
     if (open && config) {
       if (config.type === "email" && config.emailConfig) {
-        const ec = config.emailConfig as Record<string, unknown>;
+        const ec = config.emailConfig;
         emailForm.reset({
           name: config.name,
-          imapHost: (ec.imapHost as string) || "",
-          imapPort: (ec.imapPort as number) || 993,
-          imapSecure: (ec.imapSecure as boolean) ?? true,
-          smtpHost: (ec.smtpHost as string) || "",
-          smtpPort: (ec.smtpPort as number) || 587,
-          smtpSecure: (ec.smtpSecure as boolean) ?? true,
-          email: (ec.email as string) || "",
+          imapHost: ec.imapHost || "",
+          imapPort: ec.imapPort || 993,
+          imapSecure: ec.imapSecure ?? true,
+          smtpHost: ec.smtpHost || "",
+          smtpPort: ec.smtpPort || 587,
+          smtpSecure: ec.smtpSecure ?? true,
+          email: ec.email || "",
           password: "",
-          fromName: (ec.fromName as string) || "",
+          fromName: ec.fromName || "",
         });
       } else if (config.type === "whatsapp") {
         whatsappForm.reset({
@@ -1235,11 +1232,11 @@ function IntegrationsSection() {
   const { toast } = useToast();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [channelType, setChannelType] = useState<"email" | "whatsapp">("email");
-  const [editingConfig, setEditingConfig] = useState<ChannelConfig | undefined>();
+  const [editingConfig, setEditingConfig] = useState<ChannelConfigPublic | undefined>();
   const [testingId, setTestingId] = useState<number | null>(null);
 
   // Channel configs (Email & WhatsApp)
-  const { data: configs } = useQuery<ChannelConfig[]>({
+  const { data: configs } = useQuery<ChannelConfigPublic[]>({
     queryKey: ["/api/channel-configs"],
     queryFn: channelConfigsApi.list,
   });
@@ -1352,7 +1349,7 @@ function IntegrationsSection() {
     setDialogOpen(true);
   };
 
-  const handleEdit = (config: ChannelConfig) => {
+  const handleEdit = (config: ChannelConfigPublic) => {
     setChannelType(config.type as "email" | "whatsapp");
     setEditingConfig(config);
     setDialogOpen(true);
@@ -1488,7 +1485,7 @@ function IntegrationsSection() {
                   </div>
                   <p className="text-sm text-muted-foreground">
                     {hasEmail
-                      ? String((firstEmail?.emailConfig as Record<string, unknown>)?.email || "")
+                      ? firstEmail?.emailConfig?.email || ""
                       : t("settings.channels.dialog.emailDescription")}
                   </p>
                 </div>
@@ -1548,8 +1545,8 @@ function IntegrationsSection() {
           const whatsappConfigs = configs?.filter(c => c.type === "whatsapp") || [];
           const hasWhatsapp = whatsappConfigs.length > 0;
           const firstWhatsapp = whatsappConfigs[0];
-          const wc = firstWhatsapp?.whatsappConfig as Record<string, unknown> | null;
-          const connectionStatus = wc?.connectionStatus as string | undefined;
+          const wc = firstWhatsapp?.whatsappConfig;
+          const connectionStatus = wc?.connectionStatus;
           return (
             <div className="flex items-center justify-between gap-4 p-4 rounded-md border">
               <div className="flex items-center gap-3 min-w-0">

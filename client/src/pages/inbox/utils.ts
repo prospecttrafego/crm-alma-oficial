@@ -1,4 +1,5 @@
-import type { Deal, User as UserType, Company } from "@shared/schema";
+import type { Deal, Company } from "@shared/schema";
+import type { SafeUser } from "@shared/types";
 import type { ContactWithCompany } from "@/lib/api/conversations";
 
 type Translator = (key: string, params?: Record<string, string | number>) => string;
@@ -9,7 +10,7 @@ export function substituteVariables(
     contact?: ContactWithCompany | null;
     deal?: Deal | null;
     company?: Company | null;
-    user?: UserType | null;
+    user?: SafeUser | null;
   }
 ): string {
   const { contact, deal, company, user } = context;
@@ -64,4 +65,3 @@ export function formatInboxTime(t: Translator, date: Date | string | null) {
   }
   return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
 }
-

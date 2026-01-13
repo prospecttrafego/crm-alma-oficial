@@ -3,46 +3,34 @@
  */
 
 import { api } from './index';
-import type { ChannelConfig } from '@shared/schema';
+import {
+  channelConfigPublicSchema,
+  whatsAppConnectResponseSchema,
+  whatsAppStatusResponseSchema,
+  channelConfigTestResultSchema,
+  successMessageSchema,
+} from "@shared/apiSchemas";
 import type { CreateChannelConfigDTO, UpdateChannelConfigDTO } from '@shared/types';
-
-export type WhatsAppConnectResponse = {
-  instanceName: string;
-  qrCode: string;
-  pairingCode?: string;
-  status: string;
-};
-
-export type WhatsAppStatusResponse = {
-  status: string;
-  instanceName: string | null;
-  lastConnectedAt?: string;
-};
-
-export type ChannelConfigTestResult = {
-  success: boolean;
-  message?: string;
-  imap?: boolean;
-  smtp?: boolean;
-};
+import type { ChannelConfigPublic, SuccessMessage, WhatsAppConnectResponse, WhatsAppStatusResponse, ChannelConfigTestResult } from "@shared/types";
+import { z } from "zod";
 
 export const channelConfigsApi = {
   /**
    * List all channel configs
    */
-  list: () => api.get<ChannelConfig[]>('/api/channel-configs'),
+  list: () => api.get<ChannelConfigPublic[]>('/api/channel-configs', z.array(channelConfigPublicSchema)),
 
   /**
    * Create a new channel config
    */
   create: (data: CreateChannelConfigDTO) =>
-    api.post<ChannelConfig>('/api/channel-configs', data),
+    api.post<ChannelConfigPublic>('/api/channel-configs', data, channelConfigPublicSchema),
 
   /**
    * Update an existing channel config
    */
   update: (id: number, data: UpdateChannelConfigDTO) =>
-    api.patch<ChannelConfig>(`/api/channel-configs/${id}`, data),
+    api.patch<ChannelConfigPublic>(`/api/channel-configs/${id}`, data, channelConfigPublicSchema),
 
   /**
    * Delete a channel config
@@ -57,7 +45,8 @@ export const channelConfigsApi = {
   connectWhatsApp: (id: number) =>
     api.post<WhatsAppConnectResponse>(
       `/api/channel-configs/${id}/whatsapp/connect`,
-      {}
+      {},
+      whatsAppConnectResponseSchema
     ),
 
   /**
@@ -65,18 +54,19 @@ export const channelConfigsApi = {
    */
   getWhatsAppStatus: (id: number) =>
     api.get<WhatsAppStatusResponse>(
-      `/api/channel-configs/${id}/whatsapp/status`
+      `/api/channel-configs/${id}/whatsapp/status`,
+      whatsAppStatusResponseSchema
     ),
 
   /**
    * Disconnect WhatsApp
    */
   disconnectWhatsApp: (id: number) =>
-    api.post<void>(`/api/channel-configs/${id}/whatsapp/disconnect`, {}),
+    api.post<SuccessMessage>(`/api/channel-configs/${id}/whatsapp/disconnect`, {}, successMessageSchema),
 
   /**
    * Test a channel configuration
    */
   testConnection: (id: number) =>
-    api.post<ChannelConfigTestResult>(`/api/channel-configs/${id}/test`, {}),
+    api.post<ChannelConfigTestResult>(`/api/channel-configs/${id}/test`, {}, channelConfigTestResultSchema),
 };

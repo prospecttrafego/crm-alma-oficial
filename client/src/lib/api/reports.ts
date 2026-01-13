@@ -3,6 +3,8 @@
  */
 
 import { api } from "./index";
+import { reportDataSchema } from "@shared/apiSchemas";
+import type { ReportData } from "@shared/types";
 
 export type ReportsQuery = {
   startDate: string;
@@ -10,8 +12,8 @@ export type ReportsQuery = {
 };
 
 export const reportsApi = {
-  get: <T>(params: ReportsQuery) => {
+  get: (params: ReportsQuery) => {
     const search = new URLSearchParams(params);
-    return api.get<T>(`/api/reports?${search.toString()}`);
+    return api.get<ReportData>(`/api/reports?${search.toString()}`, reportDataSchema);
   },
 };

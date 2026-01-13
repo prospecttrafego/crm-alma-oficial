@@ -105,23 +105,21 @@ export function requireIntegration(
     try {
       const isConfigured = await checkFn();
       if (!isConfigured) {
-        return res.status(503).json({
-          success: false,
-          error: {
-            code: "INTEGRATION_NOT_CONFIGURED",
-            message: `Integração ${integrationName} não está configurada`,
-          },
-        });
+        return sendError(
+          res,
+          ErrorCodes.INTEGRATION_NOT_CONFIGURED,
+          `Integração ${integrationName} não está configurada`,
+          503
+        );
       }
       next();
     } catch (_error) {
-      return res.status(503).json({
-        success: false,
-        error: {
-          code: "INTEGRATION_ERROR",
-          message: `Erro ao verificar integração ${integrationName}`,
-        },
-      });
+      return sendError(
+        res,
+        ErrorCodes.INTEGRATION_ERROR,
+        `Erro ao verificar integração ${integrationName}`,
+        503
+      );
     }
   };
 }

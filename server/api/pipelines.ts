@@ -34,8 +34,7 @@ export function registerPipelineRoutes(app: Express) {
         return sendNotFound(res, "Pipeline not found");
       }
       const stages = await storage.getPipelineStages(pipeline.id);
-      const pipelineDeals = await storage.getDealsByPipeline(pipeline.id);
-      sendSuccess(res, { ...pipeline, stages, deals: pipelineDeals });
+      sendSuccess(res, { ...pipeline, stages });
     }),
   );
 
@@ -69,8 +68,7 @@ export function registerPipelineRoutes(app: Express) {
         return sendNotFound(res, "Pipeline not found");
       }
       const stages = await storage.getPipelineStages(pipeline.id);
-      const pipelineDeals = await storage.getDealsByPipeline(pipeline.id);
-      sendSuccess(res, { ...pipeline, stages, deals: pipelineDeals });
+      sendSuccess(res, { ...pipeline, stages });
     }),
   );
 
@@ -135,13 +133,18 @@ export function registerPipelineRoutes(app: Express) {
       }
 
       const pipeline = await storage.updatePipeline(id, req.validatedBody);
+      if (!pipeline) {
+        return sendNotFound(res, "Pipeline not found");
+      }
+
+      const stages = await storage.getPipelineStages(pipeline.id);
 
       await storage.createAuditLog({
         userId,
         action: "update",
         entityType: "pipeline",
         entityId: id,
-        entityName: pipeline?.name,
+        entityName: pipeline.name,
         organizationId: existing.organizationId,
         changes: {
           before: existing as unknown as Record<string, unknown>,
@@ -149,8 +152,9 @@ export function registerPipelineRoutes(app: Express) {
         },
       });
 
-      broadcast("pipeline:updated", pipeline);
-      sendSuccess(res, pipeline);
+      const responsePayload = { ...pipeline, stages };
+      broadcast("pipeline:updated", responsePayload);
+      sendSuccess(res, responsePayload);
     }),
   );
 
@@ -210,8 +214,14 @@ export function registerPipelineRoutes(app: Express) {
       }
 
       const pipeline = await storage.setDefaultPipeline(id, existing.organizationId);
-      broadcast("pipeline:updated", pipeline);
-      sendSuccess(res, pipeline);
+      if (!pipeline) {
+        return sendNotFound(res, "Pipeline not found");
+      }
+
+      const stages = await storage.getPipelineStages(pipeline.id);
+      const responsePayload = { ...pipeline, stages };
+      broadcast("pipeline:updated", responsePayload);
+      sendSuccess(res, responsePayload);
     }),
   );
 

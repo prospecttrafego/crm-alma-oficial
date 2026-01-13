@@ -40,7 +40,7 @@ export default function ReportsPage() {
   const { data: reportData, isLoading } = useQuery<ReportData>({
     queryKey: ["/api/reports", dateRange.from.toISOString(), dateRange.to.toISOString()],
     queryFn: async () => {
-      return reportsApi.get<ReportData>({
+      return reportsApi.get({
         startDate: dateRange.from.toISOString(),
         endDate: dateRange.to.toISOString(),
       });

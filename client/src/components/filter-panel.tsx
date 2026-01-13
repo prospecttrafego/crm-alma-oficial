@@ -32,7 +32,8 @@ import { usersApi } from "@/lib/api/users";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { enUS, ptBR } from "date-fns/locale";
-import type { SavedView, User, PipelineStage } from "@shared/schema";
+import type { SavedView, PipelineStage } from "@shared/schema";
+import type { SafeUser } from "@shared/types";
 import type { CreateSavedViewDTO } from "@shared/types";
 import { useTranslation } from "@/contexts/LanguageContext";
 
@@ -72,7 +73,7 @@ export function FilterPanel({ type, filters, onFiltersChange, stages }: FilterPa
     queryFn: () => savedViewsApi.listByType(type),
   });
 
-  const { data: users } = useQuery<User[]>({
+  const { data: users } = useQuery<SafeUser[]>({
     queryKey: ["/api/users"],
     queryFn: usersApi.list,
   });

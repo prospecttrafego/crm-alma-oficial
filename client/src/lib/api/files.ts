@@ -3,35 +3,28 @@
  */
 
 import { api } from "./index";
+import { fileSchema, uploadUrlSchema, transcriptionResultSchema } from "@shared/apiSchemas";
 import type { File as FileRecord } from "@shared/schema";
-import type { CreateFileDTO } from "@shared/types";
+import type { CreateFileDTO, TranscriptionResult } from "@shared/types";
+import { z } from "zod";
 
 export type RegisterFilePayload = CreateFileDTO;
 
-export type TranscriptionResult = {
-  text?: string;
-  message?: string;
-  jobId?: string;
-  status?: string;
-  fileId?: number;
-  fileName?: string;
-};
-
 export const filesApi = {
   getUploadUrl: () =>
-    api.post<{ uploadURL: string; objectPath: string }>("/api/files/upload-url", {}),
+    api.post<{ uploadURL: string; objectPath: string }>("/api/files/upload-url", {}, uploadUrlSchema),
 
   register: (data: RegisterFilePayload) =>
-    api.post<FileRecord>("/api/files", data),
+    api.post<FileRecord>("/api/files", data, fileSchema),
 
   listByEntity: (entityType: string, entityId: number) =>
-    api.get<FileRecord[]>(`/api/files/${entityType}/${entityId}`),
+    api.get<FileRecord[]>(`/api/files/${entityType}/${entityId}`, z.array(fileSchema)),
 
   delete: (id: number) => api.delete<void>(`/api/files/${id}`),
 
   transcribeFile: (id: number) =>
-    api.post<TranscriptionResult>(`/api/files/${id}/transcribe`, {}),
+    api.post<TranscriptionResult>(`/api/files/${id}/transcribe`, {}, transcriptionResultSchema),
 
   transcribeAudio: (audioUrl: string, language?: string) =>
-    api.post<TranscriptionResult>("/api/audio/transcribe", { audioUrl, language }),
+    api.post<TranscriptionResult>("/api/audio/transcribe", { audioUrl, language }, transcriptionResultSchema),
 };

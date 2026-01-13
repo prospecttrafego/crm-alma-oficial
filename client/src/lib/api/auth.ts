@@ -3,7 +3,8 @@
  */
 
 import { api } from "./index";
-import type { User } from "@shared/schema";
+import { safeUserSchema, messageResponseSchema } from "@shared/apiSchemas";
+import type { SafeUser } from "@shared/types";
 
 export type LoginPayload = {
   email: string;
@@ -18,7 +19,8 @@ export type RegisterPayload = {
 };
 
 export const authApi = {
-  login: (data: LoginPayload) => api.post<User>("/api/login", data),
-  register: (data: RegisterPayload) => api.post<User>("/api/register", data),
-  logout: () => api.post<{ message: string }>("/api/logout", {}),
+  login: (data: LoginPayload) => api.post<SafeUser>("/api/login", data, safeUserSchema),
+  register: (data: RegisterPayload) =>
+    api.post<SafeUser>("/api/register", data, safeUserSchema),
+  logout: () => api.post<{ message: string }>("/api/logout", {}, messageResponseSchema),
 };
