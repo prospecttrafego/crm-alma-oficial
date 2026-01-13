@@ -130,7 +130,9 @@ npm run dev
 │   └── vite.ts              # Vite middleware (dev)
 ├── shared/                  # Codigo compartilhado (fonte unica de verdade)
 │   ├── schema.ts            # Schema Drizzle + tipos + enums
-│   ├── contracts.ts         # Schemas Zod e DTOs derivados do schema
+│   ├── contracts.ts         # Schemas Zod e DTOs (entrada) derivados do schema
+│   ├── apiSchemas.ts        # Schemas Zod das respostas da API (runtime contract)
+│   ├── apiSchemas.integrations.ts # Schemas de integrações (payloads/redactions)
 │   └── types/               # Tipos compartilhados frontend/backend
 │       ├── api.ts           # ApiResponse, ErrorCodes, PaginationMeta
 │       └── dto.ts           # DTOs para transferencia de dados
@@ -141,8 +143,9 @@ npm run dev
 ```
 
 Notas importantes:
-- `shared/contracts.ts` e `shared/schema.ts` sao a fonte unica de verdade para schemas e DTOs.
-- A validacao no backend usa apenas schemas derivados do Drizzle (nao ha validacao manual duplicada).
+- `shared/schema.ts` e `shared/contracts.ts` sao a fonte unica de verdade para schema do banco, enums e validação de entrada (DTOs).
+- `shared/apiSchemas*.ts` define o contrato de resposta (runtime) consumido pelo frontend.
+- O frontend valida respostas via Zod (evita drift silencioso e quebra rapida com erro `INVALID_RESPONSE`).
 
 ## Variaveis de Ambiente
 

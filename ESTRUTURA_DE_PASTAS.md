@@ -29,6 +29,8 @@ Estrutura atual (nível alto):
   shared/
     schema.ts       # Drizzle schema + enums
     contracts.ts    # Schemas Zod + DTOs gerados do schema
+    apiSchemas.ts   # Schemas Zod das respostas da API (runtime contract)
+    apiSchemas.integrations.ts # Schemas de integrações (payloads/redactions)
     types/          # Tipos compartilhados
   scripts/
   script/
@@ -225,10 +227,13 @@ O que evitar:
 
 ```
 shared/
-  schema.ts           # Drizzle schema + enums + tipos inferidos
+  schema.ts                   # Drizzle schema + enums + tipos inferidos
+  contracts.ts                # Zod schemas/DTOs derivados do schema (validação de entrada)
+  apiSchemas.ts               # Zod schemas de resposta (entidades e payloads compostos)
+  apiSchemas.integrations.ts  # Zod schemas de integrações (payloads/redactions)
   types/
-    api.ts            # ApiResponse, ErrorCodes, PaginationMeta
-    dto.ts            # DTOs para transferência de dados
+    api.ts                    # ApiResponse, ErrorCodes, PaginationMeta
+    dto.ts                    # DTOs para transferência de dados
 ```
 
 - O que é: a **fonte única de verdade** para tipos, enums e schema do banco.
@@ -238,6 +243,14 @@ shared/
 - Contém todas as tabelas Drizzle (users, contacts, deals, etc.)
 - Contém todos os **enums** do sistema (channelTypes, activityTypes, savedViewTypes, etc.)
 - Exporta tipos inferidos (Contact, InsertContact, Deal, etc.)
+
+### `shared/contracts.ts`
+- Schemas Zod e DTOs **de entrada** (validação de body/query/params) gerados automaticamente via `drizzle-zod` a partir do schema.
+- Usado pelo backend (via `server/validation/`).
+
+### `shared/apiSchemas*.ts`
+- Schemas Zod **de resposta** (contrato runtime) usados no frontend para validar payloads recebidos da API.
+- Evita dessincronização silenciosa entre backend/frontend quando o schema ou responses mudam.
 
 ### `shared/types/`
 - `api.ts`: Tipos de resposta da API (`ApiResponse`, `PaginatedResponse`, `ErrorCodes`, `PaginationMeta`)

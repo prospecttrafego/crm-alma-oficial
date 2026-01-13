@@ -21,7 +21,12 @@ Este documento contem todas as informacoes necessarias para entender, desenvolve
 
 5. **Arquivos pequenos e focados**: Limite sugerido de ~300 linhas por arquivo. Acima disso, considerar dividir.
 
-6. **Documentacao alinhada**: Sempre atualizar TODOS os arquivos .md relevantes (README, DIAGNOSTICO, ESTRUTURA_DE_PASTAS, CLAUDE) quando houver mudancas.
+6. **Documentacao alinhada**: Sempre atualizar TODOS os arquivos .md relevantes (README, ESTRUTURA_DE_PASTAS, CLAUDE, DESIGN_SYSTEM) quando houver mudancas.
+
+7. **Contratos compartilhados (sem drift)**:
+   - Schema do banco e enums vivem em `shared/schema.ts`.
+   - Validacao de entrada (body/query/params) deve usar schemas derivados via `drizzle-zod` em `shared/contracts.ts` (consumidos via `server/validation/`).
+   - O frontend valida respostas usando schemas de `shared/apiSchemas*.ts` (via `client/src/lib/api/`), para evitar dessincronizacao silenciosa.
 
 ---
 
@@ -226,9 +231,11 @@ CRM_Oficial/
 │   ├── redis.ts                 # Upstash Redis (presenca + base cache/rate-limit)
 │   ├── static.ts                # Servir frontend em producao (dist/public)
 │   └── vite.ts                  # Integracao Vite em dev
-├── shared/                      # Fonte unica de verdade (tipos e enums)
+├── shared/                      # Fonte unica de verdade (contratos e tipos)
 │   ├── schema.ts                # Schema Drizzle + enums + tipos inferidos
-│   ├── contracts.ts             # Schemas Zod + DTOs gerados do schema
+│   ├── contracts.ts             # Zod schemas/DTOs (entrada) gerados do schema
+│   ├── apiSchemas.ts            # Zod schemas (respostas) - contrato runtime
+│   ├── apiSchemas.integrations.ts # Integrações (payloads/redactions)
 │   └── types/                   # Tipos compartilhados frontend/backend
 │       ├── api.ts               # ApiResponse, ErrorCodes, PaginationMeta
 │       └── dto.ts               # DTOs para transferencia de dados
