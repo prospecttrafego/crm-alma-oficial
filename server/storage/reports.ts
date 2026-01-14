@@ -7,10 +7,14 @@ import {
   pipelineStages,
   users,
 } from "@shared/schema";
-import { db } from "../db";
+import { db, pool } from "../db";
 import { and, count, eq, gte, sql } from "drizzle-orm";
 import { getTenantOrganizationId } from "./helpers";
 
+/**
+ * Get dashboard statistics in a single optimized query using CTEs
+ * Consolidates 6 separate queries into 1 round-trip to the database
+ */
 export async function getDashboardStats(_organizationId: number): Promise<{
   totalDeals: number;
   openDeals: number;
@@ -25,61 +29,89 @@ export async function getDashboardStats(_organizationId: number): Promise<{
   unreadConversations: number;
 }> {
   const tenantOrganizationId = await getTenantOrganizationId();
-  const [dealsStats] = await db
-    .select({
-      total: count(),
-      open: sql<number>`count(*) filter (where ${deals.status} = 'open')`,
-      won: sql<number>`count(*) filter (where ${deals.status} = 'won')`,
-      lost: sql<number>`count(*) filter (where ${deals.status} = 'lost')`,
-      totalValue: sql<string>`coalesce(sum(${deals.value}), 0)`,
-    })
-    .from(deals)
-    .where(eq(deals.organizationId, tenantOrganizationId));
 
-  const [contactsCount] = await db
-    .select({ count: count() })
-    .from(contacts)
-    .where(eq(contacts.organizationId, tenantOrganizationId));
+  // Calculate month start for new contacts
   const monthStart = new Date();
   monthStart.setDate(1);
   monthStart.setHours(0, 0, 0, 0);
-  const [newContactsCount] = await db
-    .select({ count: count() })
-    .from(contacts)
-    .where(
-      and(
-        eq(contacts.organizationId, tenantOrganizationId),
-        gte(contacts.createdAt, monthStart),
-      ),
-    );
-  const [companiesCount] = await db
-    .select({ count: count() })
-    .from(companies)
-    .where(eq(companies.organizationId, tenantOrganizationId));
-  const [pendingCount] = await db
-    .select({ count: count() })
-    .from(activities)
-    .where(and(eq(activities.organizationId, tenantOrganizationId), eq(activities.status, "pending")));
-  const [conversationStats] = await db
-    .select({
-      open: sql<number>`count(*) filter (where ${conversations.status} != 'closed')`,
-      unread: sql<number>`count(*) filter (where ${conversations.unreadCount} > 0)`,
-    })
-    .from(conversations)
-    .where(eq(conversations.organizationId, tenantOrganizationId));
+
+  // Single query using CTEs for all dashboard stats
+  const result = await pool.query<{
+    total_deals: string;
+    open_deals: string;
+    won_deals: string;
+    lost_deals: string;
+    total_value: string;
+    contacts_count: string;
+    companies_count: string;
+    new_contacts: string;
+    pending_activities: string;
+    open_conversations: string;
+    unread_conversations: string;
+  }>(`
+    WITH deal_stats AS (
+      SELECT
+        count(*) AS total,
+        count(*) FILTER (WHERE status = 'open') AS open,
+        count(*) FILTER (WHERE status = 'won') AS won,
+        count(*) FILTER (WHERE status = 'lost') AS lost,
+        COALESCE(sum(value), 0) AS total_value
+      FROM deals
+      WHERE organization_id = $1
+    ),
+    contact_stats AS (
+      SELECT
+        count(*) AS total,
+        count(*) FILTER (WHERE created_at >= $2) AS new_this_month
+      FROM contacts
+      WHERE organization_id = $1
+    ),
+    company_stats AS (
+      SELECT count(*) AS total
+      FROM companies
+      WHERE organization_id = $1
+    ),
+    activity_stats AS (
+      SELECT count(*) AS pending
+      FROM activities
+      WHERE organization_id = $1 AND status = 'pending'
+    ),
+    conversation_stats AS (
+      SELECT
+        count(*) FILTER (WHERE status != 'closed') AS open,
+        count(*) FILTER (WHERE unread_count > 0) AS unread
+      FROM conversations
+      WHERE organization_id = $1
+    )
+    SELECT
+      d.total AS total_deals,
+      d.open AS open_deals,
+      d.won AS won_deals,
+      d.lost AS lost_deals,
+      d.total_value,
+      c.total AS contacts_count,
+      co.total AS companies_count,
+      c.new_this_month AS new_contacts,
+      a.pending AS pending_activities,
+      cv.open AS open_conversations,
+      cv.unread AS unread_conversations
+    FROM deal_stats d, contact_stats c, company_stats co, activity_stats a, conversation_stats cv
+  `, [tenantOrganizationId, monthStart]);
+
+  const row = result.rows[0];
 
   return {
-    totalDeals: Number(dealsStats?.total) || 0,
-    openDeals: Number(dealsStats?.open) || 0,
-    wonDeals: Number(dealsStats?.won) || 0,
-    lostDeals: Number(dealsStats?.lost) || 0,
-    totalValue: Number(dealsStats?.totalValue) || 0,
-    contacts: contactsCount?.count || 0,
-    companies: companiesCount?.count || 0,
-    newContacts: newContactsCount?.count || 0,
-    pendingActivities: pendingCount?.count || 0,
-    openConversations: Number(conversationStats?.open) || 0,
-    unreadConversations: Number(conversationStats?.unread) || 0,
+    totalDeals: Number(row?.total_deals) || 0,
+    openDeals: Number(row?.open_deals) || 0,
+    wonDeals: Number(row?.won_deals) || 0,
+    lostDeals: Number(row?.lost_deals) || 0,
+    totalValue: Number(row?.total_value) || 0,
+    contacts: Number(row?.contacts_count) || 0,
+    companies: Number(row?.companies_count) || 0,
+    newContacts: Number(row?.new_contacts) || 0,
+    pendingActivities: Number(row?.pending_activities) || 0,
+    openConversations: Number(row?.open_conversations) || 0,
+    unreadConversations: Number(row?.unread_conversations) || 0,
   };
 }
 

@@ -3,8 +3,12 @@
  */
 import { Redis } from "@upstash/redis";
 import { Ratelimit } from "@upstash/ratelimit";
+import { z } from "zod";
 import type { Message } from "@shared/schema";
 import { createServiceLogger } from "./logger";
+
+// Cache version - increment when Message schema changes to auto-invalidate old cache
+const CACHE_VERSION = "v1";
 
 const redisLogger = createServiceLogger("redis");
 
@@ -47,19 +51,45 @@ if (redisUrl && redisToken) {
 
 // ========== CACHE DE MENSAGENS ==========
 
-const MESSAGES_CACHE_KEY = (conversationId: number) => `alma:messages:${conversationId}`;
+// Versioned cache key to auto-invalidate on schema changes
+const MESSAGES_CACHE_KEY = (conversationId: number) => `alma:messages:${CACHE_VERSION}:${conversationId}`;
 const MESSAGES_CACHE_TTL = 300; // 5 minutos
 const MAX_CACHED_MESSAGES = 20;
 
+// Zod schema for validating cached messages (minimal validation for performance)
+const cachedMessageSchema = z.object({
+  id: z.number(),
+  conversationId: z.number(),
+  content: z.string(),
+  createdAt: z.string().or(z.date()).nullable(),
+}).passthrough();
+
+const cachedMessagesArraySchema = z.array(cachedMessageSchema);
+
 /**
- * Obter mensagens do cache
+ * Obter mensagens do cache with schema validation
+ * Returns null if cache is invalid or schema mismatch (auto-heals on next write)
  */
 export async function getCachedMessages(conversationId: number): Promise<Message[] | null> {
   if (!redis) return null;
 
   try {
-    const cached = await redis.get<Message[]>(MESSAGES_CACHE_KEY(conversationId));
-    return cached;
+    const cached = await redis.get<unknown>(MESSAGES_CACHE_KEY(conversationId));
+    if (!cached) return null;
+
+    // Validate cached data against schema
+    const result = cachedMessagesArraySchema.safeParse(cached);
+    if (!result.success) {
+      redisLogger.warn("[Redis] Cache schema mismatch, invalidating", {
+        conversationId,
+        error: result.error.message,
+      });
+      // Invalidate stale cache
+      await redis.del(MESSAGES_CACHE_KEY(conversationId));
+      return null;
+    }
+
+    return cached as Message[];
   } catch (error) {
     redisLogger.error("[Redis] Erro ao obter cache de mensagens", { error });
     return null;

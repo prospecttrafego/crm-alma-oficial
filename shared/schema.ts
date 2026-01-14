@@ -40,20 +40,27 @@ export type UserPreferences = {
 };
 
 // Tabela de usuarios (compativel com autenticacao local)
-export const users = pgTable("users", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  email: varchar("email").unique(),
-  passwordHash: varchar("password_hash"),
-  firstName: varchar("first_name"),
-  lastName: varchar("last_name"),
-  profileImageUrl: varchar("profile_image_url"),
-  role: varchar("role").$type<UserRole>().default("sales"),
-  organizationId: integer("organization_id")
-    .references(() => organizations.id, { onDelete: 'set null' }),
-  preferences: jsonb("preferences").$type<UserPreferences>(),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
+export const users = pgTable(
+  "users",
+  {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    email: varchar("email").unique(),
+    passwordHash: varchar("password_hash"),
+    firstName: varchar("first_name"),
+    lastName: varchar("last_name"),
+    profileImageUrl: varchar("profile_image_url"),
+    role: varchar("role").$type<UserRole>().default("sales"),
+    organizationId: integer("organization_id")
+      .references(() => organizations.id, { onDelete: 'set null' }),
+    preferences: jsonb("preferences").$type<UserPreferences>(),
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+  },
+  (table) => [
+    // Composite index for user lookups within organization
+    index("idx_users_org_email").on(table.organizationId, table.email),
+  ]
+);
 
 // Password reset tokens table
 export const passwordResetTokens = pgTable(
@@ -244,6 +251,9 @@ export const conversations = pgTable(
     index("idx_conversations_contact").on(table.contactId),
     index("idx_conversations_status").on(table.status),
     index("idx_conversations_last_message").on(table.lastMessageAt),
+    // Composite indexes for common query patterns
+    index("idx_conversations_org_status").on(table.organizationId, table.status),
+    index("idx_conversations_contact_channel").on(table.contactId, table.channel),
   ]
 );
 
@@ -277,6 +287,8 @@ export const messages = pgTable(
     index("idx_messages_conversation").on(table.conversationId),
     index("idx_messages_created_at").on(table.createdAt),
     index("idx_messages_external_id").on(table.externalId),
+    // Composite index for pagination queries
+    index("idx_messages_conv_created").on(table.conversationId, table.createdAt),
   ]
 );
 
@@ -560,21 +572,29 @@ export const leadScores = pgTable("lead_scores", {
 });
 
 // Files table for attachments
-export const files = pgTable("files", {
-  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-  name: varchar("name", { length: 500 }).notNull(),
-  mimeType: varchar("mime_type", { length: 100 }),
-  size: integer("size"),
-  objectPath: varchar("object_path", { length: 1000 }).notNull(),
-  entityType: varchar("entity_type", { length: 50 }).$type<FileEntityType>().notNull(),
-  entityId: integer("entity_id").notNull(),
-  organizationId: integer("organization_id")
-    .notNull()
-    .references(() => organizations.id, { onDelete: 'cascade' }),
-  uploadedBy: varchar("uploaded_by")
-    .references(() => users.id, { onDelete: 'set null' }),
-  createdAt: timestamp("created_at").defaultNow(),
-});
+export const files = pgTable(
+  "files",
+  {
+    id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+    name: varchar("name", { length: 500 }).notNull(),
+    mimeType: varchar("mime_type", { length: 100 }),
+    size: integer("size"),
+    objectPath: varchar("object_path", { length: 1000 }).notNull(),
+    entityType: varchar("entity_type", { length: 50 }).$type<FileEntityType>().notNull(),
+    entityId: integer("entity_id").notNull(),
+    organizationId: integer("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+    uploadedBy: varchar("uploaded_by")
+      .references(() => users.id, { onDelete: 'set null' }),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => [
+    // Composite index for file lookups by entity
+    index("idx_files_entity").on(table.entityType, table.entityId),
+    index("idx_files_organization").on(table.organizationId),
+  ]
+);
 
 // Dead letter queue for failed background jobs
 export const deadLetterJobs = pgTable("dead_letter_jobs", {

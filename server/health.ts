@@ -3,13 +3,14 @@
  * Verifica status de todos os servicos dependentes
  */
 
-import { db } from "./db";
+import { db, getPoolStats } from "./db";
 import { sql } from "drizzle-orm";
 
 export interface ServiceStatus {
   status: "healthy" | "degraded" | "unhealthy";
   latencyMs?: number;
   error?: string;
+  details?: Record<string, unknown>;
 }
 
 export interface HealthCheckResult {
@@ -31,9 +32,21 @@ async function checkDatabase(): Promise<ServiceStatus> {
   const start = Date.now();
   try {
     await db.execute(sql`SELECT 1`);
+    const poolStats = getPoolStats();
+
+    // Warn if pool is under pressure (waiting > 0 or usage > 80%)
+    const poolUsagePercent = (poolStats.totalCount - poolStats.idleCount) / 20 * 100;
+    const isUnderPressure = poolStats.waitingCount > 0 || poolUsagePercent > 80;
+
     return {
-      status: "healthy",
+      status: isUnderPressure ? "degraded" : "healthy",
       latencyMs: Date.now() - start,
+      details: {
+        pool: {
+          ...poolStats,
+          usagePercent: Math.round(poolUsagePercent),
+        },
+      },
     };
   } catch (error) {
     return {

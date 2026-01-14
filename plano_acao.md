@@ -340,55 +340,57 @@ const { data } = useQuery({
 
 ---
 
-## Milestone 5: Performance
+## Milestone 5: Performance ✅ CONCLUÍDO
 
 **Prioridade:** P2 **Estimativa:** 20 horas
+
+**Status:** Implementado (pendente commit)
 
 ### 5.1 Consolidar Queries do Dashboard
 
 **Arquivos:** `server/storage/reports.ts`
 
-- **5.1.1** Reescrever `getDashboardStats` com uma única query usando CTEs
-- **5.1.2** Ou usar subqueries para reduzir round-trips
-- **5.1.3** Adicionar índices necessários para as queries
-- **5.1.4** Implementar cache de stats (5 minutos)
+- [x] **5.1.1** Reescrever `getDashboardStats` com uma única query usando CTEs
+- [x] **5.1.2** Ou usar subqueries para reduzir round-trips
+- [x] **5.1.3** Adicionar índices necessários para as queries
+- [ ] **5.1.4** Implementar cache de stats (5 minutos) - opcional, não implementado
 
 ### 5.2 Corrigir N+1 em LGPD Export
 
 **Arquivos:** `server/api/lgpd.ts`
 
-- **5.2.1** Reescrever para usar uma query com JOIN
-- **5.2.2** Usar `inArray()` para buscar mensagens em batch
-- **5.2.3** Adicionar paginação no export (chunked)
+- [x] **5.2.1** Reescrever para usar uma query com JOIN
+- [x] **5.2.2** Usar `inArray()` para buscar mensagens em batch
+- [ ] **5.2.3** Adicionar paginação no export (chunked) - opcional para datasets grandes
 
 ### 5.3 Adicionar Índices Composite
 
 **Arquivos:** `shared/schema.ts`
 
-- **5.3.1** Adicionar índice `(organizationId, email)` em users
-- **5.3.2** Adicionar índice `(conversationId, createdAt)` em messages
-- **5.3.3** Adicionar índice `(contactId, channel)` em conversations
-- **5.3.4** Adicionar índice `(entityType, entityId)` em files
-- **5.3.5** Adicionar índice `(organizationId, status)` em conversations
-- **5.3.6** Gerar e aplicar migration
+- [x] **5.3.1** Adicionar índice `(organizationId, email)` em users
+- [x] **5.3.2** Adicionar índice `(conversationId, createdAt)` em messages
+- [x] **5.3.3** Adicionar índice `(contactId, channel)` em conversations
+- [x] **5.3.4** Adicionar índice `(entityType, entityId)` em files
+- [x] **5.3.5** Adicionar índice `(organizationId, status)` em conversations
+- [x] **5.3.6** Gerar e aplicar migration (migrations/0003_adorable_forgotten_one.sql)
 
 ### 5.4 Configurar Pool de Conexões
 
 **Arquivos:** `server/db.ts`
 
-- **5.4.1** Configurar `max: 20` conexões
-- **5.4.2** Configurar `min: 5` conexões
-- **5.4.3** Configurar `idleTimeoutMillis: 30000`
-- **5.4.4** Configurar `connectionTimeoutMillis: 2000`
-- **5.4.5** Adicionar health check do pool
+- [x] **5.4.1** Configurar `max: 20` conexões
+- [x] **5.4.2** Configurar `min: 5` conexões
+- [x] **5.4.3** Configurar `idleTimeoutMillis: 30000`
+- [x] **5.4.4** Configurar `connectionTimeoutMillis: 2000`
+- [x] **5.4.5** Adicionar health check do pool
 
 ### 5.5 Cache de Mensagens com Validação
 
 **Arquivos:** `server/redis.ts`
 
-- **5.5.1** Adicionar validação Zod no cache read
-- **5.5.2** Invalidar cache em caso de schema mismatch
-- **5.5.3** Adicionar versionamento de cache
+- [x] **5.5.1** Adicionar validação Zod no cache read
+- [x] **5.5.2** Invalidar cache em caso de schema mismatch
+- [x] **5.5.3** Adicionar versionamento de cache
 
 ---
 

@@ -5,7 +5,7 @@
 
 import type { Express } from "express";
 import { z } from "zod";
-import { eq, inArray, and } from "drizzle-orm";
+import { eq, inArray, and, desc } from "drizzle-orm";
 import { isAuthenticated, requireRole } from "../auth";
 import { storage } from "../storage";
 import { db } from "../db";
@@ -18,6 +18,7 @@ import {
   deals,
   auditLogs,
   type File as FileRecord,
+  type Message,
 } from "@shared/schema";
 import { logger } from "../logger";
 import { asyncHandler, validateParams, validateBody, getCurrentUser } from "../middleware";
@@ -69,18 +70,32 @@ export function registerLgpdRoutes(app: Express) {
       }
 
       // Get conversations
-      const conversations = await storage.getConversationsByContact(contactId);
+      const contactConversations = await storage.getConversationsByContact(contactId);
 
-      // Get messages for each conversation
-      const conversationsWithMessages = await Promise.all(
-        conversations.map(async (conv) => {
-          const messagesResult = await storage.getMessages(conv.id, { limit: 1000 });
-          return {
-            ...conv,
-            messages: messagesResult.messages,
-          };
-        })
-      );
+      // Batch fetch all messages for all conversations in a single query (fixes N+1)
+      const conversationIds = contactConversations.map((c) => c.id);
+      let allMessages: Message[] = [];
+      if (conversationIds.length > 0) {
+        allMessages = await db
+          .select()
+          .from(messages)
+          .where(inArray(messages.conversationId, conversationIds))
+          .orderBy(desc(messages.createdAt));
+      }
+
+      // Group messages by conversation ID
+      const messagesByConversation = new Map<number, Message[]>();
+      for (const msg of allMessages) {
+        const existing = messagesByConversation.get(msg.conversationId) || [];
+        existing.push(msg);
+        messagesByConversation.set(msg.conversationId, existing);
+      }
+
+      // Combine conversations with their messages
+      const conversationsWithMessages = contactConversations.map((conv) => ({
+        ...conv,
+        messages: messagesByConversation.get(conv.id) || [],
+      }));
 
       // Get activities
       const activities = await storage.getActivitiesByContact(contactId);
