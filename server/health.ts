@@ -5,6 +5,7 @@
 
 import { db, getPoolStats } from "./db";
 import { sql } from "drizzle-orm";
+import { DB_POOL_MAX } from "./constants";
 
 export interface ServiceStatus {
   status: "healthy" | "degraded" | "unhealthy";
@@ -35,7 +36,7 @@ async function checkDatabase(): Promise<ServiceStatus> {
     const poolStats = getPoolStats();
 
     // Warn if pool is under pressure (waiting > 0 or usage > 80%)
-    const poolUsagePercent = (poolStats.totalCount - poolStats.idleCount) / 20 * 100;
+    const poolUsagePercent = (poolStats.totalCount - poolStats.idleCount) / DB_POOL_MAX * 100;
     const isUnderPressure = poolStats.waitingCount > 0 || poolUsagePercent > 80;
 
     return {
