@@ -24,7 +24,7 @@ export function registerLeadScoreRoutes(app: Express) {
     "/api/lead-scores/:entityType/:entityId",
     isAuthenticated,
     validateParams(leadScoreParamsSchema),
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const { entityType, entityId } = req.validatedParams;
 
       if (!leadScoreEntityTypes.includes(entityType as LeadScoreEntityType)) {
@@ -42,7 +42,7 @@ export function registerLeadScoreRoutes(app: Express) {
     isAuthenticated,
     validateParams(leadScoreParamsSchema),
     validateQuery(asyncQuerySchema),
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const { entityType, entityId } = req.validatedParams;
       const isAsync = req.validatedQuery?.async === "true";
 

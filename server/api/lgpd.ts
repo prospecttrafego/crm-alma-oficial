@@ -50,7 +50,7 @@ export function registerLgpdRoutes(app: Express) {
     isAuthenticated,
     requireRole("admin"),
     validateParams(contactIdParamsSchema),
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const { id: contactId } = req.validatedParams;
       const currentUser = getCurrentUser(req);
 
@@ -200,7 +200,7 @@ export function registerLgpdRoutes(app: Express) {
     requireRole("admin"),
     validateParams(contactIdParamsSchema),
     validateBody(deleteConfirmSchema),
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const { id: contactId } = req.validatedParams;
       const currentUser = getCurrentUser(req);
       const { confirmDelete } = req.validatedBody;

@@ -46,7 +46,7 @@ export function registerFileRoutes(app: Express) {
     "/api/files",
     isAuthenticated,
     validateBody(createFileSchema),
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const org = await storage.getDefaultOrganization();
       if (!org) {
         return sendValidationError(res, "No organization found");
@@ -113,7 +113,7 @@ export function registerFileRoutes(app: Express) {
     "/api/files/:entityType/:entityId",
     isAuthenticated,
     validateParams(fileEntityParamsSchema),
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const { entityType, entityId } = req.validatedParams;
 
       if (!fileEntityTypes.includes(entityType as FileEntityType)) {
@@ -130,7 +130,7 @@ export function registerFileRoutes(app: Express) {
     "/api/files/:id",
     isAuthenticated,
     validateParams(fileIdParamsSchema),
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const { id } = req.validatedParams;
       const currentUser = getCurrentUser(req);
       const userId = currentUser!.id;
@@ -180,7 +180,7 @@ export function registerFileRoutes(app: Express) {
     isAuthenticated,
     validateBody(transcribeBodySchema),
     validateQuery(asyncQuerySchema),
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const { audioUrl, language } = req.validatedBody;
       const isAsync = req.validatedQuery?.async === "true";
 
@@ -235,7 +235,7 @@ export function registerFileRoutes(app: Express) {
     validateParams(fileIdParamsSchema),
     validateBody(transcribeBodySchema),
     validateQuery(asyncQuerySchema),
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const { id } = req.validatedParams;
       const isAsync = req.validatedQuery?.async === "true";
 

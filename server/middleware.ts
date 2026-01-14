@@ -46,7 +46,7 @@ export function validateBody<T extends z.ZodTypeAny>(schema: T): RequestHandler 
       return sendValidationError(res, "Dados inválidos", errors);
     }
 
-    (req as any).validatedBody = result.data;
+    req.validatedBody = result.data;
     next();
   };
 }
@@ -67,7 +67,7 @@ export function validateQuery<T extends z.ZodTypeAny>(schema: T): RequestHandler
       return sendValidationError(res, "Parâmetros inválidos", errors);
     }
 
-    (req as any).validatedQuery = result.data;
+    req.validatedQuery = result.data;
     next();
   };
 }
@@ -88,7 +88,7 @@ export function validateParams<T extends z.ZodTypeAny>(schema: T): RequestHandle
       return sendValidationError(res, "Parâmetros de rota inválidos", errors);
     }
 
-    (req as any).validatedParams = result.data;
+    req.validatedParams = result.data;
     next();
   };
 }
@@ -137,18 +137,28 @@ export function asyncHandler(fn: RequestHandler): RequestHandler {
 /**
  * Get the current user from request
  * Typed helper for accessing authenticated user
+ * Returns null if user is not authenticated or missing required fields
  */
-export function getCurrentUser(req: any): { id: string; email: string; role: string; organizationId: number } | null {
+export function getCurrentUser(req: Request): { id: string; email: string; role: string; organizationId: number } | null {
   if (!req.isAuthenticated?.() || !req.user) {
     return null;
   }
-  return req.user as any;
+  // Ensure required fields are present
+  if (!req.user.email || !req.user.role || req.user.organizationId === null) {
+    return null;
+  }
+  return {
+    id: req.user.id,
+    email: req.user.email,
+    role: req.user.role,
+    organizationId: req.user.organizationId,
+  };
 }
 
 /**
  * Get organization ID from current user
  */
-export function getOrganizationId(req: any): number | null {
+export function getOrganizationId(req: Request): number | null {
   const user = getCurrentUser(req);
   return user?.organizationId ?? null;
 }
@@ -196,10 +206,10 @@ export const globalErrorHandler: ErrorRequestHandler = (
 
   // Log the full error with context
   const errorContext = {
-    requestId: (req as any).requestId,
+    requestId: req.requestId,
     method: req.method,
     path: req.path,
-    userId: (req.user as any)?.id,
+    userId: req.user?.id,
     userAgent: req.get("User-Agent"),
     ip: req.ip,
     error: {

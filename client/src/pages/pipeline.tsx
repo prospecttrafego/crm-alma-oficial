@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useRoute, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -102,30 +102,31 @@ export default function PipelinePage() {
 
   const { moveDeal, createDeal } = useDealMutations();
 
-  const handleDragStart = (e: React.DragEvent, deal: DealWithRelations) => {
+  // Memoized drag handlers
+  const handleDragStart = useCallback((e: React.DragEvent, deal: DealWithRelations) => {
     setDraggedDeal(deal);
     e.dataTransfer.effectAllowed = "move";
-  };
+  }, []);
 
-  const handleDragOver = (e: React.DragEvent, stageId: number) => {
+  const handleDragOver = useCallback((e: React.DragEvent, stageId: number) => {
     e.preventDefault();
     setDragOverStage(stageId);
-  };
+  }, []);
 
-  const handleDragLeave = () => {
+  const handleDragLeave = useCallback(() => {
     setDragOverStage(null);
-  };
+  }, []);
 
-  const handleDrop = (e: React.DragEvent, stageId: number) => {
+  const handleDrop = useCallback((e: React.DragEvent, stageId: number) => {
     e.preventDefault();
     setDragOverStage(null);
     if (draggedDeal && draggedDeal.stageId !== stageId) {
       moveDeal.mutate({ id: draggedDeal.id, data: { stageId } });
     }
     setDraggedDeal(null);
-  };
+  }, [draggedDeal, moveDeal]);
 
-  const handleCreateDeal = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleCreateDeal = useCallback((e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     const firstStage = pipeline?.stages?.[0];
@@ -139,39 +140,63 @@ export default function PipelinePage() {
       contactId: formData.get("contactId") ? Number(formData.get("contactId")) : undefined,
       notes: formData.get("notes") as string,
     });
-  };
+  }, [pipeline, createDeal]);
 
-  const getDealsByStage = (stageId: number) => {
-    return deals?.filter((deal) => {
-      if (deal.stageId !== stageId) return false;
-      
-      if (filters.stageId && deal.stageId !== filters.stageId) return false;
-      if (filters.ownerId && deal.ownerId !== filters.ownerId) return false;
-      if (filters.status && deal.status !== filters.status) return false;
-      if (filters.minValue && Number(deal.value || 0) < filters.minValue) return false;
-      if (filters.maxValue && Number(deal.value || 0) > filters.maxValue) return false;
-      
-      if (filters.dateFrom || filters.dateTo) {
-        if (!deal.expectedCloseDate) return false;
-        const dealDate = new Date(deal.expectedCloseDate);
-        if (filters.dateFrom) {
-          const fromDate = new Date(filters.dateFrom);
-          if (dealDate < fromDate) return false;
-        }
-        if (filters.dateTo) {
-          const toDate = new Date(filters.dateTo);
-          if (dealDate > toDate) return false;
-        }
-      }
-      
-      return true;
-    }) || [];
-  };
+  // Memoized filtered deals by stage - prevents recalculation on every render
+  const dealsByStage = useMemo(() => {
+    if (!deals || !pipeline?.stages) return new Map<number, DealWithRelations[]>();
 
-  const getStageValue = (stageId: number) => {
-    const stageDeals = getDealsByStage(stageId);
-    return stageDeals.reduce((sum, deal) => sum + Number(deal.value || 0), 0);
-  };
+    const stageDealsMap = new Map<number, DealWithRelations[]>();
+
+    for (const stage of pipeline.stages) {
+      const filteredDeals = deals.filter((deal) => {
+        if (deal.stageId !== stage.id) return false;
+
+        if (filters.stageId && deal.stageId !== filters.stageId) return false;
+        if (filters.ownerId && deal.ownerId !== filters.ownerId) return false;
+        if (filters.status && deal.status !== filters.status) return false;
+        if (filters.minValue && Number(deal.value || 0) < filters.minValue) return false;
+        if (filters.maxValue && Number(deal.value || 0) > filters.maxValue) return false;
+
+        if (filters.dateFrom || filters.dateTo) {
+          if (!deal.expectedCloseDate) return false;
+          const dealDate = new Date(deal.expectedCloseDate);
+          if (filters.dateFrom) {
+            const fromDate = new Date(filters.dateFrom);
+            if (dealDate < fromDate) return false;
+          }
+          if (filters.dateTo) {
+            const toDate = new Date(filters.dateTo);
+            if (dealDate > toDate) return false;
+          }
+        }
+
+        return true;
+      });
+      stageDealsMap.set(stage.id, filteredDeals);
+    }
+
+    return stageDealsMap;
+  }, [deals, pipeline?.stages, filters]);
+
+  // Memoized stage values
+  const stageValues = useMemo(() => {
+    const valuesMap = new Map<number, number>();
+    dealsByStage.forEach((stageDeals, stageId) => {
+      const total = stageDeals.reduce((sum, deal) => sum + Number(deal.value || 0), 0);
+      valuesMap.set(stageId, total);
+    });
+    return valuesMap;
+  }, [dealsByStage]);
+
+  // Helper functions that use memoized data
+  const getDealsByStage = useCallback((stageId: number) => {
+    return dealsByStage.get(stageId) || [];
+  }, [dealsByStage]);
+
+  const getStageValue = useCallback((stageId: number) => {
+    return stageValues.get(stageId) || 0;
+  }, [stageValues]);
 
   if (pipelineLoading) {
     return (

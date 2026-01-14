@@ -32,6 +32,16 @@ import { formatRecordingTime } from "@/pages/inbox/utils";
 import type { PendingFile } from "@/pages/inbox/types";
 import type { EmailTemplate } from "@shared/schema";
 
+/**
+ * Returns appropriate icon based on file MIME type.
+ * Defined outside component to avoid recreation on each render.
+ */
+function getFileIcon(mimeType: string) {
+  if (mimeType.startsWith("image/")) return <Image className="h-3 w-3" />;
+  if (mimeType.includes("pdf") || mimeType.includes("document")) return <FileText className="h-3 w-3" />;
+  return <FileIcon className="h-3 w-3" />;
+}
+
 type Props = {
   onSubmit: (e: React.FormEvent) => void;
   isRecording: boolean;
@@ -108,12 +118,6 @@ export function MessageComposer({
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
-
-  const getFileIcon = (mimeType: string) => {
-    if (mimeType.startsWith("image/")) return <Image className="h-3 w-3" />;
-    if (mimeType.includes("pdf") || mimeType.includes("document")) return <FileText className="h-3 w-3" />;
-    return <FileIcon className="h-3 w-3" />;
-  };
 
   return (
     <form onSubmit={onSubmit} className="border-t border-border bg-muted/50 px-4 py-3">

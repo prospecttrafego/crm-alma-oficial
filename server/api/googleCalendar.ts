@@ -74,7 +74,7 @@ export function registerGoogleCalendarRoutes(app: Express) {
   app.get(
     "/api/integrations/google-calendar/status",
     isAuthenticated,
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const currentUser = getCurrentUser(req);
       const userId = currentUser!.id;
       const token = await storage.getGoogleOAuthToken(userId);
@@ -102,7 +102,7 @@ export function registerGoogleCalendarRoutes(app: Express) {
   app.get(
     "/api/auth/google/authorize",
     isAuthenticated,
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const { googleCalendarService } = await import("../integrations/google/calendar");
 
       if (!googleCalendarService.isConfigured()) {
@@ -201,7 +201,7 @@ export function registerGoogleCalendarRoutes(app: Express) {
   app.post(
     "/api/integrations/google-calendar/disconnect",
     isAuthenticated,
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const currentUser = getCurrentUser(req);
       const userId = currentUser!.id;
       const user = await storage.getUser(userId);
@@ -251,7 +251,7 @@ export function registerGoogleCalendarRoutes(app: Express) {
     "/api/integrations/google-calendar/sync",
     isAuthenticated,
     validateQuery(asyncQuerySchema),
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const currentUser = getCurrentUser(req);
       const userId = currentUser!.id;
       const isAsync = req.validatedQuery?.async === "true";

@@ -119,8 +119,10 @@ server/
   validation/         # Schemas Zod centralizados (a partir de shared/contracts)
   storage/            # DAL por domínio (contacts, deals, etc.)
   integrations/       # Integrações externas
-  jobs/               # Background jobs
-  middleware.ts       # Middlewares (asyncHandler, validateBody/Params/Query)
+  services/           # Serviços de negócio (deal-auto-creator, whatsapp-config, email-ingest)
+  jobs/               # Background jobs (queue, handlers, DLQ, storage)
+  types/              # Type augmentations (Express, etc.)
+  middleware.ts       # Middlewares (asyncHandler, validate*, getCurrentUser)
   response.ts         # Helpers de resposta (sendSuccess, sendError, toSafeUser)
 ```
 
@@ -128,10 +130,11 @@ E também existem arquivos importantes "soltos" dentro de `server/` (por exemplo
 
 ### Arquivos de infraestrutura importantes
 
-- `server/middleware.ts`: Middlewares padronizados como `asyncHandler` (captura erros automaticamente), `validateBody`, `validateParams`, `validateQuery` (validação Zod).
+- `server/middleware.ts`: Middlewares padronizados como `asyncHandler` (captura erros automaticamente), `validateBody`, `validateParams`, `validateQuery` (validação Zod), e `getCurrentUser` (helper type-safe para acessar usuário autenticado).
 - `server/response.ts`: Funções helper para respostas HTTP padronizadas (`sendSuccess`, `sendError`, `sendNotFound`, `sendValidationError`, `toSafeUser`, etc.).
 - `server/validation/`: Pasta com schemas Zod centralizados para validação de entrada (importa de `shared/contracts`).
 - `server/storage.ts`: Facade que re-exporta os módulos do `server/storage/` (DAL por domínio).
+- `server/types/`: Type augmentations para Express (Request interface com validatedBody/Query/Params e User).
 
 ### `server/api/` — Rotas HTTP do sistema (endpoints `/api/...`)
 - O que é: aqui estão as “portas de entrada” do backend (as URLs que o frontend chama).
@@ -200,6 +203,29 @@ O que pode ser mudado/alterado:
 O que evitar:
 - Misturar “regra de negócio” com código de integração: o ideal é a integração só se preocupar em “conectar e trazer dados”.
 
+### `server/services/` — Lógica de negócio reutilizável
+- O que é: serviços que encapsulam regras de negócio reutilizáveis por múltiplos handlers.
+- Por que existe: evita duplicação de código e mantém handlers/rotas mais enxutos.
+
+Estrutura atual:
+
+```
+server/services/
+  index.ts              # Re-exports
+  deal-auto-creator.ts  # Auto-criação de deal (WhatsApp/email)
+  whatsapp-config.ts    # Configuração WhatsApp (connect/disconnect/send)
+  email-ingest.ts       # Processamento de emails recebidos
+```
+
+O que pode ser mudado/alterado:
+- Criar novos serviços para lógica de negócio complexa.
+- Mover lógica repetida de handlers para cá.
+
+O que evitar:
+- Colocar lógica de integração pura aqui (isso vai em `integrations/`).
+
+---
+
 ### `server/jobs/` — Tarefas em background (para coisas pesadas)
 - O que é: um lugar para tarefas que não deveriam travar uma requisição (ex.: transcrever áudio, calcular score, sincronizar calendário).
 - Por que existe: melhora a experiência do usuário e reduz risco de timeouts.
@@ -209,9 +235,13 @@ Estrutura atual:
 
 ```
 server/jobs/
-  index.ts
-  queue.ts
-  handlers.ts
+  index.ts        # Re-exports
+  types.ts        # Tipos e interfaces (Job, JobStatus, JobHandler, etc.)
+  storage.ts      # Persistência Redis/in-memory (saveJob, loadJob, etc.)
+  queue.ts        # Processamento da fila (enqueueJob, processQueue, etc.)
+  handlers.ts     # Handlers específicos (transcrição, scoring, sync)
+  dead-letter.ts  # Dead Letter Queue para jobs falhos
+  file-cleanup.ts # Cleanup de arquivos órfãos
 ```
 
 O que pode ser mudado/alterado:
@@ -220,6 +250,25 @@ O que pode ser mudado/alterado:
 
 O que evitar:
 - Rodar sem Redis em produção quando precisar de jobs duráveis (o fallback em memória é para dev/ambientes simples).
+
+---
+
+### `server/types/` — Type augmentations e definições
+- O que é: arquivos de definição de tipos que estendem bibliotecas externas.
+- Por que existe: permite que o TypeScript entenda extensões customizadas (ex.: propriedades adicionais no Request do Express).
+
+Estrutura atual:
+
+```
+server/types/
+  express.d.ts    # Augmenta Express.Request com validatedBody/Query/Params e User
+```
+
+O que pode ser mudado/alterado:
+- Adicionar novas augmentações para outras bibliotecas quando necessário.
+
+O que evitar:
+- Colocar tipos de negócio aqui (esses vão em `shared/`).
 
 ---
 

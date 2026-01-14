@@ -11,6 +11,7 @@ import {
   validateParams,
   validateQuery,
   asyncHandler,
+  getCurrentUser,
 } from "../middleware";
 import { sendSuccess, sendNotFound } from "../response";
 import { storage } from "../storage";
@@ -21,7 +22,7 @@ export function registerContactRoutes(app: Express) {
     "/api/contacts",
     isAuthenticated,
     validateQuery(paginationQuerySchema),
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const paginationRequested =
         req.query?.page !== undefined ||
         req.query?.limit !== undefined ||
@@ -65,7 +66,7 @@ export function registerContactRoutes(app: Express) {
     "/api/contacts/:id",
     isAuthenticated,
     validateParams(idParamSchema),
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const { id } = req.validatedParams;
       const contact = await storage.getContact(id);
       if (!contact) {
@@ -80,12 +81,12 @@ export function registerContactRoutes(app: Express) {
     "/api/contacts",
     isAuthenticated,
     validateBody(createContactSchema),
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const org = await storage.getDefaultOrganization();
       if (!org) {
         return sendNotFound(res, "No organization");
       }
-      const userId = (req.user as any).id;
+      const userId = getCurrentUser(req)!.id;
 
       const { companyName, ...contactData } = req.validatedBody;
       let companyId: number | undefined;
@@ -131,9 +132,9 @@ export function registerContactRoutes(app: Express) {
     isAuthenticated,
     validateParams(idParamSchema),
     validateBody(updateContactSchema),
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const { id } = req.validatedParams;
-      const userId = (req.user as any).id;
+      const userId = getCurrentUser(req)!.id;
 
       const existingContact = await storage.getContact(id);
       if (!existingContact) {
@@ -170,9 +171,9 @@ export function registerContactRoutes(app: Express) {
     "/api/contacts/:id",
     isAuthenticated,
     validateParams(idParamSchema),
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const { id } = req.validatedParams;
-      const userId = (req.user as any).id;
+      const userId = getCurrentUser(req)!.id;
 
       const existingContact = await storage.getContact(id);
       await storage.deleteContact(id);

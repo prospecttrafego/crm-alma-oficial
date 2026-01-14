@@ -38,7 +38,7 @@ export function registerNotificationRoutes(app: Express) {
     "/api/notifications/:id/read",
     isAuthenticated,
     validateParams(notificationIdParamSchema),
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const currentUser = getCurrentUser(req);
       const { id } = req.validatedParams;
 

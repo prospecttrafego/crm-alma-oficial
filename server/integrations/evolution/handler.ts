@@ -4,11 +4,9 @@
  */
 
 import { storage } from '../../storage';
-import { db } from '../../db';
-import { deals } from '@shared/schema';
-import { eq, and, sql } from 'drizzle-orm';
 import { whatsappLogger } from '../../logger';
 import { ObjectStorageService } from '../supabase/storage';
+import { autoCreateDealForContact } from '../../services/deal-auto-creator';
 
 // Evolution API webhook event types
 export interface EvolutionWebhookEvent {
@@ -300,89 +298,20 @@ export class EvolutionMessageHandler {
         }
 
         // === AUTO-CRIAÇÃO DE DEAL (with race condition protection) ===
-        try {
-          // Use transaction with advisory lock to prevent race conditions
-          // when multiple messages arrive for the same contact simultaneously
-          const newDeal = await db.transaction(async (tx) => {
-            // Acquire advisory lock based on contact ID (prevents concurrent deal creation for same contact)
-            // This lock is automatically released when the transaction commits/rollbacks
-            await tx.execute(sql`SELECT pg_advisory_xact_lock(${contact.id})`);
+        const dealResult = await autoCreateDealForContact({
+          contactId: contact.id,
+          contactName: senderName || phoneNumber,
+          organizationId,
+          source: "whatsapp",
+        });
 
-            // Check for open deals within the transaction (after acquiring lock)
-            const existingOpenDeals = await tx
-              .select({ id: deals.id })
-              .from(deals)
-              .where(and(
-                eq(deals.contactId, contact.id),
-                eq(deals.status, 'open')
-              ))
-              .limit(1);
-
-            if (existingOpenDeals.length > 0) {
-              whatsappLogger.info(`[Evolution Handler] Contact ${contact.id} already has open deal, skipping creation`);
-              return null; // Already has open deal
-            }
-
-            // Buscar ou criar pipeline default
-            let defaultPipeline = await storage.getDefaultPipeline(organizationId);
-
-            if (!defaultPipeline) {
-              // Criar pipeline padrão automaticamente
-              whatsappLogger.info(`[Evolution Handler] Creating default pipeline for organization ${organizationId}`);
-              defaultPipeline = await storage.createPipeline({
-                name: 'Pipeline Padrão',
-                organizationId,
-                isDefault: true,
-              });
-
-              // Criar stage inicial
-              await storage.createPipelineStage({
-                name: 'Novo Lead',
-                pipelineId: defaultPipeline.id,
-                order: 0,
-                color: '#3B82F6',
-                isWon: false,
-                isLost: false,
-              });
-
-              whatsappLogger.info(`[Evolution Handler] Created default pipeline: ${defaultPipeline.id}`);
-            }
-
-            // Buscar stages do pipeline (ordenados por order)
-            const stages = await storage.getPipelineStages(defaultPipeline.id);
-            const firstStage = stages.sort((a, b) => a.order - b.order)[0];
-
-            if (!firstStage) {
-              whatsappLogger.error(`[Evolution Handler] No stages found even after creating pipeline`);
-              return null;
-            }
-
-            const dealTitle = `Lead WhatsApp: ${senderName || phoneNumber}`;
-
-            const createdDeal = await storage.createDeal({
-              title: dealTitle,
-              pipelineId: defaultPipeline.id,
-              stageId: firstStage.id,
-              contactId: contact.id,
-              organizationId,
-              source: 'whatsapp',
-              probability: 10,
-              status: 'open',
-            });
-
-            whatsappLogger.info(`[Evolution Handler] Auto-created deal: ${createdDeal.id} for contact: ${contact.id}`);
-            return createdDeal;
-          });
-
-          // Broadcast para atualizar UI (outside transaction)
-          if (newDeal && this.broadcast) {
-            this.broadcast(organizationId, 'deal_created', { deal: newDeal });
+        // Broadcast to update UI if deal was created
+        if (dealResult.created && dealResult.deal) {
+          if (this.broadcast) {
+            this.broadcast(organizationId, "deal_created", { deal: dealResult.deal });
+          } else {
+            whatsappLogger.debug("[Evolution Handler] Broadcast unavailable, skipping deal_created event");
           }
-        } catch (dealError) {
-          whatsappLogger.error('[Evolution Handler] Error auto-creating deal', {
-            error: dealError instanceof Error ? dealError.message : String(dealError),
-          });
-          // Não falhar o fluxo principal por erro na criação de deal
         }
 
         // Process media if present
@@ -410,6 +339,8 @@ export class EvolutionMessageHandler {
             message,
             contact,
           });
+        } else {
+          whatsappLogger.debug("[Evolution Handler] Broadcast unavailable, skipping new_message event");
         }
       } catch (error) {
         whatsappLogger.error('[Evolution Handler] Error processing message', {
@@ -462,6 +393,8 @@ export class EvolutionMessageHandler {
           channelConfigId,
           status: connectionStatus,
         });
+      } else {
+        whatsappLogger.debug("[Evolution Handler] Broadcast unavailable, skipping whatsapp_status event");
       }
     } catch (error) {
       whatsappLogger.error('[Evolution Handler] Error updating connection status', {
@@ -501,6 +434,8 @@ export class EvolutionMessageHandler {
           channelConfigId,
           qrCode: data.base64 || data.code,
         });
+      } else {
+        whatsappLogger.debug("[Evolution Handler] Broadcast unavailable, skipping whatsapp_qr event");
       }
     } catch (error) {
       whatsappLogger.error('[Evolution Handler] Error updating QR code', {

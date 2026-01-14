@@ -193,11 +193,13 @@ CRM_Oficial/
 │   ├── index.ts                 # Entry point, inicia servidor
 │   ├── env.ts                   # Loader de .env (staging/prod) com fallback
 │   ├── routes.ts                # Agregador (auth + rate limit + API + WebSocket)
-│   ├── middleware.ts            # Middlewares padronizados (asyncHandler, validate*)
+│   ├── middleware.ts            # Middlewares (asyncHandler, validate*, getCurrentUser)
 │   ├── response.ts              # Helpers de resposta (sendSuccess, sendError, toSafeUser)
 │   ├── validation/              # Schemas Zod centralizados (a partir de shared/contracts)
 │   │   ├── index.ts             # Re-exports
 │   │   └── schemas.ts           # Schemas de validação
+│   ├── types/                   # Type augmentations
+│   │   └── express.d.ts         # Express Request/User type extensions
 │   ├── api/                     # Rotas HTTP por domínio (módulos) - TODOS padronizados
 │   │   ├── index.ts             # Registra todos os módulos de API
 │   │   ├── contacts.ts          # Contatos
@@ -210,24 +212,33 @@ CRM_Oficial/
 │   │   └── ...                  # Demais domínios (activities, notifications, etc.)
 │   ├── ws/                      # WebSocket (/ws) + broadcast
 │   │   └── index.ts             # Upgrade handler + presença + "typing"
+│   ├── services/                # Lógica de negócio reutilizável
+│   │   ├── index.ts             # Re-exports
+│   │   ├── deal-auto-creator.ts # Auto-criação de deal (WhatsApp/email)
+│   │   ├── whatsapp-config.ts   # Configuração WhatsApp (connect/disconnect/send)
+│   │   └── email-ingest.ts      # Processamento de emails recebidos
 │   ├── jobs/                    # Background jobs (tarefas assíncronas)
 │   │   ├── index.ts             # Exports do módulo
+│   │   ├── types.ts             # Tipos e interfaces (Job, JobStatus, etc.)
+│   │   ├── storage.ts           # Persistência Redis/in-memory
 │   │   ├── queue.ts             # Fila Redis (Upstash) com fallback em memoria
-│   │   └── handlers.ts          # Handlers: transcricao, lead score, sync
-│   ├── logger.ts                # Logs estruturados (requestId + loggers de integrações)
-│   ├── health.ts                # Health check (DB + integrações opcionais)
+│   │   ├── handlers.ts          # Handlers: transcricao, lead score, sync
+│   │   ├── dead-letter.ts       # Dead Letter Queue para jobs falhos
+│   │   └── file-cleanup.ts      # Cleanup de arquivos órfãos
+│   ├── integrations/            # Integrações externas
+│   │   ├── email/               # IMAP/SMTP
+│   │   ├── evolution/           # Evolution API (WhatsApp)
+│   │   ├── firebase/            # Push notifications (FCM)
+│   │   ├── google/              # Google APIs (Calendar)
+│   │   ├── openai/              # Scoring e transcrição
+│   │   └── supabase/            # Storage
 │   ├── storage/                 # DAL por dominio (contacts, deals, etc.)
 │   ├── storage.ts               # Facade do storage (re-export dos modulos)
+│   ├── logger.ts                # Logs estruturados (requestId + loggers de integrações)
+│   ├── health.ts                # Health check (DB + integrações opcionais)
 │   ├── auth.ts                  # Passport.js + sessoes
 │   ├── db.ts                    # Drizzle + conexao Postgres (Pool)
 │   ├── tenant.ts                # Single-tenant (organizacao da instalacao)
-│   ├── storage.supabase.ts      # Upload/download de arquivos
-│   ├── aiScoring.ts             # Lead scoring com OpenAI
-│   ├── whisper.ts               # Transcricao de audio (OpenAI Whisper)
-│   ├── evolution-api.ts         # Cliente Evolution API (WhatsApp)
-│   ├── evolution-message-handler.ts # Webhook handler (WhatsApp)
-│   ├── google-calendar.ts       # Integracao Google Calendar (OAuth + sync)
-│   ├── notifications.ts         # Push notifications (Firebase Admin)
 │   ├── redis.ts                 # Upstash Redis (presenca + base cache/rate-limit)
 │   ├── static.ts                # Servir frontend em producao (dist/public)
 │   └── vite.ts                  # Integracao Vite em dev

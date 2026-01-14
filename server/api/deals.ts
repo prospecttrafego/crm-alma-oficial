@@ -13,6 +13,7 @@ import {
   validateParams,
   validateQuery,
   asyncHandler,
+  getCurrentUser,
 } from "../middleware";
 import { sendSuccess, sendNotFound } from "../response";
 import { storage } from "../storage";
@@ -31,7 +32,7 @@ export function registerDealRoutes(app: Express) {
     "/api/deals",
     isAuthenticated,
     validateQuery(dealsQuerySchema),
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const paginationOrFilterRequested =
         req.query?.page !== undefined ||
         req.query?.limit !== undefined ||
@@ -81,7 +82,7 @@ export function registerDealRoutes(app: Express) {
     "/api/deals/:id",
     isAuthenticated,
     validateParams(idParamSchema),
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const { id } = req.validatedParams;
       const deal = await storage.getDeal(id);
       if (!deal) {
@@ -96,12 +97,12 @@ export function registerDealRoutes(app: Express) {
     "/api/deals",
     isAuthenticated,
     validateBody(createDealSchema),
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const org = await storage.getDefaultOrganization();
       if (!org) {
         return sendNotFound(res, "No organization");
       }
-      const userId = (req.user as any).id;
+      const userId = getCurrentUser(req)!.id;
 
       const deal = await storage.createDeal({
         ...req.validatedBody,
@@ -129,9 +130,9 @@ export function registerDealRoutes(app: Express) {
     isAuthenticated,
     validateParams(idParamSchema),
     validateBody(updateDealSchema),
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const { id } = req.validatedParams;
-      const userId = (req.user as any).id;
+      const userId = getCurrentUser(req)!.id;
 
       const existingDeal = await storage.getDeal(id);
       if (!existingDeal) {
@@ -170,9 +171,9 @@ export function registerDealRoutes(app: Express) {
     isAuthenticated,
     validateParams(idParamSchema),
     validateBody(moveDealSchema),
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const { id } = req.validatedParams;
-      const userId = (req.user as any).id;
+      const userId = getCurrentUser(req)!.id;
 
       const deal = await storage.moveDealToStage(id, req.validatedBody.stageId);
       if (!deal) {
@@ -200,9 +201,9 @@ export function registerDealRoutes(app: Express) {
     "/api/deals/:id",
     isAuthenticated,
     validateParams(idParamSchema),
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const { id } = req.validatedParams;
-      const userId = (req.user as any).id;
+      const userId = getCurrentUser(req)!.id;
 
       const existingDeal = await storage.getDeal(id);
       await storage.deleteDeal(id);
