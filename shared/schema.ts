@@ -48,7 +48,8 @@ export const users = pgTable("users", {
   lastName: varchar("last_name"),
   profileImageUrl: varchar("profile_image_url"),
   role: varchar("role").$type<UserRole>().default("sales"),
-  organizationId: integer("organization_id"),
+  organizationId: integer("organization_id")
+    .references(() => organizations.id, { onDelete: 'set null' }),
   preferences: jsonb("preferences").$type<UserPreferences>(),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -59,7 +60,9 @@ export const passwordResetTokens = pgTable(
   "password_reset_tokens",
   {
     token: varchar("token", { length: 64 }).primaryKey(),
-    userId: varchar("user_id").notNull(),
+    userId: varchar("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
     expiresAt: timestamp("expires_at").notNull(),
     usedAt: timestamp("used_at"),
     createdAt: timestamp("created_at").defaultNow(),
@@ -91,8 +94,11 @@ export const companies = pgTable(
     segment: varchar("segment", { length: 100 }),
     size: varchar("size", { length: 50 }),
     industry: varchar("industry", { length: 100 }),
-    organizationId: integer("organization_id").notNull(),
-    ownerId: varchar("owner_id"),
+    organizationId: integer("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+    ownerId: varchar("owner_id")
+      .references(() => users.id, { onDelete: 'set null' }),
     customFields: jsonb("custom_fields").$type<Record<string, unknown>>(),
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at").defaultNow(),
@@ -114,9 +120,13 @@ export const contacts = pgTable(
     phone: varchar("phone", { length: 50 }),
     phoneNormalized: varchar("phone_normalized", { length: 50 }), // Apenas digitos para busca rapida
     jobTitle: varchar("job_title", { length: 100 }),
-    companyId: integer("company_id"),
-    organizationId: integer("organization_id").notNull(),
-    ownerId: varchar("owner_id"),
+    companyId: integer("company_id")
+      .references(() => companies.id, { onDelete: 'set null' }),
+    organizationId: integer("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+    ownerId: varchar("owner_id")
+      .references(() => users.id, { onDelete: 'set null' }),
     tags: text("tags").array(),
     source: varchar("source", { length: 100 }),
     customFields: jsonb("custom_fields").$type<Record<string, unknown>>(),
@@ -136,7 +146,9 @@ export const contacts = pgTable(
 export const pipelines = pgTable("pipelines", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
   name: varchar("name", { length: 255 }).notNull(),
-  organizationId: integer("organization_id").notNull(),
+  organizationId: integer("organization_id")
+    .notNull()
+    .references(() => organizations.id, { onDelete: 'cascade' }),
   isDefault: boolean("is_default").default(false),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -146,7 +158,9 @@ export const pipelines = pgTable("pipelines", {
 export const pipelineStages = pgTable("pipeline_stages", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
   name: varchar("name", { length: 100 }).notNull(),
-  pipelineId: integer("pipeline_id").notNull(),
+  pipelineId: integer("pipeline_id")
+    .notNull()
+    .references(() => pipelines.id, { onDelete: 'cascade' }),
   order: integer("order").notNull(),
   color: varchar("color", { length: 7 }),
   isWon: boolean("is_won").default(false),
@@ -162,12 +176,21 @@ export const deals = pgTable(
     title: varchar("title", { length: 255 }).notNull(),
     value: decimal("value", { precision: 15, scale: 2 }),
     currency: varchar("currency", { length: 3 }).default("BRL"),
-    pipelineId: integer("pipeline_id").notNull(),
-    stageId: integer("stage_id").notNull(),
-    contactId: integer("contact_id"),
-    companyId: integer("company_id"),
-    organizationId: integer("organization_id").notNull(),
-    ownerId: varchar("owner_id"),
+    pipelineId: integer("pipeline_id")
+      .notNull()
+      .references(() => pipelines.id, { onDelete: 'cascade' }),
+    stageId: integer("stage_id")
+      .notNull()
+      .references(() => pipelineStages.id, { onDelete: 'cascade' }),
+    contactId: integer("contact_id")
+      .references(() => contacts.id, { onDelete: 'set null' }),
+    companyId: integer("company_id")
+      .references(() => companies.id, { onDelete: 'set null' }),
+    organizationId: integer("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+    ownerId: varchar("owner_id")
+      .references(() => users.id, { onDelete: 'set null' }),
     probability: integer("probability").default(0),
     expectedCloseDate: timestamp("expected_close_date"),
     status: varchar("status", { length: 20 }).default("open"),
@@ -202,10 +225,15 @@ export const conversations = pgTable(
     subject: varchar("subject", { length: 500 }),
     channel: varchar("channel", { length: 20 }).$type<ChannelType>().notNull(),
     status: varchar("status", { length: 20 }).default("open"),
-    contactId: integer("contact_id"),
-    dealId: integer("deal_id"),
-    organizationId: integer("organization_id").notNull(),
-    assignedToId: varchar("assigned_to_id"),
+    contactId: integer("contact_id")
+      .references(() => contacts.id, { onDelete: 'cascade' }),
+    dealId: integer("deal_id")
+      .references(() => deals.id, { onDelete: 'set null' }),
+    organizationId: integer("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+    assignedToId: varchar("assigned_to_id")
+      .references(() => users.id, { onDelete: 'set null' }),
     lastMessageAt: timestamp("last_message_at"),
     unreadCount: integer("unread_count").default(0),
     createdAt: timestamp("created_at").defaultNow(),
@@ -228,8 +256,11 @@ export const messages = pgTable(
   "messages",
   {
     id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-    conversationId: integer("conversation_id").notNull(),
-    senderId: varchar("sender_id"),
+    conversationId: integer("conversation_id")
+      .notNull()
+      .references(() => conversations.id, { onDelete: 'cascade' }),
+    senderId: varchar("sender_id")
+      .references(() => users.id, { onDelete: 'set null' }),
     senderType: varchar("sender_type", { length: 20 }),
     content: text("content").notNull(),
     contentType: varchar("content_type", { length: 20 }).$type<MessageContentType>().default("text"),
@@ -266,8 +297,12 @@ export const savedViews = pgTable("saved_views", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
   name: varchar("name", { length: 255 }).notNull(),
   type: varchar("type", { length: 20 }).$type<SavedViewType>().notNull(),
-  userId: varchar("user_id").notNull(),
-  organizationId: integer("organization_id").notNull(),
+  userId: varchar("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  organizationId: integer("organization_id")
+    .notNull()
+    .references(() => organizations.id, { onDelete: 'cascade' }),
   filters: jsonb("filters").$type<Record<string, unknown>>().notNull(),
   isDefault: boolean("is_default").default(false),
   createdAt: timestamp("created_at").defaultNow(),
@@ -294,8 +329,11 @@ export const emailTemplates = pgTable("email_templates", {
   subject: varchar("subject", { length: 500 }).notNull(),
   body: text("body").notNull(),
   variables: text("variables").array(),
-  organizationId: integer("organization_id").notNull(),
-  createdBy: varchar("created_by"),
+  organizationId: integer("organization_id")
+    .notNull()
+    .references(() => organizations.id, { onDelete: 'cascade' }),
+  createdBy: varchar("created_by")
+    .references(() => users.id, { onDelete: 'set null' }),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -303,7 +341,9 @@ export const emailTemplates = pgTable("email_templates", {
 // Notifications table
 export const notifications = pgTable("notifications", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-  userId: varchar("user_id").notNull(),
+  userId: varchar("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
   type: varchar("type", { length: 50 }).$type<NotificationType>().notNull(),
   title: varchar("title", { length: 255 }).notNull(),
   message: text("message"),
@@ -316,7 +356,9 @@ export const notifications = pgTable("notifications", {
 // Push tokens table for FCM
 export const pushTokens = pgTable("push_tokens", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-  userId: varchar("user_id").notNull(),
+  userId: varchar("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
   token: text("token").notNull(),
   deviceInfo: text("device_info"),
   lastUsedAt: timestamp("last_used_at").defaultNow(),
@@ -329,10 +371,15 @@ export const activities = pgTable("activities", {
   type: varchar("type", { length: 20 }).$type<ActivityType>().notNull(),
   title: varchar("title", { length: 255 }).notNull(),
   description: text("description"),
-  contactId: integer("contact_id"),
-  dealId: integer("deal_id"),
-  organizationId: integer("organization_id").notNull(),
-  userId: varchar("user_id"),
+  contactId: integer("contact_id")
+    .references(() => contacts.id, { onDelete: 'cascade' }),
+  dealId: integer("deal_id")
+    .references(() => deals.id, { onDelete: 'set null' }),
+  organizationId: integer("organization_id")
+    .notNull()
+    .references(() => organizations.id, { onDelete: 'cascade' }),
+  userId: varchar("user_id")
+    .references(() => users.id, { onDelete: 'set null' }),
   dueDate: timestamp("due_date"),
   completedAt: timestamp("completed_at"),
   status: varchar("status", { length: 20 }).default("pending"),
@@ -351,12 +398,16 @@ export type AuditLogEntityType = (typeof auditLogEntityTypes)[number];
 // Audit logs table
 export const auditLogs = pgTable("audit_logs", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-  userId: varchar("user_id").notNull(),
+  userId: varchar("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
   action: varchar("action", { length: 20 }).$type<AuditLogAction>().notNull(),
   entityType: varchar("entity_type", { length: 50 }).$type<AuditLogEntityType>().notNull(),
   entityId: integer("entity_id").notNull(),
   entityName: varchar("entity_name", { length: 255 }),
-  organizationId: integer("organization_id").notNull(),
+  organizationId: integer("organization_id")
+    .notNull()
+    .references(() => organizations.id, { onDelete: 'cascade' }),
   changes: jsonb("changes").$type<Record<string, unknown>>(),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -401,7 +452,9 @@ export const channelConfigs = pgTable("channel_configs", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
   name: varchar("name", { length: 255 }).notNull(),
   type: varchar("type", { length: 20 }).$type<ChannelConfigType>().notNull(),
-  organizationId: integer("organization_id").notNull(),
+  organizationId: integer("organization_id")
+    .notNull()
+    .references(() => organizations.id, { onDelete: 'cascade' }),
   isActive: boolean("is_active").default(true),
   emailConfig: jsonb("email_config").$type<{
     imapHost: string;
@@ -417,7 +470,8 @@ export const channelConfigs = pgTable("channel_configs", {
   }>(),
   whatsappConfig: jsonb("whatsapp_config").$type<WhatsAppConfig>(),
   lastSyncAt: timestamp("last_sync_at"),
-  createdBy: varchar("created_by"),
+  createdBy: varchar("created_by")
+    .references(() => users.id, { onDelete: 'set null' }),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -436,11 +490,17 @@ export const calendarEvents = pgTable("calendar_events", {
   endTime: timestamp("end_time").notNull(),
   allDay: boolean("all_day").default(false),
   location: varchar("location", { length: 500 }),
-  contactId: integer("contact_id"),
-  dealId: integer("deal_id"),
-  activityId: integer("activity_id"),
-  organizationId: integer("organization_id").notNull(),
-  userId: varchar("user_id"),
+  contactId: integer("contact_id")
+    .references(() => contacts.id, { onDelete: 'set null' }),
+  dealId: integer("deal_id")
+    .references(() => deals.id, { onDelete: 'set null' }),
+  activityId: integer("activity_id")
+    .references(() => activities.id, { onDelete: 'set null' }),
+  organizationId: integer("organization_id")
+    .notNull()
+    .references(() => organizations.id, { onDelete: 'cascade' }),
+  userId: varchar("user_id")
+    .references(() => users.id, { onDelete: 'set null' }),
   attendees: text("attendees").array(),
   color: varchar("color", { length: 7 }),
   // Google Calendar sync fields
@@ -459,7 +519,9 @@ export type GoogleCalendarSyncStatus = (typeof googleCalendarSyncStatuses)[numbe
 // Google OAuth tokens table (per-user)
 export const googleOAuthTokens = pgTable("google_oauth_tokens", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-  userId: varchar("user_id").notNull(),
+  userId: varchar("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
   accessToken: text("access_token").notNull(),
   refreshToken: text("refresh_token"),
   tokenType: varchar("token_type", { length: 50 }),
@@ -491,7 +553,9 @@ export const leadScores = pgTable("lead_scores", {
   }>(),
   recommendation: text("recommendation"),
   nextBestAction: text("next_best_action"),
-  organizationId: integer("organization_id").notNull(),
+  organizationId: integer("organization_id")
+    .notNull()
+    .references(() => organizations.id, { onDelete: 'cascade' }),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -504,8 +568,11 @@ export const files = pgTable("files", {
   objectPath: varchar("object_path", { length: 1000 }).notNull(),
   entityType: varchar("entity_type", { length: 50 }).$type<FileEntityType>().notNull(),
   entityId: integer("entity_id").notNull(),
-  organizationId: integer("organization_id").notNull(),
-  uploadedBy: varchar("uploaded_by"),
+  organizationId: integer("organization_id")
+    .notNull()
+    .references(() => organizations.id, { onDelete: 'cascade' }),
+  uploadedBy: varchar("uploaded_by")
+    .references(() => users.id, { onDelete: 'set null' }),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

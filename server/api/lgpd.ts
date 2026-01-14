@@ -5,10 +5,21 @@
 
 import type { Express } from "express";
 import { z } from "zod";
+import { eq, inArray, and } from "drizzle-orm";
 import { isAuthenticated, requireRole } from "../auth";
 import { storage } from "../storage";
+import { db } from "../db";
+import {
+  contacts,
+  conversations,
+  messages,
+  activities,
+  files,
+  deals,
+  auditLogs,
+  type File as FileRecord,
+} from "@shared/schema";
 import { logger } from "../logger";
-import type { File as FileRecord } from "@shared/schema";
 import { asyncHandler, validateParams, validateBody, getCurrentUser } from "../middleware";
 import { sendSuccess, sendNotFound, sendValidationError } from "../response";
 
@@ -215,48 +226,89 @@ export function registerLgpdRoutes(app: Express) {
         lastName: contact.lastName,
       };
 
-      // Delete related data
-      const deletedCounts = {
-        messages: 0,
-        conversations: 0,
-        activities: 0,
-        files: 0,
-        dealsUpdated: 0,
-      };
+      // Execute all deletes in a single transaction for atomicity
+      const deletedCounts = await db.transaction(async (tx) => {
+        const counts = {
+          messages: 0,
+          conversations: 0,
+          activities: 0,
+          files: 0,
+          dealsUpdated: 0,
+        };
 
-      // 1. Delete messages in conversations
-      const conversations = await storage.getConversationsByContact(contactId);
-      for (const conv of conversations) {
-        const deleted = await storage.deleteMessagesByConversation(conv.id);
-        deletedCounts.messages += deleted;
-      }
+        logger.info(`[LGPD] Transaction started for contact ${contactId}`);
 
-      // 2. Delete conversations
-      deletedCounts.conversations = await storage.deleteConversationsByContact(contactId);
+        // 1. Get conversation IDs for this contact
+        const contactConversations = await tx
+          .select({ id: conversations.id })
+          .from(conversations)
+          .where(eq(conversations.contactId, contactId));
 
-      // 3. Delete activities
-      deletedCounts.activities = await storage.deleteActivitiesByContact(contactId);
+        const conversationIds = contactConversations.map((c) => c.id);
 
-      // 4. Delete files
-      deletedCounts.files = await storage.deleteFilesByEntity("contact", contactId);
+        // 2. Delete messages in conversations
+        if (conversationIds.length > 0) {
+          const msgResult = await tx
+            .delete(messages)
+            .where(inArray(messages.conversationId, conversationIds));
+          counts.messages = msgResult.rowCount ?? 0;
+          logger.info(`[LGPD] Deleted ${counts.messages} messages`);
+        }
 
-      // 5. Update deals to remove contact reference (preserve deal history)
-      deletedCounts.dealsUpdated = await storage.unlinkDealsFromContact(contactId);
+        // 3. Delete conversations
+        if (conversationIds.length > 0) {
+          const convResult = await tx
+            .delete(conversations)
+            .where(inArray(conversations.id, conversationIds));
+          counts.conversations = convResult.rowCount ?? 0;
+          logger.info(`[LGPD] Deleted ${counts.conversations} conversations`);
+        }
 
-      // 6. Delete the contact
-      await storage.deleteContact(contactId);
+        // 4. Delete activities
+        const actResult = await tx
+          .delete(activities)
+          .where(eq(activities.contactId, contactId));
+        counts.activities = actResult.rowCount ?? 0;
+        logger.info(`[LGPD] Deleted ${counts.activities} activities`);
 
-      // Log the deletion
-      await storage.createAuditLog({
-        entityType: "contact",
-        entityId: contactId,
-        action: "lgpd_delete",
-        userId: currentUser!.id,
-        organizationId: currentUser!.organizationId,
-        changes: {
-          deletedContact: contactSnapshot,
-          deletedCounts,
-        },
+        // 5. Delete files
+        const fileResult = await tx
+          .delete(files)
+          .where(and(
+            eq(files.entityType, "contact"),
+            eq(files.entityId, contactId)
+          ));
+        counts.files = fileResult.rowCount ?? 0;
+        logger.info(`[LGPD] Deleted ${counts.files} files`);
+
+        // 6. Update deals to remove contact reference (preserve deal history)
+        const dealResult = await tx
+          .update(deals)
+          .set({ contactId: null })
+          .where(eq(deals.contactId, contactId));
+        counts.dealsUpdated = dealResult.rowCount ?? 0;
+        logger.info(`[LGPD] Unlinked ${counts.dealsUpdated} deals`);
+
+        // 7. Delete the contact
+        await tx.delete(contacts).where(eq(contacts.id, contactId));
+        logger.info(`[LGPD] Deleted contact ${contactId}`);
+
+        // 8. Create audit log within transaction
+        await tx.insert(auditLogs).values({
+          entityType: "contact",
+          entityId: contactId,
+          action: "lgpd_delete",
+          userId: currentUser!.id,
+          organizationId: currentUser!.organizationId!,
+          entityName: `${contactSnapshot.firstName} ${contactSnapshot.lastName}`,
+          changes: {
+            deletedContact: contactSnapshot,
+            deletedCounts: counts,
+          },
+        });
+
+        logger.info(`[LGPD] Transaction completed for contact ${contactId}`);
+        return counts;
       });
 
       logger.info(`[LGPD] Contact ${contactId} and related data deleted`, deletedCounts);

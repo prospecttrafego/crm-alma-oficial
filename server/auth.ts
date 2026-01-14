@@ -11,7 +11,7 @@ import crypto from "crypto";
 import type { Express, RequestHandler, Request } from "express";
 import { storage } from "./storage";
 import { db, pool } from "./db";
-import { users, pipelines, pipelineStages } from "@shared/schema";
+import { users, pipelines, pipelineStages, passwordResetTokens } from "@shared/schema";
 import { and, count, eq } from "drizzle-orm";
 import { getSingleTenantOrganizationId } from "./tenant";
 import {
@@ -26,7 +26,7 @@ const BCRYPT_ROUNDS = 12;
 
 // Password reset token configuration
 const PASSWORD_RESET_TOKEN_BYTES = 32; // 32 bytes = 64 hex characters
-const PASSWORD_RESET_TOKEN_EXPIRY_HOURS = 1; // Token expires in 1 hour
+const PASSWORD_RESET_TOKEN_EXPIRY_MINUTES = 15; // Token expires in 15 minutes (security best practice)
 
 /**
  * Generate a secure random token for password reset
@@ -434,7 +434,7 @@ export async function setupAuth(app: Express) {
         return sendSuccess(res, safeUser, 201);
       });
     } catch (error) {
-      console.error("Erro no registro:", error);
+      logger.error("Erro no registro:", { error: error instanceof Error ? error.message : String(error) });
       return sendError(res, ErrorCodes.INTERNAL_ERROR, "Erro ao criar conta", 500);
     }
   });
@@ -481,7 +481,7 @@ export async function setupAuth(app: Express) {
 
       // Generate token and expiry
       const token = generateSecureToken();
-      const expiresAt = new Date(Date.now() + PASSWORD_RESET_TOKEN_EXPIRY_HOURS * 60 * 60 * 1000);
+      const expiresAt = new Date(Date.now() + PASSWORD_RESET_TOKEN_EXPIRY_MINUTES * 60 * 1000);
 
       // Store token
       await storage.createPasswordResetToken({
@@ -556,17 +556,27 @@ export async function setupAuth(app: Express) {
         return sendError(res, ErrorCodes.INVALID_INPUT, "Token invalido ou expirado", 400);
       }
 
-      // Hash new password
+      // Hash new password (outside transaction to avoid holding DB lock during CPU-intensive operation)
       const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
 
-      // Update user password
-      await db
-        .update(users)
-        .set({ passwordHash, updatedAt: new Date() })
-        .where(eq(users.id, resetToken.userId));
+      // Use transaction to ensure atomicity:
+      // 1. Invalidate token FIRST (prevents reuse even if password update fails)
+      // 2. Then update password
+      // If anything fails, both operations roll back
+      await db.transaction(async (tx) => {
+        // Mark token as used FIRST (invalidate before processing)
+        // This prevents token reuse if the password update fails
+        await tx
+          .update(passwordResetTokens)
+          .set({ usedAt: new Date() })
+          .where(eq(passwordResetTokens.token, token));
 
-      // Mark token as used
-      await storage.markPasswordResetTokenUsed(token);
+        // Update user password
+        await tx
+          .update(users)
+          .set({ passwordHash, updatedAt: new Date() })
+          .where(eq(users.id, resetToken.userId));
+      });
 
       logger.info(`Password reset completed for user: ${resetToken.userId}`);
 
