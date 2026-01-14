@@ -13,6 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
 import { useTranslation } from "@/contexts/LanguageContext";
+import { authApi } from "@/lib/api/auth";
 
 // Flag para habilitar/desabilitar registro (configuravel via env)
 const ALLOW_REGISTRATION = import.meta.env.VITE_ALLOW_REGISTRATION === "true";
@@ -43,24 +44,10 @@ export default function LoginPage() {
 
   // Mutation para login
   const loginMutation = useMutation({
-    mutationFn: async (data: LoginFormData) => {
-      const response = await fetch("/api/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-        credentials: "include",
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || t("auth.invalidCredentials"));
-      }
-
-      return response.json();
-    },
+    mutationFn: (data: LoginFormData) => authApi.login(data),
     onSuccess: () => {
       // Invalida cache do usuario para forcar reload
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
       toast({
         title: t("auth.loginSuccess"),
         description: t("auth.welcomeBack"),
@@ -78,23 +65,9 @@ export default function LoginPage() {
 
   // Mutation para registro
   const registerMutation = useMutation({
-    mutationFn: async (data: RegisterFormData) => {
-      const response = await fetch("/api/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-        credentials: "include",
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || t("auth.registerError"));
-      }
-
-      return response.json();
-    },
+    mutationFn: (data: RegisterFormData) => authApi.register(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
       toast({
         title: t("auth.accountCreated"),
         description: t("auth.accountCreatedDescription"),

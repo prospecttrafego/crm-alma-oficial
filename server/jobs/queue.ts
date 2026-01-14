@@ -119,7 +119,7 @@ async function removeJob(id: string): Promise<void> {
 async function trimRedisJobs(): Promise<void> {
   if (!redis) return;
 
-  const ids = await redis.smembers<string>(REDIS_INDEX_KEY);
+  const ids = await redis.smembers<string[]>(REDIS_INDEX_KEY);
   if (!ids || ids.length <= MAX_JOBS) return;
 
   const jobsList = (
@@ -389,7 +389,7 @@ export async function getQueueStats(): Promise<{
     return { pending, processing, completed, failed, total: jobs.size };
   }
 
-  const ids = await redis.smembers<string>(REDIS_INDEX_KEY);
+  const ids = await redis.smembers<string[]>(REDIS_INDEX_KEY);
   if (!ids || ids.length === 0) {
     return { pending: 0, processing: 0, completed: 0, failed: 0, total: 0 };
   }
@@ -447,7 +447,7 @@ export async function cleanupJobs(maxAgeMs: number = 24 * 60 * 60 * 1000): Promi
     return removed;
   }
 
-  const ids = await redis.smembers<string>(REDIS_INDEX_KEY);
+  const ids = await redis.smembers<string[]>(REDIS_INDEX_KEY);
   if (!ids || ids.length === 0) return 0;
 
   for (const id of ids) {

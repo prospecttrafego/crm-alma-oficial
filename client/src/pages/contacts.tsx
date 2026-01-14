@@ -1,6 +1,5 @@
 import { useState } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { queryClient, apiRequest } from "@/lib/queryClient";
+import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "@/contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,7 +31,9 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { useToast } from "@/hooks/use-toast";
+import { useContactMutations } from "@/hooks/mutations";
+import { contactsApi } from "@/lib/api/contacts";
+import { activitiesApi } from "@/lib/api/activities";
 import { Plus, Search, Mail, Phone, Building2, User, MoreHorizontal, Calendar, FileText, CheckSquare } from "lucide-react";
 import { EntityHistory } from "@/components/entity-history";
 import { LeadScorePanel } from "@/components/LeadScorePanel";
@@ -44,48 +45,36 @@ interface ContactWithRelations extends Contact {
 
 export default function ContactsPage() {
   const { t } = useTranslation();
-  const { toast } = useToast();
+  const { createContact } = useContactMutations();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedContact, setSelectedContact] = useState<ContactWithRelations | null>(null);
   const [newContactOpen, setNewContactOpen] = useState(false);
 
   const { data: contacts, isLoading } = useQuery<ContactWithRelations[]>({
     queryKey: ["/api/contacts"],
+    queryFn: contactsApi.list,
   });
 
-  const { data: companies } = useQuery<Company[]>({
-    queryKey: ["/api/companies"],
-  });
-
+  // REMOVIDO - Não precisa mais carregar lista de empresas
+  // Agora usamos input de texto com auto-criação de empresa no backend
   const { data: activities } = useQuery<Activity[]>({
     queryKey: ["/api/contacts", selectedContact?.id, "activities"],
+    queryFn: () => activitiesApi.listByContact(selectedContact!.id),
     enabled: !!selectedContact,
-  });
-
-  const createContactMutation = useMutation({
-    mutationFn: async (data: Partial<Contact>) => {
-      await apiRequest("POST", "/api/contacts", data);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/contacts"] });
-      setNewContactOpen(false);
-      toast({ title: t("toast.created") });
-    },
-    onError: () => {
-      toast({ title: t("toast.error"), variant: "destructive" });
-    },
   });
 
   const handleCreateContact = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
-    createContactMutation.mutate({
+    createContact.mutate({
       firstName: formData.get("firstName") as string,
       lastName: formData.get("lastName") as string,
       email: formData.get("email") as string,
       phone: formData.get("phone") as string,
       jobTitle: formData.get("jobTitle") as string,
-      companyId: formData.get("companyId") ? Number(formData.get("companyId")) : undefined,
+      companyName: (formData.get("companyName") as string) || undefined,
+    }, {
+      onSuccess: () => setNewContactOpen(false),
     });
   };
 
@@ -173,20 +162,13 @@ export default function ContactsPage() {
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="companyId">{t("contacts.company")}</Label>
-                  <select
-                    id="companyId"
-                    name="companyId"
-                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                    data-testid="select-contact-company"
-                  >
-                    <option value="">{t("contacts.selectCompany")}</option>
-                    {companies?.map((company) => (
-                      <option key={company.id} value={company.id}>
-                        {company.name}
-                      </option>
-                    ))}
-                  </select>
+                  <Label htmlFor="companyName">{t("contacts.company")}</Label>
+                  <Input
+                    id="companyName"
+                    name="companyName"
+                    placeholder={t("contacts.companyPlaceholder")}
+                    data-testid="input-contact-companyName"
+                  />
                 </div>
               </div>
               <DialogFooter>
@@ -199,10 +181,10 @@ export default function ContactsPage() {
                 </Button>
                 <Button
                   type="submit"
-                  disabled={createContactMutation.isPending}
+                  disabled={createContact.isPending}
                   data-testid="button-create-contact-submit"
                 >
-                  {createContactMutation.isPending ? t("common.saving") : t("common.create")}
+                  {createContact.isPending ? t("common.saving") : t("common.create")}
                 </Button>
               </DialogFooter>
             </form>

@@ -6,7 +6,6 @@ import { rm, readFile } from "fs/promises";
 // o que ajuda no tempo de cold start
 const allowlist = [
   "@supabase/supabase-js",
-  "axios",
   "bcryptjs",
   "connect-pg-simple",
   "cors",
@@ -17,18 +16,13 @@ const allowlist = [
   "express-rate-limit",
   "express-session",
   "jsonwebtoken",
-  "memorystore",
-  "multer",
   "nanoid",
   "nodemailer",
   "openai",
   "passport",
   "passport-local",
   "pg",
-  "stripe",
-  "uuid",
   "ws",
-  "xlsx",
   "zod",
   "zod-validation-error",
 ];

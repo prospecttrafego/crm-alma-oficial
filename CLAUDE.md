@@ -4,6 +4,32 @@ Este documento contem todas as informacoes necessarias para entender, desenvolve
 
 ---
 
+## DIRETRIZES DE DESENVOLVIMENTO (OBRIGATORIO!)
+
+**Regras que DEVEM ser seguidas em TODA alteracao:**
+
+1. **NUNCA seguir padrao ruim**: Se o arquivo ja esta grande/desorganizado, NAO adicionar mais codigo nele. Propor refatoracao ANTES de implementar.
+
+2. **Pensar na arquitetura, nao so na tarefa**: Antes de implementar qualquer feature, avaliar: "Onde isso deveria morar? Faz sentido criar um modulo separado?" A qualidade arquitetural e tao importante quanto a funcionalidade.
+
+3. **Refatorar quando necessario, mesmo sem ser pedido**: Se uma refatoracao beneficia o projeto, PROPOR ao usuario. Expandir escopo para melhorar estrutura e VALIDO.
+
+4. **Estrutura > velocidade**: Criar arquivos/pastas novos quando fizer sentido, mesmo que de mais trabalho. Codigo bem organizado economiza tempo no futuro. Exemplos:
+   - `storage.ts` grande → dividir em `storage/contacts.ts`, `storage/deals.ts`, etc.
+   - Logica de automacao → criar `automations/` ou `services/`
+   - Handlers complexos → separar em arquivos por responsabilidade
+
+5. **Arquivos pequenos e focados**: Limite sugerido de ~300 linhas por arquivo. Acima disso, considerar dividir.
+
+6. **Documentacao alinhada**: Sempre atualizar TODOS os arquivos .md relevantes (README, ESTRUTURA_DE_PASTAS, CLAUDE, DESIGN_SYSTEM) quando houver mudancas.
+
+7. **Contratos compartilhados (sem drift)**:
+   - Schema do banco e enums vivem em `shared/schema.ts`.
+   - Validacao de entrada (body/query/params) deve usar schemas derivados via `drizzle-zod` em `shared/contracts.ts` (consumidos via `server/validation/`).
+   - O frontend valida respostas usando schemas de `shared/apiSchemas*.ts` (via `client/src/lib/api/`), para evitar dessincronizacao silenciosa.
+
+---
+
 ## Visao Geral do Projeto
 
 **Alma CRM** e uma aplicacao SaaS de gestao de relacionamento com clientes desenvolvida para a agencia digital Alma. O sistema combina duas funcionalidades principais:
@@ -67,9 +93,32 @@ Obs: alem do trio principal acima, o backend possui integracoes opcionais com:
 2. **Upload de Arquivo**: Cliente → Express → Supabase Storage
 3. **Real-time**: Express → WebSocket → Todos os clientes conectados
 4. **AI Scoring**: Express → OpenAI API → Calculo de score → Banco
-5. **WhatsApp**: Evolution API → Webhook → Express → Banco → WebSocket
+5. **WhatsApp**: Evolution API → Webhook → Express → Banco → WebSocket → Auto-criacao de Deal
 6. **Google Calendar**: OAuth + Google API → Sincronizacao → Banco → WebSocket
 7. **Push**: Express → Firebase → Notificacao no dispositivo (quando usuario estiver offline)
+
+### Comportamentos Automatizados
+
+#### Auto-criacao de Empresa (Contatos)
+Ao criar um contato via formulario, o usuario pode digitar o nome da empresa em um campo de texto livre. O backend:
+1. Busca empresa existente pelo nome (case-insensitive)
+2. Se nao existir, cria automaticamente uma nova empresa
+3. Vincula o contato a empresa encontrada ou criada
+
+#### Auto-criacao de Deal (WhatsApp)
+Quando uma mensagem chega via WhatsApp (Evolution API), o sistema automaticamente:
+1. Cria/atualiza o contato pelo numero de telefone
+2. Verifica se o contato possui deals abertos
+3. Se NAO houver deal aberto, cria um novo deal automaticamente:
+   - Usa o pipeline default da organizacao
+   - Se nao houver pipeline default, cria um "Pipeline Padrao" com stage "Novo Lead"
+   - Deal eh criado no primeiro stage (menor `order`)
+   - Titulo: "Lead WhatsApp: {nome ou telefone}"
+   - Source: "whatsapp", Probability: 10%, Status: "open"
+
+#### Empresas (Companies) — uso interno
+- O modulo de empresas nao possui mais rotas ou paginas dedicadas.
+- Empresas sao criadas/atualizadas automaticamente via `companyName` ao criar contatos e usadas internamente em deals e conversas.
 
 ---
 
@@ -137,27 +186,38 @@ CRM_Oficial/
 │       ├── lib/                 # Infra do frontend (query client, firebase, utils)
 │       ├── locales/             # Traducoes (pt-BR/en)
 │       └── pages/               # Paginas (dashboard, pipeline, inbox, settings…)
+│           ├── inbox/           # UI/partes do Inbox (3 painéis)
+│           ├── reports/         # UI/partes de Reports (dashboard executivo)
+│           └── ...
 ├── server/
 │   ├── index.ts                 # Entry point, inicia servidor
 │   ├── env.ts                   # Loader de .env (staging/prod) com fallback
-│   ├── logger.ts                # Logs estruturados (requestId + loggers de integrações)
-│   ├── health.ts                # Health check (DB + integrações opcionais)
 │   ├── routes.ts                # Agregador (auth + rate limit + API + WebSocket)
-│   ├── api/                     # Rotas HTTP por domínio (módulos)
+│   ├── middleware.ts            # Middlewares padronizados (asyncHandler, validate*)
+│   ├── response.ts              # Helpers de resposta (sendSuccess, sendError, toSafeUser)
+│   ├── validation/              # Schemas Zod centralizados (a partir de shared/contracts)
+│   │   ├── index.ts             # Re-exports
+│   │   └── schemas.ts           # Schemas de validação
+│   ├── api/                     # Rotas HTTP por domínio (módulos) - TODOS padronizados
 │   │   ├── index.ts             # Registra todos os módulos de API
 │   │   ├── contacts.ts          # Contatos
-│   │   ├── companies.ts         # Empresas
 │   │   ├── deals.ts             # Deals
 │   │   ├── pipelines.ts         # Pipelines/estágios
 │   │   ├── conversations.ts     # Inbox (conversas/mensagens)
-│   │   └── ...                  # Demais domínios (activities, files, etc.)
+│   │   ├── files.ts             # Upload/download + transcrição
+│   │   ├── lgpd.ts              # LGPD compliance (export/delete)
+│   │   ├── jobs.ts              # Status de background jobs
+│   │   └── ...                  # Demais domínios (activities, notifications, etc.)
 │   ├── ws/                      # WebSocket (/ws) + broadcast
 │   │   └── index.ts             # Upgrade handler + presença + "typing"
 │   ├── jobs/                    # Background jobs (tarefas assíncronas)
 │   │   ├── index.ts             # Exports do módulo
 │   │   ├── queue.ts             # Fila Redis (Upstash) com fallback em memoria
 │   │   └── handlers.ts          # Handlers: transcricao, lead score, sync
-│   ├── storage.ts               # Camada de acesso ao banco (DAL)
+│   ├── logger.ts                # Logs estruturados (requestId + loggers de integrações)
+│   ├── health.ts                # Health check (DB + integrações opcionais)
+│   ├── storage/                 # DAL por dominio (contacts, deals, etc.)
+│   ├── storage.ts               # Facade do storage (re-export dos modulos)
 │   ├── auth.ts                  # Passport.js + sessoes
 │   ├── db.ts                    # Drizzle + conexao Postgres (Pool)
 │   ├── tenant.ts                # Single-tenant (organizacao da instalacao)
@@ -171,8 +231,14 @@ CRM_Oficial/
 │   ├── redis.ts                 # Upstash Redis (presenca + base cache/rate-limit)
 │   ├── static.ts                # Servir frontend em producao (dist/public)
 │   └── vite.ts                  # Integracao Vite em dev
-├── shared/
-│   └── schema.ts                # Schema Drizzle + tipos TypeScript
+├── shared/                      # Fonte unica de verdade (contratos e tipos)
+│   ├── schema.ts                # Schema Drizzle + enums + tipos inferidos
+│   ├── contracts.ts             # Zod schemas/DTOs (entrada) gerados do schema
+│   ├── apiSchemas.ts            # Zod schemas (respostas) - contrato runtime
+│   ├── apiSchemas.integrations.ts # Integrações (payloads/redactions)
+│   └── types/                   # Tipos compartilhados frontend/backend
+│       ├── api.ts               # ApiResponse, ErrorCodes, PaginationMeta
+│       └── dto.ts               # DTOs para transferencia de dados
 ├── scripts/
 │   └── migrate-users.ts         # Script de migracao de usuarios
 ├── script/
@@ -187,6 +253,8 @@ CRM_Oficial/
 ├── components.json              # Configuracao shadcn/ui
 ├── .env.example
 ├── README.md
+├── DESIGN_SYSTEM.md             # Sistema de design (Frontend - fonte da verdade)
+├── ESTRUTURA_DE_PASTAS.md       # Documentacao: estrutura do repositorio
 └── CLAUDE.md                    # Este arquivo
 ```
 
@@ -387,6 +455,8 @@ CRM_Oficial/
 
 ## API Endpoints
 
+**Padrao de resposta:** endpoints JSON retornam `{ success, data }` (e erros padronizados). Respostas `204` nao possuem corpo.
+
 ### Autenticacao e Usuario
 
 ```
@@ -404,6 +474,12 @@ GET    /api/users          # Listar usuarios (para dropdown/filtros; requer logi
 ```
 GET    /api/health         # Health check (DB + integrações opcionais)
 ```
+
+### Regras de organizationId (single-tenant)
+
+- organizationId e gerenciado pelo backend (DEFAULT_ORGANIZATION_ID)
+- Requests de criacao nao devem enviar organizationId; o backend injeta automaticamente
+- Requests de atualizacao nao podem alterar organizationId; qualquer valor enviado e ignorado
 
 ### Background Jobs
 
@@ -431,15 +507,9 @@ PATCH  /api/contacts/:id                # Atualizar contato
 DELETE /api/contacts/:id                # Excluir contato
 ```
 
-### Empresas
+### Empresas (interno)
 
-```
-GET    /api/companies                   # Listar empresas
-POST   /api/companies                   # Criar empresa
-GET    /api/companies/:id               # Detalhes da empresa
-PATCH  /api/companies/:id               # Atualizar empresa
-DELETE /api/companies/:id               # Excluir empresa
-```
+O modulo de empresas nao possui endpoints publicos. Empresas sao geradas/atualizadas via `companyName` nos contatos.
 
 ### Pipelines, Estagios e Deals
 
@@ -478,6 +548,7 @@ POST   /api/conversations/:id/read      # Marcar mensagens como lidas
 
 ```
 GET    /api/activities                  # Listar atividades
+GET    /api/contacts/:id/activities     # Listar atividades por contato
 POST   /api/activities                  # Criar atividade
 PATCH  /api/activities/:id              # Atualizar atividade
 DELETE /api/activities/:id              # Excluir atividade
@@ -577,14 +648,17 @@ npm run lint:fix
 ### Banco de Dados
 
 ```bash
-# Aplicar schema no banco (criar/atualizar tabelas)
-npm run db:push
+# Aplicar migrations no banco (criar/atualizar tabelas)
+npm run db:migrate
+
+# (Somente dev/local) Sincronizar schema direto
+npm run db:push:dev
 
 # Ajustes pontuais (dados legados PT-BR)
 npm run db:migrate-ptbr
 
 # Gerar migracoes (se necessario)
-npx drizzle-kit generate
+npm run db:generate
 ```
 
 ### Producao
@@ -745,8 +819,8 @@ nano .env.production  # Editar com credenciais reais
 #### 3. Configurar Banco de Dados
 
 ```bash
-# Aplicar schema
-npm run db:push
+# Aplicar migrations
+npm run db:migrate
 
 # Verificar tabelas criadas
 # (conectar no banco e listar tabelas)
@@ -756,6 +830,12 @@ npm run db:push
 
 ```bash
 npm run build
+```
+
+#### 4.1 Aplicar migrations em producao
+
+```bash
+npm run db:migrate:prod
 ```
 
 #### 5. Configurar PM2

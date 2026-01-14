@@ -3,26 +3,22 @@
  * Verifica se o usuario esta autenticado e retorna seus dados
  */
 import { useQuery } from "@tanstack/react-query";
-import type { User } from "@shared/schema";
+import type { SafeUser } from "@shared/types";
+import { ApiRequestError } from "@/lib/api";
+import { usersApi } from "@/lib/api/users";
 
 export function useAuth() {
-  const { data: user, isLoading, error } = useQuery<User | null>({
-    queryKey: ["/api/auth/user"],
+  const { data: user, isLoading, error } = useQuery<SafeUser | null>({
+    queryKey: ["/api/auth/me"],
     queryFn: async () => {
-      const response = await fetch("/api/auth/me", {
-        credentials: "include",
-      });
-
-      // Se nao autenticado, retorna null em vez de lancar erro
-      if (response.status === 401) {
-        return null;
+      try {
+        return await usersApi.me();
+      } catch (err) {
+        if (err instanceof ApiRequestError && err.isUnauthorized()) {
+          return null;
+        }
+        throw err;
       }
-
-      if (!response.ok) {
-        throw new Error("Erro ao verificar autenticacao");
-      }
-
-      return response.json();
     },
     retry: false,
     staleTime: 5 * 60 * 1000, // 5 minutos

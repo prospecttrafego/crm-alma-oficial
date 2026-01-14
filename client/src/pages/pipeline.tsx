@@ -1,15 +1,17 @@
 import { useState, useEffect } from "react";
 import { useRoute, useLocation } from "wouter";
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { queryClient, apiRequest } from "@/lib/queryClient";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "@/contexts/LanguageContext";
+import { pipelinesApi } from "@/lib/api/pipelines";
+import { dealsApi } from "@/lib/api/deals";
+import { contactsApi } from "@/lib/api/contacts";
+import { useDealMutations } from "@/hooks/mutations";
 import {
   Dialog,
   DialogContent,
@@ -33,11 +35,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, DollarSign, User, Building2, GripVertical, ChevronDown } from "lucide-react";
+import { Plus, DollarSign, User, Building2, GripVertical } from "lucide-react";
 import { FilterPanel, type PipelineFilters } from "@/components/filter-panel";
 import { EntityHistory } from "@/components/entity-history";
 import { LeadScorePanel } from "@/components/LeadScorePanel";
-import type { Deal, PipelineStage, Pipeline, Contact, Company } from "@shared/schema";
+import type { Deal, PipelineStage, Contact, Company } from "@shared/schema";
+import type { PipelineWithStages } from "@shared/types";
 
 interface DealWithRelations extends Deal {
   contact?: Contact;
@@ -45,12 +48,7 @@ interface DealWithRelations extends Deal {
   stage?: PipelineStage;
 }
 
-interface PipelineWithStages extends Pipeline {
-  stages: PipelineStage[];
-}
-
 export default function PipelinePage() {
-  const { toast } = useToast();
   const { t } = useTranslation();
   const [, setLocation] = useLocation();
   const [match, params] = useRoute("/pipeline/:pipelineId");
@@ -68,24 +66,18 @@ export default function PipelinePage() {
     if (urlPipelineId && urlPipelineId !== selectedPipelineId) {
       setSelectedPipelineId(urlPipelineId);
     }
-  }, [urlPipelineId]);
+  }, [urlPipelineId, selectedPipelineId]);
 
   const { data: allPipelines } = useQuery<PipelineWithStages[]>({
     queryKey: ["/api/pipelines"],
+    queryFn: pipelinesApi.list,
   });
 
   const { data: pipeline, isLoading: pipelineLoading } = useQuery<PipelineWithStages>({
     queryKey: ["/api/pipelines", selectedPipelineId || urlPipelineId],
     queryFn: async () => {
       const idToFetch = selectedPipelineId || urlPipelineId;
-      if (idToFetch) {
-        const res = await fetch(`/api/pipelines/${idToFetch}`, { credentials: "include" });
-        if (!res.ok) throw new Error("Failed to fetch pipeline");
-        return res.json();
-      }
-      const res = await fetch("/api/pipelines/default", { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch pipeline");
-      return res.json();
+      return idToFetch ? pipelinesApi.get(idToFetch) : pipelinesApi.getDefault();
     },
   });
 
@@ -100,38 +92,15 @@ export default function PipelinePage() {
 
   const { data: deals, isLoading: dealsLoading } = useQuery<DealWithRelations[]>({
     queryKey: ["/api/deals"],
+    queryFn: dealsApi.list,
   });
 
   const { data: contacts } = useQuery<Contact[]>({
     queryKey: ["/api/contacts"],
+    queryFn: contactsApi.list,
   });
 
-  const moveDealMutation = useMutation({
-    mutationFn: async ({ dealId, stageId }: { dealId: number; stageId: number }) => {
-      await apiRequest("PATCH", `/api/deals/${dealId}`, { stageId });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/deals"] });
-      toast({ title: t("toast.updated") });
-    },
-    onError: () => {
-      toast({ title: t("toast.error"), variant: "destructive" });
-    },
-  });
-
-  const createDealMutation = useMutation({
-    mutationFn: async (data: Partial<Deal>) => {
-      await apiRequest("POST", "/api/deals", data);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/deals"] });
-      setNewDealOpen(false);
-      toast({ title: t("toast.created") });
-    },
-    onError: () => {
-      toast({ title: t("toast.error"), variant: "destructive" });
-    },
-  });
+  const { moveDeal, createDeal } = useDealMutations();
 
   const handleDragStart = (e: React.DragEvent, deal: DealWithRelations) => {
     setDraggedDeal(deal);
@@ -151,7 +120,7 @@ export default function PipelinePage() {
     e.preventDefault();
     setDragOverStage(null);
     if (draggedDeal && draggedDeal.stageId !== stageId) {
-      moveDealMutation.mutate({ dealId: draggedDeal.id, stageId });
+      moveDeal.mutate({ id: draggedDeal.id, data: { stageId } });
     }
     setDraggedDeal(null);
   };
@@ -162,7 +131,7 @@ export default function PipelinePage() {
     const firstStage = pipeline?.stages?.[0];
     if (!firstStage || !pipeline) return;
 
-    createDealMutation.mutate({
+    createDeal.mutate({
       title: formData.get("title") as string,
       value: formData.get("value") as string,
       pipelineId: pipeline.id,
@@ -338,10 +307,10 @@ export default function PipelinePage() {
                 </Button>
                 <Button
                   type="submit"
-                  disabled={createDealMutation.isPending}
+                  disabled={createDeal.isPending}
                   data-testid="button-create-deal-submit"
                 >
-                  {createDealMutation.isPending ? t("common.saving") : t("common.create")}
+                  {createDeal.isPending ? t("common.saving") : t("common.create")}
                 </Button>
               </DialogFooter>
             </form>
@@ -366,7 +335,7 @@ export default function PipelinePage() {
               <div className="flex items-center gap-2">
                 <div
                   className="h-3 w-3 rounded-full"
-                  style={{ backgroundColor: stage.color || "#605be5" }}
+                  style={{ backgroundColor: stage.color || "hsl(var(--primary))" }}
                 />
                 <h3 className="font-semibold">{stage.name}</h3>
                 <Badge variant="secondary" className="text-xs">

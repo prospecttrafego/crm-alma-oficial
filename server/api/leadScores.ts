@@ -1,88 +1,104 @@
 import type { Express } from "express";
+import { z } from "zod";
+import { leadScoreEntityTypes, type LeadScoreEntityType } from "@shared/schema";
 import { isAuthenticated } from "../auth";
 import { storage } from "../storage";
 import { enqueueJob } from "../jobs/queue";
 import { JobTypes, type CalculateLeadScorePayload } from "../jobs/handlers";
+import { asyncHandler, validateParams, validateQuery } from "../middleware";
+import { sendSuccess, sendNotFound, sendValidationError } from "../response";
+
+// Schemas de validacao
+const leadScoreParamsSchema = z.object({
+  entityType: z.string(),
+  entityId: z.coerce.number().int().positive(),
+});
+
+const asyncQuerySchema = z.object({
+  async: z.string().optional(),
+});
 
 export function registerLeadScoreRoutes(app: Express) {
-  app.get("/api/lead-scores/:entityType/:entityId", isAuthenticated, async (req: any, res) => {
-    try {
-      const { entityType, entityId } = req.params;
-      const id = parseInt(entityId);
+  // Get lead score for entity
+  app.get(
+    "/api/lead-scores/:entityType/:entityId",
+    isAuthenticated,
+    validateParams(leadScoreParamsSchema),
+    asyncHandler(async (req: any, res) => {
+      const { entityType, entityId } = req.validatedParams;
 
-      if (!["contact", "deal"].includes(entityType)) {
-        return res.status(400).json({ message: "Invalid entity type" });
+      if (!leadScoreEntityTypes.includes(entityType as LeadScoreEntityType)) {
+        return sendValidationError(res, "Invalid entity type");
       }
-      if (isNaN(id)) {
-        return res.status(400).json({ message: "Invalid entity ID" });
-      }
 
-      const score = await storage.getLeadScore(entityType as any, id);
-      res.json(score || null);
-    } catch (error) {
-      console.error("Error fetching lead score:", error);
-      res.status(500).json({ message: "Failed to fetch lead score" });
-    }
-  });
+      const score = await storage.getLeadScore(entityType as LeadScoreEntityType, entityId);
+      sendSuccess(res, score || null);
+    })
+  );
 
-  app.post("/api/lead-scores/:entityType/:entityId/calculate", isAuthenticated, async (req: any, res) => {
-    try {
-      const { entityType, entityId } = req.params;
-      const id = parseInt(entityId);
-      const async = req.query.async === "true";
+  // Calculate lead score for entity
+  app.post(
+    "/api/lead-scores/:entityType/:entityId/calculate",
+    isAuthenticated,
+    validateParams(leadScoreParamsSchema),
+    validateQuery(asyncQuerySchema),
+    asyncHandler(async (req: any, res) => {
+      const { entityType, entityId } = req.validatedParams;
+      const isAsync = req.validatedQuery?.async === "true";
 
-      if (!["contact", "deal"].includes(entityType)) {
-        return res.status(400).json({ message: "Invalid entity type" });
-      }
-      if (isNaN(id)) {
-        return res.status(400).json({ message: "Invalid entity ID" });
+      if (!leadScoreEntityTypes.includes(entityType as LeadScoreEntityType)) {
+        return sendValidationError(res, "Invalid entity type");
       }
 
       const org = await storage.getDefaultOrganization();
       if (!org) {
-        return res.status(404).json({ message: "Organization not found" });
+        return sendNotFound(res, "Organization not found");
       }
 
       // Verify entity exists before queueing
       if (entityType === "contact") {
-        const contact = await storage.getContact(id);
+        const contact = await storage.getContact(entityId);
         if (!contact) {
-          return res.status(404).json({ message: "Contact not found" });
+          return sendNotFound(res, "Contact not found");
         }
       } else {
-        const dealData = await storage.getDealScoringData(id);
+        const dealData = await storage.getDealScoringData(entityId);
         if (!dealData.deal) {
-          return res.status(404).json({ message: "Deal not found" });
+          return sendNotFound(res, "Deal not found");
         }
       }
 
       // Async mode: queue the job and return immediately
-      if (async) {
+      if (isAsync) {
         const payload: CalculateLeadScorePayload = {
           entityType: entityType as "contact" | "deal",
-          entityId: id,
+          entityId,
           organizationId: org.id,
         };
 
         const job = await enqueueJob(JobTypes.CALCULATE_LEAD_SCORE, payload);
 
-        return res.status(202).json({
-          message: "Lead score calculation queued",
-          jobId: job.id,
-          status: job.status,
-        });
+        return sendSuccess(
+          res,
+          {
+            message: "Lead score calculation queued",
+            jobId: job.id,
+            status: job.status,
+          },
+          202
+        );
       }
 
       // Sync mode: calculate immediately
       const { scoreContact, scoreDeal } = await import("../integrations/openai/scoring");
 
       if (entityType === "contact") {
-        const contact = await storage.getContact(id);
+        const contact = await storage.getContact(entityId);
         if (!contact) {
-          return res.status(404).json({ message: "Contact not found" });
+          return sendNotFound(res, "Contact not found");
         }
 
-        const scoringData = await storage.getContactScoringData(id);
+        const scoringData = await storage.getContactScoringData(entityId);
         let companyName: string | null = null;
         if (contact.companyId) {
           const company = await storage.getCompany(contact.companyId);
@@ -103,12 +119,12 @@ export function registerLeadScoreRoutes(app: Express) {
           },
           scoringData.activities,
           scoringData.conversations,
-          scoringData.deals,
+          scoringData.deals
         );
 
         const savedScore = await storage.createLeadScore({
           entityType: "contact",
-          entityId: id,
+          entityId,
           score: result.score,
           factors: result.factors,
           recommendation: result.recommendation,
@@ -116,18 +132,18 @@ export function registerLeadScoreRoutes(app: Express) {
           organizationId: org.id,
         });
 
-        res.json(savedScore);
+        sendSuccess(res, savedScore);
       } else {
-        const dealData = await storage.getDealScoringData(id);
+        const dealData = await storage.getDealScoringData(entityId);
         if (!dealData.deal) {
-          return res.status(404).json({ message: "Deal not found" });
+          return sendNotFound(res, "Deal not found");
         }
 
         const result = await scoreDeal(dealData.deal, dealData.activities, dealData.conversations);
 
         const savedScore = await storage.createLeadScore({
           entityType: "deal",
-          entityId: id,
+          entityId,
           score: result.score,
           factors: result.factors,
           recommendation: result.recommendation,
@@ -135,11 +151,8 @@ export function registerLeadScoreRoutes(app: Express) {
           organizationId: org.id,
         });
 
-        res.json(savedScore);
+        sendSuccess(res, savedScore);
       }
-    } catch (error) {
-      console.error("Error calculating lead score:", error);
-      res.status(500).json({ message: "Failed to calculate lead score" });
-    }
-  });
+    })
+  );
 }

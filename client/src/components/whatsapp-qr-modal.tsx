@@ -10,6 +10,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Loader2, CheckCircle2, XCircle, RefreshCw, Smartphone } from "lucide-react";
 import { useTranslation } from "@/contexts/LanguageContext";
+import { channelConfigsApi } from "@/lib/api/channelConfigs";
+import type { WhatsAppStatusResponse } from "@shared/types";
 
 interface WhatsAppQRModalProps {
   open: boolean;
@@ -18,18 +20,7 @@ interface WhatsAppQRModalProps {
   onConnected?: () => void;
 }
 
-interface ConnectionStatus {
-  status: "disconnected" | "connecting" | "connected" | "qr_pending";
-  instanceName: string | null;
-  lastConnectedAt?: string;
-}
-
-interface ConnectResponse {
-  instanceName: string;
-  qrCode: string;
-  pairingCode?: string;
-  status: string;
-}
+type ConnectionStatus = WhatsAppStatusResponse;
 
 export function WhatsAppQRModal({
   open,
@@ -46,15 +37,7 @@ export function WhatsAppQRModal({
   // Connect mutation - creates instance and gets QR code
   const connectMutation = useMutation({
     mutationFn: async () => {
-      const res = await fetch(`/api/channel-configs/${channelConfigId}/whatsapp/connect`, {
-        method: "POST",
-        credentials: "include",
-      });
-      if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.message || t("errors.generic"));
-      }
-      return res.json() as Promise<ConnectResponse>;
+      return channelConfigsApi.connectWhatsApp(channelConfigId);
     },
     onSuccess: (data) => {
       setQrCode(data.qrCode);
@@ -68,15 +51,9 @@ export function WhatsAppQRModal({
   });
 
   // Poll connection status
-  const { data: statusData, refetch: refetchStatus } = useQuery<ConnectionStatus>({
+  const { data: statusData } = useQuery<ConnectionStatus>({
     queryKey: ["whatsapp-status", channelConfigId],
-    queryFn: async () => {
-      const res = await fetch(`/api/channel-configs/${channelConfigId}/whatsapp/status`, {
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error(t("errors.generic"));
-      return res.json();
-    },
+    queryFn: () => channelConfigsApi.getWhatsAppStatus(channelConfigId),
     enabled: open && isConnecting,
     refetchInterval: isConnecting ? 3000 : false, // Poll every 3 seconds while connecting
   });

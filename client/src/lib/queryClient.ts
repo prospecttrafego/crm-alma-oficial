@@ -1,29 +1,11 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
-
-async function throwIfResNotOk(res: Response) {
-  if (!res.ok) {
-    const text = (await res.text()) || res.statusText;
-    throw new Error(`${res.status}: ${text}`);
-  }
-}
-
-export async function apiRequest(
-  method: string,
-  url: string,
-  data?: unknown | undefined,
-): Promise<Response> {
-  const res = await fetch(url, {
-    method,
-    headers: data ? { "Content-Type": "application/json" } : {},
-    body: data ? JSON.stringify(data) : undefined,
-    credentials: "include",
-  });
-
-  await throwIfResNotOk(res);
-  return res;
-}
+import { ApiRequestError } from "./api";
 
 type UnauthorizedBehavior = "returnNull" | "throw";
+
+/**
+ * Query function factory with configurable 401 handling
+ */
 export const getQueryFn: <T>(options: {
   on401: UnauthorizedBehavior;
 }) => QueryFunction<T> =
@@ -37,8 +19,40 @@ export const getQueryFn: <T>(options: {
       return null;
     }
 
-    await throwIfResNotOk(res);
-    return await res.json();
+    if (!res.ok) {
+      let errorData;
+      try {
+        errorData = await res.json();
+      } catch {
+        errorData = {
+          error: {
+            code: 'UNKNOWN_ERROR',
+            message: res.statusText || 'Erro desconhecido',
+          }
+        };
+      }
+
+      if (errorData.error) {
+        throw new ApiRequestError(errorData.error, res.status);
+      }
+
+      throw new ApiRequestError(
+        {
+          code: 'UNKNOWN_ERROR',
+          message: errorData.message || res.statusText || 'Erro desconhecido',
+        },
+        res.status
+      );
+    }
+
+    const json = await res.json();
+
+    // Extract data from ApiResponse wrapper if present
+    if (json && typeof json === 'object' && 'success' in json && json.data !== undefined) {
+      return json.data;
+    }
+
+    return json;
   };
 
 export const queryClient = new QueryClient({
@@ -47,7 +61,8 @@ export const queryClient = new QueryClient({
       queryFn: getQueryFn({ on401: "throw" }),
       refetchInterval: false,
       refetchOnWindowFocus: false,
-      staleTime: Infinity,
+      staleTime: 60 * 1000,
+      gcTime: 10 * 60 * 1000,
       retry: false,
     },
     mutations: {

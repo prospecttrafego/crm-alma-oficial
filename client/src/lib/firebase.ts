@@ -4,7 +4,7 @@
  */
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getMessaging, getToken, onMessage, Messaging, MessagePayload } from "firebase/messaging";
-import { apiRequest } from "./queryClient";
+import { pushTokensApi } from "./api/pushTokens";
 
 // Firebase configuration from environment variables
 const firebaseConfig = {
@@ -122,7 +122,7 @@ export async function requestNotificationPermission(): Promise<string | null> {
  */
 async function saveTokenToServer(token: string) {
   try {
-    await apiRequest("POST", "/api/push-tokens", { token });
+    await pushTokensApi.register({ token });
     console.log("[Firebase] Token saved to server");
   } catch (error) {
     console.error("[Firebase] Error saving token:", error);

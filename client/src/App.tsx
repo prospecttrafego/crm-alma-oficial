@@ -9,6 +9,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { AppSidebar } from "@/components/app-sidebar";
 import { CommandPalette } from "@/components/command-palette";
 import { NotificationBell } from "@/components/notification-bell";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { useAuth } from "@/hooks/useAuth";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import {
@@ -23,7 +24,6 @@ import Dashboard from "@/pages/dashboard";
 import PipelinePage from "@/pages/pipeline";
 import InboxPage from "@/pages/inbox";
 import ContactsPage from "@/pages/contacts";
-import CompaniesPage from "@/pages/companies";
 import ActivitiesPage from "@/pages/activities";
 import ReportsPage from "@/pages/reports";
 import SettingsPage from "@/pages/settings";
@@ -36,7 +36,7 @@ function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
   const { t } = useTranslation();
 
   // Inicializar WebSocket para usuarios autenticados com info de presenca
-  const { isConnected } = useWebSocket({
+  useWebSocket({
     userId: user?.id,
     userName: user ? `${user.firstName} ${user.lastName}` : undefined,
   });
@@ -106,7 +106,6 @@ function Router() {
         <Route path="/pipeline/:pipelineId" component={PipelinePage} />
         <Route path="/inbox" component={InboxPage} />
         <Route path="/contacts" component={ContactsPage} />
-        <Route path="/companies" component={CompaniesPage} />
         <Route path="/activities" component={ActivitiesPage} />
         <Route path="/calendar" component={CalendarPage} />
         <Route path="/reports" component={ReportsPage} />
@@ -125,7 +124,9 @@ function App() {
         <LanguageProvider>
           <TooltipProvider>
             <Toaster />
-            <Router />
+            <ErrorBoundary>
+              <Router />
+            </ErrorBoundary>
           </TooltipProvider>
         </LanguageProvider>
       </QueryClientProvider>

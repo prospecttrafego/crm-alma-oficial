@@ -267,6 +267,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
   // Conectar ao montar
   useEffect(() => {
     connect();
+    const typingTimeouts = typingTimeoutsRef.current;
 
     return () => {
       // Limpar ao desmontar
@@ -277,7 +278,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
         wsRef.current.close();
       }
       // Limpar todos os timeouts de typing
-      typingTimeoutsRef.current.forEach((timeout) => clearTimeout(timeout));
+      typingTimeouts.forEach((timeout) => clearTimeout(timeout));
     };
   }, [connect]);
 

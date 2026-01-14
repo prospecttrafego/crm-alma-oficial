@@ -3,7 +3,6 @@ import {
   Inbox,
   LayoutDashboard,
   Users,
-  Building2,
   Kanban,
   Activity,
   Settings,
@@ -38,9 +37,11 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/hooks/useAuth";
 import { useTranslation } from "@/contexts/LanguageContext";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { queryClient } from "@/lib/queryClient";
+import { authApi } from "@/lib/api/auth";
+import { pipelinesApi } from "@/lib/api/pipelines";
 import { useQuery } from "@tanstack/react-query";
-import type { Pipeline } from "@shared/schema";
+import type { PipelineWithStages } from "@shared/types";
 
 export function AppSidebar() {
   const [location] = useLocation();
@@ -50,9 +51,10 @@ export function AppSidebar() {
   const isCollapsed = state === "collapsed";
 
   // Fetch pipelines for submenu
-  const { data: pipelines = [] } = useQuery<Pipeline[]>({
+  const { data: pipelines = [] } = useQuery<PipelineWithStages[]>({
     queryKey: ["/api/pipelines"],
     enabled: !!user,
+    queryFn: pipelinesApi.list,
   });
 
   const mainNavItems = [
@@ -76,12 +78,6 @@ export function AppSidebar() {
       url: "/contacts",
       icon: Users,
       key: "contacts",
-    },
-    {
-      title: t("nav.companies"),
-      url: "/companies",
-      icon: Building2,
-      key: "companies",
     },
     {
       title: t("nav.activities"),
@@ -115,7 +111,7 @@ export function AppSidebar() {
 
   const handleLogout = async () => {
     try {
-      await apiRequest("POST", "/api/logout");
+      await authApi.logout();
     } catch (error) {
       console.error("Logout failed:", error);
     } finally {

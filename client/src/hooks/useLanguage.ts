@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { usersApi } from "@/lib/api/users";
 
 export type Language = 'pt-BR' | 'en';
 
@@ -42,15 +42,12 @@ export function useLanguage() {
 
       // If user is logged in, save to backend
       if (user) {
-        const response = await apiRequest("PATCH", "/api/users/me", {
-          preferences: { language },
-        });
-        return response.json();
+        return usersApi.updateMe({ preferences: { language } });
       }
       return null;
     },
     onSuccess: (_, language) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
       toast({
         title: language === 'pt-BR'
           ? 'Idioma alterado para Português'

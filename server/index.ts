@@ -3,9 +3,12 @@ import express from "express";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { requestIdMiddleware, requestLoggingMiddleware, logger } from "./logger";
-import { globalErrorHandler, notFoundHandler } from "./middleware";
+import { globalErrorHandler, notFoundHandler, securityHeaders } from "./middleware";
 
 const app = express();
+app.disable("x-powered-by");
+
+app.use(securityHeaders);
 
 declare module "http" {
   interface IncomingMessage {

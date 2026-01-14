@@ -1,29 +1,32 @@
 import type { Express } from "express";
 import { isAuthenticated } from "../auth";
 import { storage } from "../storage";
+import { asyncHandler } from "../middleware";
+import { sendSuccess } from "../response";
 
 export function registerDashboardRoutes(app: Express) {
-  app.get("/api/dashboard/stats", isAuthenticated, async (_req: any, res) => {
-    try {
+  app.get(
+    "/api/dashboard/stats",
+    isAuthenticated,
+    asyncHandler(async (_req, res) => {
       const org = await storage.getDefaultOrganization();
       if (!org) {
-        return res.json({
+        return sendSuccess(res, {
           totalDeals: 0,
           openDeals: 0,
           wonDeals: 0,
-          totalValue: "0",
+          lostDeals: 0,
+          totalValue: 0,
           contacts: 0,
           companies: 0,
+          newContacts: 0,
           pendingActivities: 0,
+          openConversations: 0,
           unreadConversations: 0,
         });
       }
       const stats = await storage.getDashboardStats(org.id);
-      res.json(stats);
-    } catch (error) {
-      console.error("Error fetching stats:", error);
-      res.status(500).json({ message: "Failed to fetch stats" });
-    }
-  });
+      sendSuccess(res, stats);
+    })
+  );
 }
-

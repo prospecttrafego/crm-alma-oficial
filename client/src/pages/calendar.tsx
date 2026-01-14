@@ -1,10 +1,7 @@
 import { useState, useMemo } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { queryClient, apiRequest } from "@/lib/queryClient";
+import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "@/contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -24,7 +21,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { useToast } from "@/hooks/use-toast";
+import { useCalendarMutations } from "@/hooks/mutations";
+import { calendarEventsApi } from "@/lib/api/calendarEvents";
+import { contactsApi } from "@/lib/api/contacts";
+import { dealsApi } from "@/lib/api/deals";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   ChevronLeft,
@@ -34,7 +34,6 @@ import {
   Clock,
   MapPin,
   Trash2,
-  Edit,
   Phone,
   Video,
   CheckSquare,
@@ -54,20 +53,18 @@ import {
   isSameMonth,
   isSameDay,
   isToday,
-  parseISO,
-  startOfDay,
-  endOfDay,
 } from "date-fns";
 import { enUS, ptBR } from "date-fns/locale";
 import type { Locale } from "date-fns";
 import type { CalendarEvent, Contact, Deal, CalendarEventType } from "@shared/schema";
+import type { CreateCalendarEventDTO } from "@shared/types";
 
 type ViewMode = "month" | "week" | "day";
 
 const eventTypeColors: Record<CalendarEventType, string> = {
   meeting: "bg-blue-500/20 text-blue-600 dark:text-blue-400 border-blue-500/30",
   call: "bg-green-500/20 text-green-600 dark:text-green-400 border-green-500/30",
-  task: "bg-purple-500/20 text-purple-600 dark:text-purple-400 border-purple-500/30",
+  task: "bg-primary/10 text-primary border-primary/20",
   reminder: "bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 border-yellow-500/30",
   other: "bg-gray-500/20 text-gray-600 dark:text-gray-400 border-gray-500/30",
 };
@@ -89,7 +86,7 @@ function EventForm({
   t,
 }: {
   event?: CalendarEvent;
-  onSubmit: (data: Partial<CalendarEvent>) => void;
+  onSubmit: (data: CreateCalendarEventDTO) => void;
   onCancel: () => void;
   contacts: Contact[];
   deals: Deal[];
@@ -561,7 +558,7 @@ export default function CalendarPage() {
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [newEventDate, setNewEventDate] = useState<Date | null>(null);
-  const { toast } = useToast();
+  const { createEvent, updateEvent, deleteEvent } = useCalendarMutations();
 
   const dateRange = useMemo(() => {
     const start = startOfMonth(subMonths(currentDate, 1));
@@ -572,65 +569,18 @@ export default function CalendarPage() {
   const { data: events = [], isLoading } = useQuery<CalendarEvent[]>({
     queryKey: ["/api/calendar-events", dateRange.start.toISOString(), dateRange.end.toISOString()],
     queryFn: async () => {
-      const res = await fetch(
-        `/api/calendar-events?startDate=${dateRange.start.toISOString()}&endDate=${dateRange.end.toISOString()}`
-      );
-      if (!res.ok) throw new Error("Failed to fetch events");
-      return res.json();
+      return calendarEventsApi.listByRange(dateRange.start, dateRange.end);
     },
   });
 
   const { data: contacts = [] } = useQuery<Contact[]>({
     queryKey: ["/api/contacts"],
+    queryFn: contactsApi.list,
   });
 
   const { data: deals = [] } = useQuery<Deal[]>({
     queryKey: ["/api/deals"],
-  });
-
-  const createMutation = useMutation({
-    mutationFn: async (data: Partial<CalendarEvent>) => {
-      return apiRequest("POST", "/api/calendar-events", data);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/calendar-events"] });
-      setIsDialogOpen(false);
-      setNewEventDate(null);
-      toast({ title: t("toast.created") });
-    },
-    onError: () => {
-      toast({ title: t("toast.error"), variant: "destructive" });
-    },
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: async ({ id, ...data }: Partial<CalendarEvent> & { id: number }) => {
-      return apiRequest("PATCH", `/api/calendar-events/${id}`, data);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/calendar-events"] });
-      setIsDialogOpen(false);
-      setSelectedEvent(null);
-      toast({ title: t("toast.updated") });
-    },
-    onError: () => {
-      toast({ title: t("toast.error"), variant: "destructive" });
-    },
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: async (id: number) => {
-      return apiRequest("DELETE", `/api/calendar-events/${id}`);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/calendar-events"] });
-      setIsDialogOpen(false);
-      setSelectedEvent(null);
-      toast({ title: t("toast.deleted") });
-    },
-    onError: () => {
-      toast({ title: t("toast.error"), variant: "destructive" });
-    },
+    queryFn: dealsApi.list,
   });
 
   const handleNavigate = (direction: "prev" | "next") => {
@@ -655,11 +605,24 @@ export default function CalendarPage() {
     setIsDialogOpen(true);
   };
 
-  const handleSubmit = (data: Partial<CalendarEvent>) => {
+  const handleSubmit = (data: CreateCalendarEventDTO) => {
     if (selectedEvent) {
-      updateMutation.mutate({ ...data, id: selectedEvent.id });
+      updateEvent.mutate(
+        { id: selectedEvent.id, data },
+        {
+          onSuccess: () => {
+            setIsDialogOpen(false);
+            setSelectedEvent(null);
+          },
+        }
+      );
     } else {
-      createMutation.mutate(data);
+      createEvent.mutate(data, {
+        onSuccess: () => {
+          setIsDialogOpen(false);
+          setNewEventDate(null);
+        },
+      });
     }
   };
 
@@ -750,7 +713,14 @@ export default function CalendarPage() {
                   <Button
                     variant="destructive"
                     className="w-full"
-                    onClick={() => deleteMutation.mutate(selectedEvent.id)}
+                    onClick={() =>
+                      deleteEvent.mutate(selectedEvent.id, {
+                        onSuccess: () => {
+                          setIsDialogOpen(false);
+                          setSelectedEvent(null);
+                        },
+                      })
+                    }
                     data-testid="button-delete-event"
                   >
                     <Trash2 className="h-4 w-4 mr-2" />

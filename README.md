@@ -18,12 +18,13 @@ Sistema de CRM (Customer Relationship Management) desenvolvido para a agencia di
 - Anexos de arquivos
 - Contagem de nao lidos
 
-### Gestao de Contatos e Empresas
+### Gestao de Contatos
 - Cadastro completo de contatos
-- Vinculacao com empresas
+- Empresa digitada como texto (auto-criada se nao existir)
 - Campos customizados (JSON)
 - Tags e segmentacao
 - Historico de atividades
+- Auto-criacao de deal via WhatsApp (para contatos sem deal aberto)
 
 ### Recursos Adicionais
 - Lead scoring com IA (OpenAI)
@@ -53,6 +54,10 @@ Sistema de CRM (Customer Relationship Management) desenvolvido para a agencia di
 | Real-time | WebSocket (ws) | 8.18.0 |
 | AI | OpenAI | 6.10.0 |
 
+## Design System
+
+O guia definitivo do sistema visual (tokens de tema, padrões de componentes e regras de UI) fica em `DESIGN_SYSTEM.md`.
+
 ## Inicio Rapido
 
 ```bash
@@ -64,8 +69,11 @@ cp .env.example .env.staging
 cp .env.example .env.production
 # Editar os arquivos com suas credenciais
 
-# Aplicar schema no banco
-npm run db:push
+# Aplicar migrations no banco
+npm run db:migrate
+
+# (Somente dev/local) Sincronizar schema direto
+npm run db:push:dev
 
 # Desenvolvimento (usa .env.staging quando APP_ENV=staging)
 APP_ENV=staging npm run dev
@@ -94,16 +102,23 @@ npm run dev
 │       └── lib/             # Utilitarios e configuracoes
 ├── server/                  # Backend Express
 │   ├── index.ts             # Entry point
+│   ├── routes.ts            # Agregador (auth + rate limit + API + WebSocket)
+│   ├── middleware.ts        # Middlewares padronizados (asyncHandler, validate*)
+│   ├── response.ts          # Helpers de resposta (sendSuccess, sendError, etc)
+│   ├── validation/          # Schemas Zod para validacao de entrada (shared/contracts)
+│   │   ├── index.ts         # Re-exports
+│   │   └── schemas.ts       # Schemas de validacao
+│   ├── api/                 # Rotas HTTP por domínio (módulos)
+│   ├── ws/                  # WebSocket (/ws) + broadcast
+│   ├── jobs/                # Background jobs (Redis/fallback memoria)
 │   ├── logger.ts            # Logs estruturados (requestId + integrações)
 │   ├── health.ts            # Health check (DB + integrações opcionais)
-│   ├── routes.ts            # Agregador (auth + rate limit + API + WebSocket)
-│   ├── api/                 # Rotas HTTP por domínio (módulos)
-│   └── ws/                  # WebSocket (/ws) + broadcast
-│   ├── storage.ts           # Camada de acesso ao banco
+│   ├── storage/             # DAL por dominio (contacts, deals, etc.)
+│   ├── storage.ts           # Facade do storage (re-export dos modulos)
 │   ├── auth.ts              # Autenticacao Passport.js
 │   ├── db.ts                # Drizzle + conexao Postgres
 │   ├── tenant.ts            # Single-tenant (organizacao)
-│   ├── storage.supabase.ts  # Upload de arquivos
+│   ├── storage.supabase.ts  # Upload de arquivos (Supabase Storage)
 │   ├── aiScoring.ts         # Lead scoring com IA
 │   ├── whisper.ts           # Transcricao de audio (Whisper/OpenAI)
 │   ├── evolution-api.ts     # Evolution API (WhatsApp)
@@ -113,13 +128,24 @@ npm run dev
 │   ├── redis.ts             # Redis (Upstash)
 │   ├── static.ts            # Servir frontend em producao
 │   └── vite.ts              # Vite middleware (dev)
-├── shared/                  # Codigo compartilhado
-│   └── schema.ts            # Schema Drizzle + tipos
+├── shared/                  # Codigo compartilhado (fonte unica de verdade)
+│   ├── schema.ts            # Schema Drizzle + tipos + enums
+│   ├── contracts.ts         # Schemas Zod e DTOs (entrada) derivados do schema
+│   ├── apiSchemas.ts        # Schemas Zod das respostas da API (runtime contract)
+│   ├── apiSchemas.integrations.ts # Schemas de integrações (payloads/redactions)
+│   └── types/               # Tipos compartilhados frontend/backend
+│       ├── api.ts           # ApiResponse, ErrorCodes, PaginationMeta
+│       └── dto.ts           # DTOs para transferencia de dados
 ├── scripts/                 # Scripts utilitarios
 │   └── migrate-users.ts     # Migracao de usuarios
 └── script/
     └── build.ts             # Script de build
 ```
+
+Notas importantes:
+- `shared/schema.ts` e `shared/contracts.ts` sao a fonte unica de verdade para schema do banco, enums e validação de entrada (DTOs).
+- `shared/apiSchemas*.ts` define o contrato de resposta (runtime) consumido pelo frontend.
+- O frontend valida respostas via Zod (evita drift silencioso e quebra rapida com erro `INVALID_RESPONSE`).
 
 ## Variaveis de Ambiente
 
@@ -169,13 +195,19 @@ npm run check     # Verifica tipos TypeScript
 npm run test      # Alias para verificacao de tipos
 npm run lint      # Lint (ESLint)
 npm run lint:fix  # Lint + autofix (opcional)
-npm run db:push   # Aplica schema no banco
+npm run db:migrate   # Aplica migrations no banco
+npm run db:push:dev  # Sincroniza schema direto (somente dev/local)
+npm run db:generate  # Gera novas migrations a partir do schema
 npm run db:migrate-ptbr # Ajustes pontuais (dados legados PT-BR)
 ```
 
 ## Health check
 
 - `GET /api/health` retorna status do banco e integrações opcionais (Redis/Supabase/Evolution API) quando configuradas.
+
+## Padrao de Resposta da API
+
+- Endpoints JSON retornam `{ success, data }` (erros padronizados). Respostas `204` nao possuem corpo.
 
 ## Deploy em VPS (Ubuntu)
 
@@ -198,19 +230,22 @@ npm install
 cp .env.example .env.production
 nano .env.production  # Preencher credenciais
 
-# 4. Aplicar schema no banco
-npm run db:push
+# 4. Aplicar migrations no banco
+npm run db:migrate
 
 # 5. Build de producao
 npm run build
 
-# 6. Instalar PM2 globalmente
+# 6. Aplicar migrations em producao
+npm run db:migrate:prod
+
+# 7. Instalar PM2 globalmente
 npm install -g pm2
 
-# 7. Iniciar aplicacao
+# 8. Iniciar aplicacao
 pm2 start dist/index.cjs --name "crm-alma"
 
-# 8. Configurar auto-start
+# 9. Configurar auto-start
 pm2 save
 pm2 startup
 ```

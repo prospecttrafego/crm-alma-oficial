@@ -4,21 +4,47 @@
  */
 
 import type { Express } from "express";
+import { z } from "zod";
 import { isAuthenticated, requireRole } from "../auth";
 import { getJob, getJobStatus, getQueueStats, cleanupJobs } from "../jobs/queue";
+import { asyncHandler, validateParams, validateBody } from "../middleware";
+import { sendSuccess, sendNotFound } from "../response";
+
+// Schemas de validacao
+const jobIdParamsSchema = z.object({
+  id: z.string().min(1),
+});
+
+const cleanupBodySchema = z.object({
+  maxAgeMs: z.number().int().positive().optional(),
+});
 
 export function registerJobRoutes(app: Express) {
+  // Get queue stats (admin only) - must be before :id route
+  app.get(
+    "/api/jobs/stats",
+    isAuthenticated,
+    requireRole("admin"),
+    asyncHandler(async (_req, res) => {
+      const stats = await getQueueStats();
+      sendSuccess(res, stats);
+    })
+  );
+
   // Get job by ID
-  app.get("/api/jobs/:id", isAuthenticated, async (req: any, res) => {
-    try {
-      const { id } = req.params;
+  app.get(
+    "/api/jobs/:id",
+    isAuthenticated,
+    validateParams(jobIdParamsSchema),
+    asyncHandler(async (req: any, res) => {
+      const { id } = req.validatedParams;
       const job = await getJob(id);
 
       if (!job) {
-        return res.status(404).json({ message: "Job not found" });
+        return sendNotFound(res, "Job not found");
       }
 
-      res.json({
+      sendSuccess(res, {
         id: job.id,
         type: job.type,
         status: job.status,
@@ -30,49 +56,36 @@ export function registerJobRoutes(app: Express) {
         attempts: job.attempts,
         maxAttempts: job.maxAttempts,
       });
-    } catch (error) {
-      console.error("Error fetching job:", error);
-      res.status(500).json({ message: "Failed to fetch job" });
-    }
-  });
+    })
+  );
 
   // Get job status only (lightweight)
-  app.get("/api/jobs/:id/status", isAuthenticated, async (req: any, res) => {
-    try {
-      const { id } = req.params;
+  app.get(
+    "/api/jobs/:id/status",
+    isAuthenticated,
+    validateParams(jobIdParamsSchema),
+    asyncHandler(async (req: any, res) => {
+      const { id } = req.validatedParams;
       const status = await getJobStatus(id);
 
       if (!status) {
-        return res.status(404).json({ message: "Job not found" });
+        return sendNotFound(res, "Job not found");
       }
 
-      res.json({ id, status });
-    } catch (error) {
-      console.error("Error fetching job status:", error);
-      res.status(500).json({ message: "Failed to fetch job status" });
-    }
-  });
-
-  // Get queue stats (admin only)
-  app.get("/api/jobs/stats", isAuthenticated, requireRole("admin"), async (_req: any, res) => {
-    try {
-      const stats = await getQueueStats();
-      res.json(stats);
-    } catch (error) {
-      console.error("Error fetching queue stats:", error);
-      res.status(500).json({ message: "Failed to fetch queue stats" });
-    }
-  });
+      sendSuccess(res, { id, status });
+    })
+  );
 
   // Cleanup old jobs (admin only)
-  app.post("/api/jobs/cleanup", isAuthenticated, requireRole("admin"), async (req: any, res) => {
-    try {
-      const maxAgeMs = req.body.maxAgeMs || 24 * 60 * 60 * 1000; // Default 24 hours
+  app.post(
+    "/api/jobs/cleanup",
+    isAuthenticated,
+    requireRole("admin"),
+    validateBody(cleanupBodySchema),
+    asyncHandler(async (req: any, res) => {
+      const maxAgeMs = req.validatedBody?.maxAgeMs || 24 * 60 * 60 * 1000; // Default 24 hours
       const removed = await cleanupJobs(maxAgeMs);
-      res.json({ removed });
-    } catch (error) {
-      console.error("Error cleaning up jobs:", error);
-      res.status(500).json({ message: "Failed to cleanup jobs" });
-    }
-  });
+      sendSuccess(res, { removed });
+    })
+  );
 }

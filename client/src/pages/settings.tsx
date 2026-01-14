@@ -1,6 +1,13 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { queryClient, apiRequest } from "@/lib/queryClient";
+import { queryClient } from "@/lib/queryClient";
+import {
+  authApi,
+  calendarEventsApi,
+  channelConfigsApi,
+  emailTemplatesApi,
+  pipelinesApi,
+} from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -10,7 +17,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { AvatarUpload } from "@/components/avatar-upload";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -25,7 +31,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import {
   Form,
@@ -46,18 +51,15 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { User, Bell, Palette, Shield, LogOut, Mail, Plus, Pencil, Trash2, FileText, Copy, GitBranch, Star, GripVertical, MessageSquare, CheckCircle, XCircle, Loader2, BellRing, BellOff, Languages, Smartphone, Wifi, WifiOff, QrCode, Calendar, RefreshCw, Unplug, Link2 } from "lucide-react";
+import { User, Bell, Palette, Shield, LogOut, Mail, Plus, Pencil, Trash2, FileText, Copy, GitBranch, Star, GripVertical, MessageSquare, CheckCircle, Loader2, BellRing, BellOff, Languages, Wifi, WifiOff, QrCode, Calendar, RefreshCw, Unplug, Link2 } from "lucide-react";
 import { WhatsAppQRModal } from "@/components/whatsapp-qr-modal";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { useNotificationSound } from "@/hooks/useNotificationSound";
-import { useTranslation, languageLabels, languages, type Language } from "@/contexts/LanguageContext";
+import { useTranslation, languageLabels, languages } from "@/contexts/LanguageContext";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import type { EmailTemplate, Pipeline, PipelineStage, ChannelConfig } from "@shared/schema";
-
-interface PipelineWithStages extends Pipeline {
-  stages: PipelineStage[];
-}
+import type { EmailTemplate, PipelineStage } from "@shared/schema";
+import type { CreateChannelConfigDTO, UpdateChannelConfigDTO, ChannelConfigPublic, PipelineWithStages, GoogleCalendarStatus } from "@shared/types";
 
 type Translator = (key: string, params?: Record<string, string | number>) => string;
 
@@ -79,7 +81,14 @@ const createStageFormSchema = (t: Translator) =>
 type StageFormData = z.infer<ReturnType<typeof createStageFormSchema>>;
 
 const STAGE_COLORS = [
-  "#605be5", "#22c55e", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#06b6d4", "#14b8a6"
+  "#41B6E6", // Action Cyan
+  "#041E42", // Brand Navy
+  "#14B8A6", // Teal
+  "#22C55E", // Success
+  "#F59E0B", // Warning
+  "#EF4444", // Danger
+  "#0EA5E9", // Sky
+  "#64748B", // Slate
 ];
 
 function PipelineDialog({ 
@@ -114,13 +123,13 @@ function PipelineDialog({
   const createMutation = useMutation({
     mutationFn: async (data: PipelineFormData) => {
       const defaultStages = [
-        { name: t("settings.pipelines.defaultStages.lead"), order: 0, color: "#605be5", isWon: false, isLost: false },
-        { name: t("settings.pipelines.defaultStages.qualified"), order: 1, color: "#22c55e", isWon: false, isLost: false },
-        { name: t("settings.pipelines.defaultStages.proposal"), order: 2, color: "#f59e0b", isWon: false, isLost: false },
-        { name: t("settings.pipelines.defaultStages.won"), order: 3, color: "#22c55e", isWon: true, isLost: false },
-        { name: t("settings.pipelines.defaultStages.lost"), order: 4, color: "#ef4444", isWon: false, isLost: true },
+        { name: t("settings.pipelines.defaultStages.lead"), order: 0, color: "#41B6E6", isWon: false, isLost: false },
+        { name: t("settings.pipelines.defaultStages.qualified"), order: 1, color: "#22C55E", isWon: false, isLost: false },
+        { name: t("settings.pipelines.defaultStages.proposal"), order: 2, color: "#F59E0B", isWon: false, isLost: false },
+        { name: t("settings.pipelines.defaultStages.won"), order: 3, color: "#22C55E", isWon: true, isLost: false },
+        { name: t("settings.pipelines.defaultStages.lost"), order: 4, color: "#EF4444", isWon: false, isLost: true },
       ];
-      await apiRequest("POST", "/api/pipelines", { ...data, stages: defaultStages });
+      await pipelinesApi.create({ ...data, stages: defaultStages });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/pipelines"] });
@@ -135,7 +144,10 @@ function PipelineDialog({
 
   const updateMutation = useMutation({
     mutationFn: async (data: PipelineFormData) => {
-      await apiRequest("PATCH", `/api/pipelines/${pipeline?.id}`, data);
+      if (!pipeline?.id) {
+        throw new Error(t("errors.generic"));
+      }
+      await pipelinesApi.update(pipeline.id, data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/pipelines"] });
@@ -235,7 +247,7 @@ function StageDialog({
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: "",
-      color: "#605be5",
+      color: "#41B6E6",
       isWon: false,
       isLost: false,
     },
@@ -245,7 +257,7 @@ function StageDialog({
     if (open) {
       form.reset({
         name: stage?.name || "",
-        color: stage?.color || "#605be5",
+        color: stage?.color || "#41B6E6",
         isWon: stage?.isWon || false,
         isLost: stage?.isLost || false,
       });
@@ -254,10 +266,9 @@ function StageDialog({
 
   const createMutation = useMutation({
     mutationFn: async (data: StageFormData) => {
-      await apiRequest("POST", `/api/pipelines/${pipelineId}/stages`, { 
-        ...data, 
+      await pipelinesApi.createStage(pipelineId, {
+        ...data,
         order: stageCount,
-        pipelineId 
       });
     },
     onSuccess: () => {
@@ -273,7 +284,10 @@ function StageDialog({
 
   const updateMutation = useMutation({
     mutationFn: async (data: StageFormData) => {
-      await apiRequest("PATCH", `/api/pipelines/${pipelineId}/stages/${stage?.id}`, data);
+      if (!stage?.id) {
+        throw new Error(t("errors.generic"));
+      }
+      await pipelinesApi.updateStage(pipelineId, stage.id, data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/pipelines"] });
@@ -429,11 +443,12 @@ function PipelineManagementSection() {
 
   const { data: pipelines, isLoading } = useQuery<PipelineWithStages[]>({
     queryKey: ["/api/pipelines"],
+    queryFn: pipelinesApi.list,
   });
 
   const deletePipelineMutation = useMutation({
     mutationFn: async (id: number) => {
-      await apiRequest("DELETE", `/api/pipelines/${id}`);
+      await pipelinesApi.delete(id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/pipelines"] });
@@ -446,7 +461,7 @@ function PipelineManagementSection() {
 
   const setDefaultMutation = useMutation({
     mutationFn: async (id: number) => {
-      await apiRequest("POST", `/api/pipelines/${id}/set-default`);
+      await pipelinesApi.setDefault(id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/pipelines"] });
@@ -459,7 +474,7 @@ function PipelineManagementSection() {
 
   const deleteStageMutation = useMutation({
     mutationFn: async ({ pipelineId, stageId }: { pipelineId: number; stageId: number }) => {
-      await apiRequest("DELETE", `/api/pipelines/${pipelineId}/stages/${stageId}`);
+      await pipelinesApi.deleteStage(pipelineId, stageId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/pipelines"] });
@@ -619,7 +634,7 @@ function PipelineManagementSection() {
                             <GripVertical className="h-4 w-4 text-muted-foreground" />
                             <div
                               className="h-3 w-3 rounded-full"
-                              style={{ backgroundColor: stage.color || "#605be5" }}
+                              style={{ backgroundColor: stage.color || "hsl(var(--primary))" }}
                             />
                             <span className="text-sm font-medium">{stage.name}</span>
                             {stage.isWon && (
@@ -746,7 +761,7 @@ function ChannelConfigDialog({
   open,
   onOpenChange,
 }: {
-  config?: ChannelConfig;
+  config?: ChannelConfigPublic;
   channelType: "email" | "whatsapp";
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -783,13 +798,12 @@ function ChannelConfigDialog({
 
   const [qrModalOpen, setQrModalOpen] = useState(false);
 
-  const hasExistingPassword = config?.type === "email" &&
-    (config.emailConfig as Record<string, unknown>)?.hasPassword === true;
+  const hasExistingPassword = config?.type === "email" && config.emailConfig?.hasPassword === true;
 
   // Get WhatsApp connection status
-  const whatsappConfig = config?.type === "whatsapp" ? config.whatsappConfig as Record<string, unknown> : null;
-  const connectionStatus = whatsappConfig?.connectionStatus as string || "disconnected";
-  const instanceName = whatsappConfig?.instanceName as string | undefined;
+  const whatsappConfig = config?.type === "whatsapp" ? config.whatsappConfig : null;
+  const connectionStatus = whatsappConfig?.connectionStatus || "disconnected";
+  const instanceName = whatsappConfig?.instanceName;
   const dialogTitle = channelType === "email"
     ? (isEditing ? t("settings.channels.dialog.editEmailTitle") : t("settings.channels.dialog.addEmailTitle"))
     : (isEditing ? t("settings.channels.dialog.editWhatsappTitle") : t("settings.channels.dialog.addWhatsappTitle"));
@@ -800,18 +814,18 @@ function ChannelConfigDialog({
   useEffect(() => {
     if (open && config) {
       if (config.type === "email" && config.emailConfig) {
-        const ec = config.emailConfig as Record<string, unknown>;
+        const ec = config.emailConfig;
         emailForm.reset({
           name: config.name,
-          imapHost: (ec.imapHost as string) || "",
-          imapPort: (ec.imapPort as number) || 993,
-          imapSecure: (ec.imapSecure as boolean) ?? true,
-          smtpHost: (ec.smtpHost as string) || "",
-          smtpPort: (ec.smtpPort as number) || 587,
-          smtpSecure: (ec.smtpSecure as boolean) ?? true,
-          email: (ec.email as string) || "",
+          imapHost: ec.imapHost || "",
+          imapPort: ec.imapPort || 993,
+          imapSecure: ec.imapSecure ?? true,
+          smtpHost: ec.smtpHost || "",
+          smtpPort: ec.smtpPort || 587,
+          smtpSecure: ec.smtpSecure ?? true,
+          email: ec.email || "",
           password: "",
-          fromName: (ec.fromName as string) || "",
+          fromName: ec.fromName || "",
         });
       } else if (config.type === "whatsapp") {
         whatsappForm.reset({
@@ -838,8 +852,8 @@ function ChannelConfigDialog({
   }, [open, config, emailForm, whatsappForm]);
 
   const createMutation = useMutation({
-    mutationFn: async (data: { type: string; name: string; emailConfig?: Record<string, unknown>; whatsappConfig?: Record<string, unknown> }) => {
-      await apiRequest("POST", "/api/channel-configs", data);
+    mutationFn: async (data: CreateChannelConfigDTO) => {
+      await channelConfigsApi.create(data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/channel-configs"] });
@@ -852,8 +866,11 @@ function ChannelConfigDialog({
   });
 
   const updateMutation = useMutation({
-    mutationFn: async (data: { name: string; emailConfig?: Record<string, unknown>; whatsappConfig?: Record<string, unknown> }) => {
-      await apiRequest("PATCH", `/api/channel-configs/${config?.id}`, data);
+    mutationFn: async (data: UpdateChannelConfigDTO) => {
+      if (!config?.id) {
+        throw new Error(t("errors.generic"));
+      }
+      await channelConfigsApi.update(config.id, data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/channel-configs"] });
@@ -866,7 +883,7 @@ function ChannelConfigDialog({
   });
 
   const onEmailSubmit = (data: EmailConfigFormData) => {
-    const emailConfig: Record<string, unknown> = {
+    const emailConfig: NonNullable<CreateChannelConfigDTO["emailConfig"]> = {
       imapHost: data.imapHost,
       imapPort: data.imapPort,
       imapSecure: data.imapSecure,
@@ -875,13 +892,9 @@ function ChannelConfigDialog({
       smtpSecure: data.smtpSecure,
       email: data.email,
       fromName: data.fromName,
+      password: data.password ?? "",
     };
-    if (data.password) {
-      emailConfig.password = data.password;
-    } else if (!isEditing) {
-      emailConfig.password = "";
-    }
-    const payload = {
+    const payload: CreateChannelConfigDTO = {
       type: "email",
       name: data.name,
       emailConfig,
@@ -894,7 +907,7 @@ function ChannelConfigDialog({
   };
 
   const onWhatsappSubmit = (data: WhatsappConfigFormData) => {
-    const payload = {
+    const payload: CreateChannelConfigDTO = {
       type: "whatsapp",
       name: data.name,
       whatsappConfig: {},
@@ -910,7 +923,7 @@ function ChannelConfigDialog({
   const disconnectMutation = useMutation({
     mutationFn: async () => {
       if (!config?.id) throw new Error(t("errors.generic"));
-      await apiRequest("POST", `/api/channel-configs/${config.id}/whatsapp/disconnect`);
+      await channelConfigsApi.disconnectWhatsApp(config.id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/channel-configs"] });
@@ -919,20 +932,6 @@ function ChannelConfigDialog({
     onError: () => {
       toast({ title: t("settings.channels.whatsapp.disconnectError"), variant: "destructive" });
     },
-  });
-
-  // Refresh connection status
-  const { refetch: refetchStatus, isFetching: isCheckingStatus } = useQuery({
-    queryKey: ["whatsapp-status", config?.id],
-    queryFn: async () => {
-      if (!config?.id) return null;
-      const res = await fetch(`/api/channel-configs/${config.id}/whatsapp/status`, {
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error(t("errors.generic"));
-      return res.json();
-    },
-    enabled: false, // Manual trigger only
   });
 
   return (
@@ -1233,27 +1232,24 @@ function IntegrationsSection() {
   const { toast } = useToast();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [channelType, setChannelType] = useState<"email" | "whatsapp">("email");
-  const [editingConfig, setEditingConfig] = useState<ChannelConfig | undefined>();
+  const [editingConfig, setEditingConfig] = useState<ChannelConfigPublic | undefined>();
   const [testingId, setTestingId] = useState<number | null>(null);
 
   // Channel configs (Email & WhatsApp)
-  const { data: configs, isLoading } = useQuery<ChannelConfig[]>({
+  const { data: configs } = useQuery<ChannelConfigPublic[]>({
     queryKey: ["/api/channel-configs"],
+    queryFn: channelConfigsApi.list,
   });
 
   // Google Calendar status
   const { data: gcConfigStatus } = useQuery<{ configured: boolean }>({
     queryKey: ["/api/integrations/google-calendar/configured"],
+    queryFn: calendarEventsApi.getGoogleCalendarConfigured,
   });
 
-  const { data: gcStatus, refetch: refetchGcStatus } = useQuery<{
-    connected: boolean;
-    email: string | null;
-    lastSyncAt: string | null;
-    syncStatus: string | null;
-    syncError: string | null;
-  }>({
+  const { data: gcStatus, refetch: refetchGcStatus } = useQuery<GoogleCalendarStatus>({
     queryKey: ["/api/integrations/google-calendar/status"],
+    queryFn: calendarEventsApi.getGoogleCalendarStatus,
     enabled: gcConfigStatus?.configured,
     refetchInterval: 30000,
   });
@@ -1261,8 +1257,7 @@ function IntegrationsSection() {
   // Google Calendar mutations
   const gcConnectMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest("GET", "/api/auth/google/authorize");
-      const data = await res.json();
+      const data = await calendarEventsApi.authorizeGoogleCalendar();
       return data.authUrl;
     },
     onSuccess: (authUrl) => {
@@ -1275,7 +1270,7 @@ function IntegrationsSection() {
 
   const gcDisconnectMutation = useMutation({
     mutationFn: async () => {
-      await apiRequest("POST", "/api/integrations/google-calendar/disconnect");
+      await calendarEventsApi.disconnectGoogleCalendar();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/integrations/google-calendar/status"] });
@@ -1288,8 +1283,7 @@ function IntegrationsSection() {
 
   const gcSyncMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest("POST", "/api/integrations/google-calendar/sync");
-      return res.json();
+      return calendarEventsApi.syncGoogleCalendar();
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/integrations/google-calendar/status"] });
@@ -1323,7 +1317,7 @@ function IntegrationsSection() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
-      await apiRequest("DELETE", `/api/channel-configs/${id}`);
+      await channelConfigsApi.delete(id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/channel-configs"] });
@@ -1337,8 +1331,7 @@ function IntegrationsSection() {
   const testMutation = useMutation({
     mutationFn: async (id: number) => {
       setTestingId(id);
-      const res = await apiRequest("POST", `/api/channel-configs/${id}/test`);
-      return res.json();
+      return channelConfigsApi.testConnection(id);
     },
     onSuccess: (data) => {
       setTestingId(null);
@@ -1356,7 +1349,7 @@ function IntegrationsSection() {
     setDialogOpen(true);
   };
 
-  const handleEdit = (config: ChannelConfig) => {
+  const handleEdit = (config: ChannelConfigPublic) => {
     setChannelType(config.type as "email" | "whatsapp");
     setEditingConfig(config);
     setDialogOpen(true);
@@ -1492,7 +1485,7 @@ function IntegrationsSection() {
                   </div>
                   <p className="text-sm text-muted-foreground">
                     {hasEmail
-                      ? String((firstEmail?.emailConfig as Record<string, unknown>)?.email || "")
+                      ? firstEmail?.emailConfig?.email || ""
                       : t("settings.channels.dialog.emailDescription")}
                   </p>
                 </div>
@@ -1552,8 +1545,8 @@ function IntegrationsSection() {
           const whatsappConfigs = configs?.filter(c => c.type === "whatsapp") || [];
           const hasWhatsapp = whatsappConfigs.length > 0;
           const firstWhatsapp = whatsappConfigs[0];
-          const wc = firstWhatsapp?.whatsappConfig as Record<string, unknown> | null;
-          const connectionStatus = wc?.connectionStatus as string | undefined;
+          const wc = firstWhatsapp?.whatsappConfig;
+          const connectionStatus = wc?.connectionStatus;
           return (
             <div className="flex items-center justify-between gap-4 p-4 rounded-md border">
               <div className="flex items-center gap-3 min-w-0">
@@ -1701,7 +1694,7 @@ function EmailTemplateDialog({
 
   const createMutation = useMutation({
     mutationFn: async (data: TemplateFormData) => {
-      await apiRequest("POST", "/api/email-templates", data);
+      await emailTemplatesApi.create(data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/email-templates"] });
@@ -1716,7 +1709,10 @@ function EmailTemplateDialog({
 
   const updateMutation = useMutation({
     mutationFn: async (data: TemplateFormData) => {
-      await apiRequest("PATCH", `/api/email-templates/${template?.id}`, data);
+      if (!template?.id) {
+        throw new Error(t("errors.generic"));
+      }
+      await emailTemplatesApi.update(template.id, data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/email-templates"] });
@@ -1860,11 +1856,12 @@ function EmailTemplatesSection() {
 
   const { data: templates, isLoading } = useQuery<EmailTemplate[]>({
     queryKey: ["/api/email-templates"],
+    queryFn: emailTemplatesApi.list,
   });
 
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
-      await apiRequest("DELETE", `/api/email-templates/${id}`);
+      await emailTemplatesApi.delete(id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/email-templates"] });
@@ -2139,7 +2136,7 @@ export default function SettingsPage() {
 
   const handleLogout = async () => {
     try {
-      await apiRequest("POST", "/api/logout");
+      await authApi.logout();
     } catch (error) {
       console.error("Logout failed:", error);
     } finally {

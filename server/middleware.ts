@@ -12,12 +12,30 @@ import { logger } from "./logger";
 export { isAuthenticated, requireRole, rateLimitMiddleware } from "./auth";
 export { requestIdMiddleware, requestLoggingMiddleware } from "./logger";
 
+export const securityHeaders: RequestHandler = (_req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "SAMEORIGIN");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader("X-DNS-Prefetch-Control", "off");
+  if (process.env.NODE_ENV === "production") {
+    res.setHeader("Strict-Transport-Security", "max-age=15552000; includeSubDomains");
+  }
+  next();
+};
+
 /**
  * Validate request body against a Zod schema
  * Returns parsed data in req.validatedBody
  */
 export function validateBody<T extends z.ZodTypeAny>(schema: T): RequestHandler {
   return (req, res, next) => {
+    if ((req.method === "PATCH" || req.method === "PUT") && req.body && typeof req.body === "object" && !Array.isArray(req.body)) {
+      // organizationId is server-managed; ignore any client attempts to update it
+      if ("organizationId" in req.body) {
+        delete (req.body as Record<string, unknown>).organizationId;
+      }
+    }
+
     const result = schema.safeParse(req.body);
 
     if (!result.success) {
@@ -87,23 +105,21 @@ export function requireIntegration(
     try {
       const isConfigured = await checkFn();
       if (!isConfigured) {
-        return res.status(503).json({
-          success: false,
-          error: {
-            code: "INTEGRATION_NOT_CONFIGURED",
-            message: `Integração ${integrationName} não está configurada`,
-          },
-        });
+        return sendError(
+          res,
+          ErrorCodes.INTEGRATION_NOT_CONFIGURED,
+          `Integração ${integrationName} não está configurada`,
+          503
+        );
       }
       next();
     } catch (_error) {
-      return res.status(503).json({
-        success: false,
-        error: {
-          code: "INTEGRATION_ERROR",
-          message: `Erro ao verificar integração ${integrationName}`,
-        },
-      });
+      return sendError(
+        res,
+        ErrorCodes.INTEGRATION_ERROR,
+        `Erro ao verificar integração ${integrationName}`,
+        503
+      );
     }
   };
 }

@@ -10,8 +10,14 @@ import {
   index,
   decimal,
 } from "drizzle-orm/pg-core";
-import { createInsertSchema } from "drizzle-zod";
+import { createSchemaFactory } from "drizzle-zod";
 import { z } from "zod";
+
+const { createSelectSchema, createInsertSchema, createUpdateSchema } = createSchemaFactory({
+  coerce: {
+    date: true,
+  },
+});
 
 // Tabela de armazenamento de sessoes
 export const sessions = pgTable(
@@ -184,6 +190,10 @@ export const deals = pgTable(
 export const channelTypes = ["email", "whatsapp", "sms", "internal", "phone"] as const;
 export type ChannelType = (typeof channelTypes)[number];
 
+// Conversation statuses
+export const conversationStatuses = ["open", "closed", "pending"] as const;
+export type ConversationStatus = (typeof conversationStatuses)[number];
+
 // Conversations table
 export const conversations = pgTable(
   "conversations",
@@ -243,8 +253,12 @@ export const messages = pgTable(
 export const activityTypes = ["call", "email", "meeting", "note", "task"] as const;
 export type ActivityType = (typeof activityTypes)[number];
 
+// Activity statuses
+export const activityStatuses = ["pending", "completed", "cancelled"] as const;
+export type ActivityStatus = (typeof activityStatuses)[number];
+
 // Saved view types
-export const savedViewTypes = ["pipeline", "inbox"] as const;
+export const savedViewTypes = ["pipeline", "inbox", "contacts", "companies", "deals", "activities"] as const;
 export type SavedViewType = (typeof savedViewTypes)[number];
 
 // Saved views table
@@ -743,56 +757,128 @@ export const googleOAuthTokensRelations = relations(googleOAuthTokens, ({ one })
 }));
 
 // Insert schemas
-// Nota: Para schemas com campos enum, usamos .extend() para garantir tipos corretos
-export const insertUserSchema = createInsertSchema(users).omit({ createdAt: true, updatedAt: true });
-export const insertOrganizationSchema = createInsertSchema(organizations).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertCompanySchema = createInsertSchema(companies).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertContactSchema = createInsertSchema(contacts).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertPipelineSchema = createInsertSchema(pipelines).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertPipelineStageSchema = createInsertSchema(pipelineStages).omit({ id: true, createdAt: true });
-export const insertDealSchema = createInsertSchema(deals).omit({ id: true, createdAt: true, updatedAt: true });
+// Nota: drizzle-zod 0.8.1 ja trata automaticamente:
+// - Campos com generatedAlwaysAsIdentity() (id) - excluidos ou opcionais
+// - Campos com defaultNow() (createdAt, updatedAt) - opcionais
+// Para campos enum, usamos .extend() para garantir tipos corretos
+export const insertUserSchema = createInsertSchema(users);
+export const insertOrganizationSchema = createInsertSchema(organizations);
+export const insertCompanySchema = createInsertSchema(companies);
+export const insertContactSchema = createInsertSchema(contacts);
+export const insertPipelineSchema = createInsertSchema(pipelines);
+export const insertPipelineStageSchema = createInsertSchema(pipelineStages);
+export const insertDealSchema = createInsertSchema(deals);
 export const insertConversationSchema = createInsertSchema(conversations)
-  .omit({ id: true, createdAt: true, updatedAt: true })
   .extend({ channel: z.enum(channelTypes) });
 export const insertMessageSchema = createInsertSchema(messages)
-  .omit({ id: true, createdAt: true })
   .extend({ contentType: z.enum(messageContentTypes).optional() });
 export const insertActivitySchema = createInsertSchema(activities)
-  .omit({ id: true, createdAt: true, updatedAt: true })
   .extend({ type: z.enum(activityTypes) });
 export const insertNotificationSchema = createInsertSchema(notifications)
-  .omit({ id: true, createdAt: true })
   .extend({ type: z.enum(notificationTypes) });
 export const insertSavedViewSchema = createInsertSchema(savedViews)
-  .omit({ id: true, createdAt: true, updatedAt: true })
   .extend({ type: z.enum(savedViewTypes) });
-export const insertEmailTemplateSchema = createInsertSchema(emailTemplates).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertEmailTemplateSchema = createInsertSchema(emailTemplates);
 export const insertAuditLogSchema = createInsertSchema(auditLogs)
-  .omit({ id: true, createdAt: true })
   .extend({
     action: z.enum(auditLogActions),
     entityType: z.enum(auditLogEntityTypes),
   });
 export const insertFileSchema = createInsertSchema(files)
-  .omit({ id: true, createdAt: true })
   .extend({ entityType: z.enum(fileEntityTypes) });
 export const insertLeadScoreSchema = createInsertSchema(leadScores)
-  .omit({ id: true, createdAt: true })
   .extend({ entityType: z.enum(leadScoreEntityTypes) });
 export const insertCalendarEventSchema = createInsertSchema(calendarEvents)
-  .omit({ id: true, createdAt: true, updatedAt: true })
   .extend({
     type: z.enum(calendarEventTypes).nullable().optional(),
     syncSource: z.enum(calendarSyncSources).nullable().optional(),
   });
 export const insertChannelConfigSchema = createInsertSchema(channelConfigs)
-  .omit({ id: true, createdAt: true, updatedAt: true })
   .extend({ type: z.enum(channelConfigTypes) });
-export const insertPushTokenSchema = createInsertSchema(pushTokens)
-  .omit({ id: true, createdAt: true, lastUsedAt: true });
+export const insertPushTokenSchema = createInsertSchema(pushTokens);
 export const insertGoogleOAuthTokenSchema = createInsertSchema(googleOAuthTokens)
-  .omit({ id: true, createdAt: true, updatedAt: true })
   .extend({ syncStatus: z.enum(googleCalendarSyncStatuses).optional() });
+
+// Update schemas
+export const updateUserSchema = createUpdateSchema(users);
+export const updateOrganizationSchema = createUpdateSchema(organizations);
+export const updateCompanySchema = createUpdateSchema(companies);
+export const updateContactSchema = createUpdateSchema(contacts);
+export const updatePipelineSchema = createUpdateSchema(pipelines);
+export const updatePipelineStageSchema = createUpdateSchema(pipelineStages);
+export const updateDealSchema = createUpdateSchema(deals);
+export const updateConversationSchema = createUpdateSchema(conversations)
+  .extend({ channel: z.enum(channelTypes).optional() });
+export const updateMessageSchema = createUpdateSchema(messages)
+  .extend({ contentType: z.enum(messageContentTypes).optional() });
+export const updateActivitySchema = createUpdateSchema(activities)
+  .extend({ type: z.enum(activityTypes).optional() });
+export const updateNotificationSchema = createUpdateSchema(notifications)
+  .extend({ type: z.enum(notificationTypes).optional() });
+export const updateSavedViewSchema = createUpdateSchema(savedViews)
+  .extend({ type: z.enum(savedViewTypes).optional() });
+export const updateEmailTemplateSchema = createUpdateSchema(emailTemplates);
+export const updateAuditLogSchema = createUpdateSchema(auditLogs)
+  .extend({
+    action: z.enum(auditLogActions).optional(),
+    entityType: z.enum(auditLogEntityTypes).optional(),
+  });
+export const updateFileSchema = createUpdateSchema(files)
+  .extend({ entityType: z.enum(fileEntityTypes).optional() });
+export const updateLeadScoreSchema = createUpdateSchema(leadScores)
+  .extend({ entityType: z.enum(leadScoreEntityTypes).optional() });
+export const updateCalendarEventSchema = createUpdateSchema(calendarEvents)
+  .extend({
+    type: z.enum(calendarEventTypes).nullable().optional(),
+    syncSource: z.enum(calendarSyncSources).nullable().optional(),
+  });
+export const updateChannelConfigSchema = createUpdateSchema(channelConfigs)
+  .extend({ type: z.enum(channelConfigTypes).optional() });
+export const updatePushTokenSchema = createUpdateSchema(pushTokens);
+export const updateGoogleOAuthTokenSchema = createUpdateSchema(googleOAuthTokens)
+  .extend({ syncStatus: z.enum(googleCalendarSyncStatuses).optional() });
+
+// Select schemas (useful for validating API responses)
+export const selectSessionSchema = createSelectSchema(sessions);
+export const selectUserSchema = createSelectSchema(users)
+  .extend({ role: z.enum(userRoles).nullable() });
+export const selectPasswordResetTokenSchema = createSelectSchema(passwordResetTokens);
+export const selectOrganizationSchema = createSelectSchema(organizations);
+export const selectCompanySchema = createSelectSchema(companies);
+export const selectContactSchema = createSelectSchema(contacts);
+export const selectPipelineSchema = createSelectSchema(pipelines);
+export const selectPipelineStageSchema = createSelectSchema(pipelineStages);
+export const selectDealSchema = createSelectSchema(deals);
+export const selectConversationSchema = createSelectSchema(conversations)
+  .extend({ channel: z.enum(channelTypes), status: z.enum(conversationStatuses).nullable() });
+export const selectMessageSchema = createSelectSchema(messages)
+  .extend({ contentType: z.enum(messageContentTypes).nullable() });
+export const selectActivitySchema = createSelectSchema(activities)
+  .extend({ type: z.enum(activityTypes), status: z.enum(activityStatuses).nullable() });
+export const selectNotificationSchema = createSelectSchema(notifications)
+  .extend({ type: z.enum(notificationTypes) });
+export const selectSavedViewSchema = createSelectSchema(savedViews)
+  .extend({ type: z.enum(savedViewTypes) });
+export const selectEmailTemplateSchema = createSelectSchema(emailTemplates);
+export const selectAuditLogSchema = createSelectSchema(auditLogs)
+  .extend({
+    action: z.enum(auditLogActions),
+    entityType: z.enum(auditLogEntityTypes),
+  });
+export const selectFileSchema = createSelectSchema(files)
+  .extend({ entityType: z.enum(fileEntityTypes) });
+export const selectLeadScoreSchema = createSelectSchema(leadScores)
+  .extend({ entityType: z.enum(leadScoreEntityTypes) });
+export const selectCalendarEventSchema = createSelectSchema(calendarEvents)
+  .extend({
+    type: z.enum(calendarEventTypes).nullable(),
+    syncSource: z.enum(calendarSyncSources).nullable(),
+  });
+export const selectChannelConfigSchema = createSelectSchema(channelConfigs)
+  .extend({ type: z.enum(channelConfigTypes) });
+export const selectPushTokenSchema = createSelectSchema(pushTokens);
+export const selectGoogleOAuthTokenSchema = createSelectSchema(googleOAuthTokens)
+  .extend({ syncStatus: z.enum(googleCalendarSyncStatuses).nullable() });
 
 // Types - usamos z.infer para schemas com enum estendidos e $inferSelect para select types
 export type UpsertUser = typeof users.$inferInsert;
@@ -837,3 +923,24 @@ export type InsertPushToken = z.infer<typeof insertPushTokenSchema>;
 export type PushToken = typeof pushTokens.$inferSelect;
 export type InsertGoogleOAuthToken = z.infer<typeof insertGoogleOAuthTokenSchema>;
 export type GoogleOAuthToken = typeof googleOAuthTokens.$inferSelect;
+
+export type UpdateUser = z.infer<typeof updateUserSchema>;
+export type UpdateOrganization = z.infer<typeof updateOrganizationSchema>;
+export type UpdateCompany = z.infer<typeof updateCompanySchema>;
+export type UpdateContact = z.infer<typeof updateContactSchema>;
+export type UpdatePipeline = z.infer<typeof updatePipelineSchema>;
+export type UpdatePipelineStage = z.infer<typeof updatePipelineStageSchema>;
+export type UpdateDeal = z.infer<typeof updateDealSchema>;
+export type UpdateConversation = z.infer<typeof updateConversationSchema>;
+export type UpdateMessage = z.infer<typeof updateMessageSchema>;
+export type UpdateActivity = z.infer<typeof updateActivitySchema>;
+export type UpdateNotification = z.infer<typeof updateNotificationSchema>;
+export type UpdateSavedView = z.infer<typeof updateSavedViewSchema>;
+export type UpdateEmailTemplate = z.infer<typeof updateEmailTemplateSchema>;
+export type UpdateAuditLog = z.infer<typeof updateAuditLogSchema>;
+export type UpdateFile = z.infer<typeof updateFileSchema>;
+export type UpdateLeadScore = z.infer<typeof updateLeadScoreSchema>;
+export type UpdateCalendarEvent = z.infer<typeof updateCalendarEventSchema>;
+export type UpdateChannelConfig = z.infer<typeof updateChannelConfigSchema>;
+export type UpdatePushToken = z.infer<typeof updatePushTokenSchema>;
+export type UpdateGoogleOAuthToken = z.infer<typeof updateGoogleOAuthTokenSchema>;

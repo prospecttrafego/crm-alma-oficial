@@ -1,41 +1,67 @@
 import type { Express } from "express";
+import { z } from "zod";
 import { fileEntityTypes, type FileEntityType } from "@shared/schema";
 import { isAuthenticated } from "../auth";
 import { storage } from "../storage";
 import { ObjectStorageService } from "../integrations/supabase/storage";
 import { enqueueJob } from "../jobs/queue";
 import { JobTypes, type TranscribeAudioPayload } from "../jobs/handlers";
+import { asyncHandler, validateBody, validateParams, validateQuery, getCurrentUser } from "../middleware";
+import { createFileSchema } from "../validation";
+import { sendSuccess, sendNotFound, sendValidationError, sendServiceUnavailable } from "../response";
+import { logger } from "../logger";
+
+const fileEntityParamsSchema = z.object({
+  entityType: z.string(),
+  entityId: z.coerce.number().int().positive(),
+});
+
+const fileIdParamsSchema = z.object({
+  id: z.coerce.number().int().positive(),
+});
+
+const transcribeBodySchema = z.object({
+  audioUrl: z.string().optional(),
+  language: z.string().optional(),
+});
+
+const asyncQuerySchema = z.object({
+  async: z.string().optional(),
+});
 
 export function registerFileRoutes(app: Express) {
   // File upload - get presigned URL
-  app.post("/api/files/upload-url", isAuthenticated, async (_req: any, res) => {
-    try {
+  app.post(
+    "/api/files/upload-url",
+    isAuthenticated,
+    asyncHandler(async (_req, res) => {
       const objectStorageService = new ObjectStorageService();
       const { uploadURL, objectPath } = await objectStorageService.getObjectEntityUploadURL();
-      res.json({ uploadURL, objectPath });
-    } catch (error) {
-      console.error("Error getting upload URL:", error);
-      res.status(500).json({ message: "Failed to get upload URL" });
-    }
-  });
+      sendSuccess(res, { uploadURL, objectPath });
+    })
+  );
 
   // Register uploaded file
-  app.post("/api/files", isAuthenticated, async (req: any, res) => {
-    try {
+  app.post(
+    "/api/files",
+    isAuthenticated,
+    validateBody(createFileSchema),
+    asyncHandler(async (req: any, res) => {
       const org = await storage.getDefaultOrganization();
       if (!org) {
-        return res.status(400).json({ message: "No organization found" });
+        return sendValidationError(res, "No organization found");
       }
 
-      const userId = (req.user as any).id;
-      const { name, mimeType, size, uploadURL, objectPath, entityType, entityId } = req.body;
+      const currentUser = getCurrentUser(req);
+      const userId = currentUser!.id;
+      const { name, mimeType, size, uploadURL, objectPath, entityType, entityId } = req.validatedBody;
 
-      if (!name || (!uploadURL && !objectPath) || !entityType || !entityId) {
-        return res.status(400).json({ message: "Missing required fields" });
+      if (!uploadURL && !objectPath) {
+        return sendValidationError(res, "Either uploadURL or objectPath is required");
       }
 
-      if (!fileEntityTypes.includes(entityType)) {
-        return res.status(400).json({ message: "Invalid entity type" });
+      if (!fileEntityTypes.includes(entityType as FileEntityType)) {
+        return sendValidationError(res, "Invalid entity type");
       }
 
       const objectStorageService = new ObjectStorageService();
@@ -45,7 +71,7 @@ export function registerFileRoutes(app: Express) {
       });
 
       if (!normalizedObjectPath.startsWith("/objects/")) {
-        return res.status(400).json({ message: "Invalid object path" });
+        return sendValidationError(res, "Invalid object path");
       }
 
       const file = await storage.createFile({
@@ -53,8 +79,8 @@ export function registerFileRoutes(app: Express) {
         mimeType: mimeType || null,
         size: size || null,
         objectPath: normalizedObjectPath,
-        entityType,
-        entityId: parseInt(entityId),
+        entityType: entityType as FileEntityType,
+        entityId: typeof entityId === "string" ? parseInt(entityId) : entityId,
         organizationId: org.id,
         uploadedBy: userId,
       });
@@ -78,43 +104,40 @@ export function registerFileRoutes(app: Express) {
         },
       });
 
-      res.status(201).json(file);
-    } catch (error) {
-      console.error("Error registering file:", error);
-      res.status(500).json({ message: "Failed to register file" });
-    }
-  });
+      sendSuccess(res, file, 201);
+    })
+  );
 
   // Get files for entity
-  app.get("/api/files/:entityType/:entityId", isAuthenticated, async (req: any, res) => {
-    try {
-      const { entityType, entityId } = req.params;
+  app.get(
+    "/api/files/:entityType/:entityId",
+    isAuthenticated,
+    validateParams(fileEntityParamsSchema),
+    asyncHandler(async (req: any, res) => {
+      const { entityType, entityId } = req.validatedParams;
 
       if (!fileEntityTypes.includes(entityType as FileEntityType)) {
-        return res.status(400).json({ message: "Invalid entity type" });
+        return sendValidationError(res, "Invalid entity type");
       }
 
-      const files = await storage.getFiles(entityType as FileEntityType, parseInt(entityId));
-      res.json(files);
-    } catch (error) {
-      console.error("Error fetching files:", error);
-      res.status(500).json({ message: "Failed to fetch files" });
-    }
-  });
+      const files = await storage.getFiles(entityType as FileEntityType, entityId);
+      sendSuccess(res, files);
+    })
+  );
 
   // Delete file
-  app.delete("/api/files/:id", isAuthenticated, async (req: any, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      const userId = (req.user as any).id;
-
-      if (isNaN(id)) {
-        return res.status(400).json({ message: "Invalid file ID" });
-      }
+  app.delete(
+    "/api/files/:id",
+    isAuthenticated,
+    validateParams(fileIdParamsSchema),
+    asyncHandler(async (req: any, res) => {
+      const { id } = req.validatedParams;
+      const currentUser = getCurrentUser(req);
+      const userId = currentUser!.id;
 
       const file = await storage.getFile(id);
       if (!file) {
-        return res.status(404).json({ message: "File not found" });
+        return sendNotFound(res, "File not found");
       }
 
       // Best-effort delete from storage
@@ -123,7 +146,7 @@ export function registerFileRoutes(app: Express) {
         const objectFile = await objectStorageService.getObjectEntityFile(file.objectPath);
         await objectStorageService.deleteFile(objectFile.path);
       } catch (e) {
-        console.warn("Failed to delete object from storage (continuing):", e);
+        logger.warn("Failed to delete object from storage (continuing)", { error: e });
       }
 
       await storage.deleteFile(id);
@@ -148,26 +171,27 @@ export function registerFileRoutes(app: Express) {
       });
 
       res.status(204).send();
-    } catch (error) {
-      console.error("Error deleting file:", error);
-      res.status(500).json({ message: "Failed to delete file" });
-    }
-  });
+    })
+  );
 
   // Audio transcription endpoint
-  app.post("/api/audio/transcribe", isAuthenticated, async (req: any, res) => {
-    try {
-      const { audioUrl, language } = req.body;
-      const async = req.query.async === "true";
+  app.post(
+    "/api/audio/transcribe",
+    isAuthenticated,
+    validateBody(transcribeBodySchema),
+    validateQuery(asyncQuerySchema),
+    asyncHandler(async (req: any, res) => {
+      const { audioUrl, language } = req.validatedBody;
+      const isAsync = req.validatedQuery?.async === "true";
 
       if (!audioUrl) {
-        return res.status(400).json({ message: "Audio URL is required" });
+        return sendValidationError(res, "Audio URL is required");
       }
 
       const { isWhisperAvailable } = await import("../integrations/openai/whisper");
 
       if (!isWhisperAvailable()) {
-        return res.status(503).json({ message: "Transcription service not available" });
+        return sendServiceUnavailable(res, "Transcription service not available");
       }
 
       let resolvedUrl: string = audioUrl;
@@ -178,7 +202,7 @@ export function registerFileRoutes(app: Express) {
       }
 
       // Async mode: queue the job
-      if (async) {
+      if (isAsync) {
         const payload: TranscribeAudioPayload = {
           audioUrl: resolvedUrl,
           language,
@@ -186,47 +210,49 @@ export function registerFileRoutes(app: Express) {
 
         const job = await enqueueJob(JobTypes.TRANSCRIBE_AUDIO, payload);
 
-        return res.status(202).json({
-          message: "Transcription queued",
-          jobId: job.id,
-          status: job.status,
-        });
+        return sendSuccess(
+          res,
+          {
+            message: "Transcription queued",
+            jobId: job.id,
+            status: job.status,
+          },
+          202
+        );
       }
 
       // Sync mode: transcribe immediately
       const { transcribeAudio } = await import("../integrations/openai/whisper");
       const result = await transcribeAudio(resolvedUrl, language);
-      res.json(result);
-    } catch (error) {
-      console.error("Error transcribing audio:", error);
-      res.status(500).json({ message: "Failed to transcribe audio" });
-    }
-  });
+      sendSuccess(res, result);
+    })
+  );
 
   // Transcribe audio file by ID (fetches file URL and transcribes)
-  app.post("/api/files/:id/transcribe", isAuthenticated, async (req: any, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      const async = req.query.async === "true";
-
-      if (isNaN(id)) {
-        return res.status(400).json({ message: "Invalid file ID" });
-      }
+  app.post(
+    "/api/files/:id/transcribe",
+    isAuthenticated,
+    validateParams(fileIdParamsSchema),
+    validateBody(transcribeBodySchema),
+    validateQuery(asyncQuerySchema),
+    asyncHandler(async (req: any, res) => {
+      const { id } = req.validatedParams;
+      const isAsync = req.validatedQuery?.async === "true";
 
       const file = await storage.getFile(id);
       if (!file) {
-        return res.status(404).json({ message: "File not found" });
+        return sendNotFound(res, "File not found");
       }
 
       // Check if file is audio
       if (!file.mimeType?.startsWith("audio/")) {
-        return res.status(400).json({ message: "File is not an audio file" });
+        return sendValidationError(res, "File is not an audio file");
       }
 
       const { isWhisperAvailable } = await import("../integrations/openai/whisper");
 
       if (!isWhisperAvailable()) {
-        return res.status(503).json({ message: "Transcription service not available" });
+        return sendServiceUnavailable(res, "Transcription service not available");
       }
 
       const objectStorageService = new ObjectStorageService();
@@ -234,37 +260,38 @@ export function registerFileRoutes(app: Express) {
       const signedUrl = await objectStorageService.getSignedUrl(objectFile.path, 15 * 60);
 
       // Async mode: queue the job
-      if (async) {
+      if (isAsync) {
         const payload: TranscribeAudioPayload = {
           audioUrl: signedUrl,
-          language: req.body.language,
+          language: req.validatedBody?.language,
           fileId: id,
         };
 
         const job = await enqueueJob(JobTypes.TRANSCRIBE_AUDIO, payload);
 
-        return res.status(202).json({
-          message: "Transcription queued",
-          jobId: job.id,
-          status: job.status,
-          fileId: id,
-          fileName: file.name,
-        });
+        return sendSuccess(
+          res,
+          {
+            message: "Transcription queued",
+            jobId: job.id,
+            status: job.status,
+            fileId: id,
+            fileName: file.name,
+          },
+          202
+        );
       }
 
       // Sync mode: transcribe immediately
       const { transcribeAudio } = await import("../integrations/openai/whisper");
-      const result = await transcribeAudio(signedUrl, req.body.language);
+      const result = await transcribeAudio(signedUrl, req.validatedBody?.language);
 
       // Return transcription result
-      res.json({
+      sendSuccess(res, {
         ...result,
         fileId: id,
         fileName: file.name,
       });
-    } catch (error) {
-      console.error("Error transcribing file:", error);
-      res.status(500).json({ message: "Failed to transcribe audio" });
-    }
-  });
+    })
+  );
 }

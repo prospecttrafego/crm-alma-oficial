@@ -2,7 +2,8 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Sparkles, RefreshCw, Lightbulb, ArrowRight } from "lucide-react";
-import { queryClient, apiRequest } from "@/lib/queryClient";
+import { queryClient } from "@/lib/queryClient";
+import { leadScoresApi } from "@/lib/api/leadScores";
 import type { LeadScore } from "@shared/schema";
 import { useTranslation } from "@/contexts/LanguageContext";
 
@@ -15,12 +16,12 @@ export function LeadScorePanel({ entityType, entityId }: LeadScorePanelProps) {
   const { t } = useTranslation();
   const { data: leadScore, isLoading } = useQuery<LeadScore | null>({
     queryKey: ["/api/lead-scores", entityType, entityId],
+    queryFn: () => leadScoresApi.get(entityType, entityId),
   });
 
   const calculateMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest("POST", `/api/lead-scores/${entityType}/${entityId}/calculate`);
-      return response.json();
+      return leadScoresApi.calculate(entityType, entityId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/lead-scores", entityType, entityId] });

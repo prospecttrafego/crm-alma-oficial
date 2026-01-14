@@ -26,12 +26,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type { AuditLog, AuditLogAction, AuditLogEntityType } from "@shared/schema";
+import type { AuditLogAction, AuditLogEntityType } from "@shared/schema";
 import { useTranslation } from "@/contexts/LanguageContext";
-
-type EnrichedAuditLog = AuditLog & {
-  user: { id: string; firstName: string | null; lastName: string | null } | null;
-};
+import { api } from "@/lib/api";
+import { enrichedAuditLogSchema } from "@shared/apiSchemas";
+import type { EnrichedAuditLog } from "@shared/types";
+import { z } from "zod";
 
 const actionIcons: Record<AuditLogAction, typeof Plus> = {
   create: Plus,
@@ -45,7 +45,7 @@ const actionColors: Record<AuditLogAction, string> = {
   create: "bg-green-500/10 text-green-500",
   update: "bg-blue-500/10 text-blue-500",
   delete: "bg-red-500/10 text-red-500",
-  lgpd_export: "bg-purple-500/10 text-purple-500",
+  lgpd_export: "bg-primary/10 text-primary",
   lgpd_delete: "bg-orange-500/10 text-orange-500",
 };
 
@@ -66,6 +66,7 @@ export default function AuditLogPage() {
   const locale = language === "pt-BR" ? ptBR : enUS;
   const { data: logs, isLoading } = useQuery<EnrichedAuditLog[]>({
     queryKey: ["/api/audit-logs"],
+    queryFn: () => api.get<EnrichedAuditLog[]>("/api/audit-logs", z.array(enrichedAuditLogSchema)),
   });
 
   const formatUserName = (user: EnrichedAuditLog["user"]) => {

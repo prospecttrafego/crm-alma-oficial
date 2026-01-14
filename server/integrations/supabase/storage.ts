@@ -279,7 +279,7 @@ export class ObjectStorageService {
    */
   async trySetObjectEntityAclPolicy(
     rawPath: string,
-    aclPolicy: ObjectAclPolicy
+    _aclPolicy: ObjectAclPolicy
   ): Promise<string> {
     const normalizedPath = this.normalizeObjectEntityPath(rawPath);
     // Supabase usa Row Level Security (RLS) em vez de ACLs por objeto
@@ -359,7 +359,7 @@ export class ObjectStorageService {
   async canAccessObjectEntity({
     userId,
     objectFile,
-    requestedPermission,
+    requestedPermission: _requestedPermission,
   }: {
     userId?: string;
     objectFile: { path: string; exists: boolean };

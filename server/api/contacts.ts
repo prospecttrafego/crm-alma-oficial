@@ -1,65 +1,115 @@
 import type { Express } from "express";
-import { insertContactSchema } from "@shared/schema";
-import { isAuthenticated } from "../auth";
+import {
+  createContactSchema,
+  updateContactSchema,
+  idParamSchema,
+  paginationQuerySchema,
+} from "../validation";
+import {
+  isAuthenticated,
+  validateBody,
+  validateParams,
+  validateQuery,
+  asyncHandler,
+} from "../middleware";
+import { sendSuccess, sendNotFound } from "../response";
 import { storage } from "../storage";
 
-const updateContactSchema = insertContactSchema.partial().omit({ organizationId: true });
-
 export function registerContactRoutes(app: Express) {
-  // Contacts - supports pagination via query params (?page=1&limit=20&search=...)
-  app.get("/api/contacts", isAuthenticated, async (req: any, res) => {
-    try {
+  // GET /api/contacts - Listar contatos (com paginacao opcional)
+  app.get(
+    "/api/contacts",
+    isAuthenticated,
+    validateQuery(paginationQuerySchema),
+    asyncHandler(async (req: any, res) => {
+      const paginationRequested =
+        req.query?.page !== undefined ||
+        req.query?.limit !== undefined ||
+        req.query?.search !== undefined ||
+        req.query?.sortBy !== undefined ||
+        req.query?.sortOrder !== undefined;
+
       const org = await storage.getDefaultOrganization();
       if (!org) {
-        return res.json({ data: [], pagination: { page: 1, limit: 20, total: 0, totalPages: 0, hasMore: false } });
+        if (!paginationRequested) return sendSuccess(res, []);
+        const page = req.validatedQuery.page ?? 1;
+        const limit = req.validatedQuery.limit ?? 20;
+        return sendSuccess(res, {
+          data: [],
+          pagination: { page, limit, total: 0, totalPages: 0, hasMore: false },
+        });
       }
 
+      const { page, limit, search, sortBy, sortOrder } = req.validatedQuery;
+
       // Check if pagination is requested
-      const { page, limit, search, sortBy, sortOrder } = req.query;
-      if (page || limit || search) {
+      if (paginationRequested) {
         const result = await storage.getContactsPaginated(org.id, {
-          page: page ? parseInt(page) : undefined,
-          limit: limit ? parseInt(limit) : undefined,
-          search: search as string,
-          sortBy: sortBy as string,
-          sortOrder: sortOrder as "asc" | "desc",
+          page,
+          limit,
+          search,
+          sortBy,
+          sortOrder,
         });
-        return res.json(result);
+        return sendSuccess(res, result);
       }
 
       // Fallback to non-paginated (for backward compatibility)
       const allContacts = await storage.getContacts(org.id);
-      res.json(allContacts);
-    } catch (error) {
-      console.error("Error fetching contacts:", error);
-      res.status(500).json({ message: "Failed to fetch contacts" });
-    }
-  });
+      sendSuccess(res, allContacts);
+    }),
+  );
 
-  app.get("/api/contacts/:id", isAuthenticated, async (req: any, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+  // GET /api/contacts/:id - Obter contato por ID
+  app.get(
+    "/api/contacts/:id",
+    isAuthenticated,
+    validateParams(idParamSchema),
+    asyncHandler(async (req: any, res) => {
+      const { id } = req.validatedParams;
       const contact = await storage.getContact(id);
-      if (!contact) return res.status(404).json({ message: "Contact not found" });
-      res.json(contact);
-    } catch (error) {
-      console.error("Error fetching contact:", error);
-      res.status(500).json({ message: "Failed to fetch contact" });
-    }
-  });
+      if (!contact) {
+        return sendNotFound(res, "Contact not found");
+      }
+      sendSuccess(res, contact);
+    }),
+  );
 
-  app.post("/api/contacts", isAuthenticated, async (req: any, res) => {
-    try {
+  // POST /api/contacts - Criar contato
+  app.post(
+    "/api/contacts",
+    isAuthenticated,
+    validateBody(createContactSchema),
+    asyncHandler(async (req: any, res) => {
       const org = await storage.getDefaultOrganization();
-      if (!org) return res.status(400).json({ message: "No organization" });
+      if (!org) {
+        return sendNotFound(res, "No organization");
+      }
       const userId = (req.user as any).id;
 
-      const parsed = insertContactSchema.safeParse({ ...req.body, organizationId: org.id });
-      if (!parsed.success) {
-        return res.status(400).json({ message: "Invalid data", errors: parsed.error.issues });
+      const { companyName, ...contactData } = req.validatedBody;
+      let companyId: number | undefined;
+
+      // Buscar ou criar empresa pelo nome
+      if (companyName && companyName.trim()) {
+        const trimmedName = companyName.trim();
+        const existingCompany = await storage.getCompanyByName(trimmedName, org.id);
+        if (existingCompany) {
+          companyId = existingCompany.id;
+        } else {
+          const newCompany = await storage.createCompany({
+            name: trimmedName,
+            organizationId: org.id,
+          });
+          companyId = newCompany.id;
+        }
       }
-      const contact = await storage.createContact(parsed.data);
+
+      const contact = await storage.createContact({
+        ...contactData,
+        companyId,
+        organizationId: org.id,
+      });
 
       await storage.createAuditLog({
         userId,
@@ -71,26 +121,29 @@ export function registerContactRoutes(app: Express) {
         changes: { after: contact as unknown as Record<string, unknown> },
       });
 
-      res.status(201).json(contact);
-    } catch (error) {
-      console.error("Error creating contact:", error);
-      res.status(500).json({ message: "Failed to create contact" });
-    }
-  });
+      sendSuccess(res, contact, 201);
+    }),
+  );
 
-  app.patch("/api/contacts/:id", isAuthenticated, async (req: any, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+  // PATCH /api/contacts/:id - Atualizar contato
+  app.patch(
+    "/api/contacts/:id",
+    isAuthenticated,
+    validateParams(idParamSchema),
+    validateBody(updateContactSchema),
+    asyncHandler(async (req: any, res) => {
+      const { id } = req.validatedParams;
       const userId = (req.user as any).id;
 
       const existingContact = await storage.getContact(id);
-      const parsed = updateContactSchema.safeParse(req.body);
-      if (!parsed.success) {
-        return res.status(400).json({ message: "Invalid data", errors: parsed.error.issues });
+      if (!existingContact) {
+        return sendNotFound(res, "Contact not found");
       }
-      const contact = await storage.updateContact(id, parsed.data);
-      if (!contact) return res.status(404).json({ message: "Contact not found" });
+
+      const contact = await storage.updateContact(id, req.validatedBody);
+      if (!contact) {
+        return sendNotFound(res, "Contact not found");
+      }
 
       const org = await storage.getDefaultOrganization();
       if (org) {
@@ -108,17 +161,17 @@ export function registerContactRoutes(app: Express) {
         });
       }
 
-      res.json(contact);
-    } catch (error) {
-      console.error("Error updating contact:", error);
-      res.status(500).json({ message: "Failed to update contact" });
-    }
-  });
+      sendSuccess(res, contact);
+    }),
+  );
 
-  app.delete("/api/contacts/:id", isAuthenticated, async (req: any, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+  // DELETE /api/contacts/:id - Excluir contato
+  app.delete(
+    "/api/contacts/:id",
+    isAuthenticated,
+    validateParams(idParamSchema),
+    asyncHandler(async (req: any, res) => {
+      const { id } = req.validatedParams;
       const userId = (req.user as any).id;
 
       const existingContact = await storage.getContact(id);
@@ -138,10 +191,6 @@ export function registerContactRoutes(app: Express) {
       }
 
       res.status(204).send();
-    } catch (error) {
-      console.error("Error deleting contact:", error);
-      res.status(500).json({ message: "Failed to delete contact" });
-    }
-  });
+    }),
+  );
 }
-

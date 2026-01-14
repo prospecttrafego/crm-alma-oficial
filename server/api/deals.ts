@@ -1,71 +1,112 @@
 import type { Express } from "express";
 import { z } from "zod";
-import { insertDealSchema } from "@shared/schema";
-import { isAuthenticated } from "../auth";
+import {
+  createDealSchema,
+  updateDealSchema,
+  moveDealSchema,
+  idParamSchema,
+  paginationQuerySchema,
+} from "../validation";
+import {
+  isAuthenticated,
+  validateBody,
+  validateParams,
+  validateQuery,
+  asyncHandler,
+} from "../middleware";
+import { sendSuccess, sendNotFound } from "../response";
 import { storage } from "../storage";
 import { broadcast } from "../ws/index";
 
-const updateDealSchema = insertDealSchema.partial().omit({ organizationId: true });
-const moveDealSchema = z.object({ stageId: z.number() });
+// Schema estendido para query de deals (adiciona campos especificos)
+const dealsQuerySchema = paginationQuerySchema.extend({
+  pipelineId: z.coerce.number().int().positive().optional(),
+  stageId: z.coerce.number().int().positive().optional(),
+  status: z.string().optional(),
+});
 
 export function registerDealRoutes(app: Express) {
-  // Deals - supports pagination via query params (?page=1&limit=20&search=...&pipelineId=...&status=...)
-  app.get("/api/deals", isAuthenticated, async (req: any, res) => {
-    try {
+  // GET /api/deals - Listar deals (com paginacao e filtros opcionais)
+  app.get(
+    "/api/deals",
+    isAuthenticated,
+    validateQuery(dealsQuerySchema),
+    asyncHandler(async (req: any, res) => {
+      const paginationOrFilterRequested =
+        req.query?.page !== undefined ||
+        req.query?.limit !== undefined ||
+        req.query?.search !== undefined ||
+        req.query?.sortBy !== undefined ||
+        req.query?.sortOrder !== undefined ||
+        req.query?.pipelineId !== undefined ||
+        req.query?.stageId !== undefined ||
+        req.query?.status !== undefined;
+
       const org = await storage.getDefaultOrganization();
       if (!org) {
-        return res.json({ data: [], pagination: { page: 1, limit: 20, total: 0, totalPages: 0, hasMore: false } });
+        if (!paginationOrFilterRequested) return sendSuccess(res, []);
+        const page = req.validatedQuery.page ?? 1;
+        const limit = req.validatedQuery.limit ?? 20;
+        return sendSuccess(res, {
+          data: [],
+          pagination: { page, limit, total: 0, totalPages: 0, hasMore: false },
+        });
       }
 
-      // Check if pagination is requested
-      const { page, limit, search, sortBy, sortOrder, pipelineId, stageId, status } = req.query;
-      if (page || limit || search || pipelineId || status) {
+      const { page, limit, search, sortBy, sortOrder, pipelineId, stageId, status } = req.validatedQuery;
+
+      // Check if pagination/filtering is requested
+      if (paginationOrFilterRequested) {
         const result = await storage.getDealsPaginated(org.id, {
-          page: page ? parseInt(page) : undefined,
-          limit: limit ? parseInt(limit) : undefined,
-          search: search as string,
-          sortBy: sortBy as string,
-          sortOrder: sortOrder as "asc" | "desc",
-          pipelineId: pipelineId ? parseInt(pipelineId) : undefined,
-          stageId: stageId ? parseInt(stageId) : undefined,
-          status: status as string,
+          page,
+          limit,
+          search,
+          sortBy,
+          sortOrder,
+          pipelineId,
+          stageId,
+          status,
         });
-        return res.json(result);
+        return sendSuccess(res, result);
       }
 
       // Fallback to non-paginated (for backward compatibility)
       const allDeals = await storage.getDeals(org.id);
-      res.json(allDeals);
-    } catch (error) {
-      console.error("Error fetching deals:", error);
-      res.status(500).json({ message: "Failed to fetch deals" });
-    }
-  });
+      sendSuccess(res, allDeals);
+    }),
+  );
 
-  app.get("/api/deals/:id", isAuthenticated, async (req: any, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+  // GET /api/deals/:id - Obter deal por ID
+  app.get(
+    "/api/deals/:id",
+    isAuthenticated,
+    validateParams(idParamSchema),
+    asyncHandler(async (req: any, res) => {
+      const { id } = req.validatedParams;
       const deal = await storage.getDeal(id);
-      if (!deal) return res.status(404).json({ message: "Deal not found" });
-      res.json(deal);
-    } catch (error) {
-      console.error("Error fetching deal:", error);
-      res.status(500).json({ message: "Failed to fetch deal" });
-    }
-  });
+      if (!deal) {
+        return sendNotFound(res, "Deal not found");
+      }
+      sendSuccess(res, deal);
+    }),
+  );
 
-  app.post("/api/deals", isAuthenticated, async (req: any, res) => {
-    try {
+  // POST /api/deals - Criar deal
+  app.post(
+    "/api/deals",
+    isAuthenticated,
+    validateBody(createDealSchema),
+    asyncHandler(async (req: any, res) => {
       const org = await storage.getDefaultOrganization();
-      if (!org) return res.status(400).json({ message: "No organization" });
+      if (!org) {
+        return sendNotFound(res, "No organization");
+      }
       const userId = (req.user as any).id;
 
-      const parsed = insertDealSchema.safeParse({ ...req.body, organizationId: org.id });
-      if (!parsed.success) {
-        return res.status(400).json({ message: "Invalid data", errors: parsed.error.issues });
-      }
-      const deal = await storage.createDeal(parsed.data);
+      const deal = await storage.createDeal({
+        ...req.validatedBody,
+        organizationId: org.id,
+      });
 
       await storage.createAuditLog({
         userId,
@@ -78,26 +119,29 @@ export function registerDealRoutes(app: Express) {
       });
 
       broadcast("deal:created", deal);
-      res.status(201).json(deal);
-    } catch (error) {
-      console.error("Error creating deal:", error);
-      res.status(500).json({ message: "Failed to create deal" });
-    }
-  });
+      sendSuccess(res, deal, 201);
+    }),
+  );
 
-  app.patch("/api/deals/:id", isAuthenticated, async (req: any, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+  // PATCH /api/deals/:id - Atualizar deal
+  app.patch(
+    "/api/deals/:id",
+    isAuthenticated,
+    validateParams(idParamSchema),
+    validateBody(updateDealSchema),
+    asyncHandler(async (req: any, res) => {
+      const { id } = req.validatedParams;
       const userId = (req.user as any).id;
 
       const existingDeal = await storage.getDeal(id);
-      const parsed = updateDealSchema.safeParse(req.body);
-      if (!parsed.success) {
-        return res.status(400).json({ message: "Invalid data", errors: parsed.error.issues });
+      if (!existingDeal) {
+        return sendNotFound(res, "Deal not found");
       }
-      const deal = await storage.updateDeal(id, parsed.data);
-      if (!deal) return res.status(404).json({ message: "Deal not found" });
+
+      const deal = await storage.updateDeal(id, req.validatedBody);
+      if (!deal) {
+        return sendNotFound(res, "Deal not found");
+      }
 
       const org = await storage.getDefaultOrganization();
       if (org) {
@@ -116,25 +160,24 @@ export function registerDealRoutes(app: Express) {
       }
 
       broadcast("deal:updated", deal);
-      res.json(deal);
-    } catch (error) {
-      console.error("Error updating deal:", error);
-      res.status(500).json({ message: "Failed to update deal" });
-    }
-  });
+      sendSuccess(res, deal);
+    }),
+  );
 
-  app.patch("/api/deals/:id/stage", isAuthenticated, async (req: any, res) => {
-    try {
-      const dealId = parseInt(req.params.id);
+  // PATCH /api/deals/:id/stage - Mover deal para outro stage
+  app.patch(
+    "/api/deals/:id/stage",
+    isAuthenticated,
+    validateParams(idParamSchema),
+    validateBody(moveDealSchema),
+    asyncHandler(async (req: any, res) => {
+      const { id } = req.validatedParams;
       const userId = (req.user as any).id;
-      if (isNaN(dealId)) return res.status(400).json({ message: "Invalid ID" });
 
-      const parsed = moveDealSchema.safeParse(req.body);
-      if (!parsed.success) {
-        return res.status(400).json({ message: "Invalid data", errors: parsed.error.issues });
+      const deal = await storage.moveDealToStage(id, req.validatedBody.stageId);
+      if (!deal) {
+        return sendNotFound(res, "Deal not found");
       }
-      const deal = await storage.moveDealToStage(dealId, parsed.data.stageId);
-      if (!deal) return res.status(404).json({ message: "Deal not found" });
       broadcast("deal:moved", deal);
 
       if (deal.status === "won" || deal.status === "lost") {
@@ -148,17 +191,17 @@ export function registerDealRoutes(app: Express) {
         });
         broadcast("notification:new", { userId });
       }
-      res.json(deal);
-    } catch (error) {
-      console.error("Error moving deal:", error);
-      res.status(500).json({ message: "Failed to move deal" });
-    }
-  });
+      sendSuccess(res, deal);
+    }),
+  );
 
-  app.delete("/api/deals/:id", isAuthenticated, async (req: any, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+  // DELETE /api/deals/:id - Excluir deal
+  app.delete(
+    "/api/deals/:id",
+    isAuthenticated,
+    validateParams(idParamSchema),
+    asyncHandler(async (req: any, res) => {
+      const { id } = req.validatedParams;
       const userId = (req.user as any).id;
 
       const existingDeal = await storage.getDeal(id);
@@ -179,10 +222,6 @@ export function registerDealRoutes(app: Express) {
 
       broadcast("deal:deleted", { id });
       res.status(204).send();
-    } catch (error) {
-      console.error("Error deleting deal:", error);
-      res.status(500).json({ message: "Failed to delete deal" });
-    }
-  });
+    }),
+  );
 }
-

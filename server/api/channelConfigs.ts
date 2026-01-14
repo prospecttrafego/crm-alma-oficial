@@ -1,6 +1,17 @@
 import type { Express } from "express";
-import { insertChannelConfigSchema, type InsertChannelConfig } from "@shared/schema";
-import { isAuthenticated } from "../auth";
+import type { InsertChannelConfig } from "@shared/schema";
+import {
+  createChannelConfigSchema,
+  updateChannelConfigSchema,
+  idParamSchema,
+} from "../validation";
+import {
+  isAuthenticated,
+  validateBody,
+  validateParams,
+  asyncHandler,
+} from "../middleware";
+import { sendSuccess, sendNotFound, sendError, sendValidationError, ErrorCodes } from "../response";
 import { storage } from "../storage";
 import { broadcast } from "../ws/index";
 import { evolutionApi } from "../integrations/evolution/api";
@@ -15,8 +26,6 @@ import {
 import { logger } from "../logger";
 import { enqueueJob } from "../jobs/queue";
 import { JobTypes, type SyncEmailPayload } from "../jobs/handlers";
-
-const updateChannelConfigSchema = insertChannelConfigSchema.partial().omit({ organizationId: true, type: true });
 
 /**
  * Process an incoming email and create/update conversation and message
@@ -152,110 +161,118 @@ function redactChannelConfigSecrets(config: any) {
       whatsappConfig.hasAccessToken = true;
       delete whatsappConfig.accessToken;
     }
+    if (whatsappConfig.webhookVerifyToken) {
+      whatsappConfig.hasWebhookVerifyToken = true;
+      delete whatsappConfig.webhookVerifyToken;
+    }
     redacted.whatsappConfig = whatsappConfig;
   }
   return redacted;
 }
 
 export function registerChannelConfigRoutes(app: Express) {
-  app.get("/api/channel-configs", isAuthenticated, async (_req: any, res) => {
-    try {
+  // GET /api/channel-configs - Listar todas as configuracoes de canal
+  app.get(
+    "/api/channel-configs",
+    isAuthenticated,
+    asyncHandler(async (_req: any, res) => {
       const org = await storage.getDefaultOrganization();
-      if (!org) return res.json([]);
+      if (!org) return sendSuccess(res, []);
       const configs = await storage.getChannelConfigs(org.id);
       const redactedConfigs = configs.map(redactChannelConfigSecrets);
-      res.json(redactedConfigs);
-    } catch (error) {
-      console.error("Error fetching channel configs:", error);
-      res.status(500).json({ message: "Failed to fetch channel configs" });
-    }
-  });
+      sendSuccess(res, redactedConfigs);
+    }),
+  );
 
-  app.get("/api/channel-configs/:id", isAuthenticated, async (req: any, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+  // GET /api/channel-configs/:id - Obter configuracao por ID
+  app.get(
+    "/api/channel-configs/:id",
+    isAuthenticated,
+    validateParams(idParamSchema),
+    asyncHandler(async (req: any, res) => {
+      const { id } = req.validatedParams;
       const config = await storage.getChannelConfig(id);
-      if (!config) return res.status(404).json({ message: "Channel config not found" });
-      res.json(redactChannelConfigSecrets(config));
-    } catch (error) {
-      console.error("Error fetching channel config:", error);
-      res.status(500).json({ message: "Failed to fetch channel config" });
-    }
-  });
+      if (!config) {
+        return sendNotFound(res, "Channel config not found");
+      }
+      sendSuccess(res, redactChannelConfigSecrets(config));
+    }),
+  );
 
-  app.post("/api/channel-configs", isAuthenticated, async (req: any, res) => {
-    try {
+  // POST /api/channel-configs - Criar configuracao de canal
+  app.post(
+    "/api/channel-configs",
+    isAuthenticated,
+    validateBody(createChannelConfigSchema),
+    asyncHandler(async (req: any, res) => {
       const org = await storage.getDefaultOrganization();
-      if (!org) return res.status(400).json({ message: "No organization" });
+      if (!org) {
+        return sendNotFound(res, "No organization");
+      }
       const userId = (req.user as any).id;
 
-      const parsed = insertChannelConfigSchema.safeParse({
-        ...req.body,
+      const config = await storage.createChannelConfig({
+        ...req.validatedBody,
         organizationId: org.id,
         createdBy: userId,
       });
-      if (!parsed.success) {
-        return res.status(400).json({ message: "Invalid data", errors: parsed.error.issues });
-      }
-      const config = await storage.createChannelConfig(parsed.data);
       const redactedConfig = redactChannelConfigSecrets(config);
       broadcast("channel:config:created", redactedConfig);
-      res.status(201).json(redactedConfig);
-    } catch (error) {
-      console.error("Error creating channel config:", error);
-      res.status(500).json({ message: "Failed to create channel config" });
-    }
-  });
+      sendSuccess(res, redactedConfig, 201);
+    }),
+  );
 
-  app.patch("/api/channel-configs/:id", isAuthenticated, async (req: any, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
-
-      const parsed = updateChannelConfigSchema.safeParse(req.body);
-      if (!parsed.success) {
-        return res.status(400).json({ message: "Invalid data", errors: parsed.error.issues });
-      }
+  // PATCH /api/channel-configs/:id - Atualizar configuracao de canal
+  app.patch(
+    "/api/channel-configs/:id",
+    isAuthenticated,
+    validateParams(idParamSchema),
+    validateBody(updateChannelConfigSchema),
+    asyncHandler(async (req: any, res) => {
+      const { id } = req.validatedParams;
 
       // Storage layer handles merging secrets - preserves password/accessToken if not provided
-      const config = await storage.updateChannelConfig(id, parsed.data);
-      if (!config) return res.status(404).json({ message: "Channel config not found" });
+      const config = await storage.updateChannelConfig(id, req.validatedBody);
+      if (!config) {
+        return sendNotFound(res, "Channel config not found");
+      }
       const redactedConfig = redactChannelConfigSecrets(config);
       broadcast("channel:config:updated", redactedConfig);
-      res.json(redactedConfig);
-    } catch (error) {
-      console.error("Error updating channel config:", error);
-      res.status(500).json({ message: "Failed to update channel config" });
-    }
-  });
+      sendSuccess(res, redactedConfig);
+    }),
+  );
 
-  app.delete("/api/channel-configs/:id", isAuthenticated, async (req: any, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+  // DELETE /api/channel-configs/:id - Excluir configuracao de canal
+  app.delete(
+    "/api/channel-configs/:id",
+    isAuthenticated,
+    validateParams(idParamSchema),
+    asyncHandler(async (req: any, res) => {
+      const { id } = req.validatedParams;
 
       await storage.deleteChannelConfig(id);
       broadcast("channel:config:deleted", { id });
       res.status(204).send();
-    } catch (error) {
-      console.error("Error deleting channel config:", error);
-      res.status(500).json({ message: "Failed to delete channel config" });
-    }
-  });
+    }),
+  );
 
-  app.post("/api/channel-configs/:id/test", isAuthenticated, async (req: any, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+  // POST /api/channel-configs/:id/test - Testar configuracao de canal
+  app.post(
+    "/api/channel-configs/:id/test",
+    isAuthenticated,
+    validateParams(idParamSchema),
+    asyncHandler(async (req: any, res) => {
+      const { id } = req.validatedParams;
 
       const config = await storage.getChannelConfig(id);
-      if (!config) return res.status(404).json({ message: "Channel config not found" });
+      if (!config) {
+        return sendNotFound(res, "Channel config not found");
+      }
 
       if (config.type === "email") {
         const emailConfig = config.emailConfig as EmailConfig | undefined;
         if (!emailConfig) {
-          return res.status(400).json({ message: "Email configuration is missing" });
+          return sendError(res, ErrorCodes.INVALID_INPUT, "Email configuration is missing", 400);
         }
 
         // Test both IMAP and SMTP connections
@@ -265,9 +282,9 @@ export function registerChannelConfigRoutes(app: Express) {
         ]);
 
         if (imapOk && smtpOk) {
-          res.json({ success: true, message: "Email configuration validated successfully", imap: true, smtp: true });
+          sendSuccess(res, { success: true, message: "Email configuration validated successfully", imap: true, smtp: true });
         } else {
-          res.status(400).json({
+          sendSuccess(res, {
             success: false,
             message: "Email configuration validation failed",
             imap: imapOk,
@@ -275,33 +292,35 @@ export function registerChannelConfigRoutes(app: Express) {
           });
         }
       } else if (config.type === "whatsapp") {
-        res.json({ success: true, message: "WhatsApp configuration validated successfully" });
+        sendSuccess(res, { success: true, message: "WhatsApp configuration validated successfully" });
       } else {
-        res.status(400).json({ message: "Unknown channel type" });
+        return sendError(res, ErrorCodes.INVALID_INPUT, "Unknown channel type", 400);
       }
-    } catch (error) {
-      console.error("Error testing channel config:", error);
-      res.status(500).json({ message: "Failed to test channel config" });
-    }
-  });
+    }),
+  );
 
   // ========== EMAIL ROUTES ==========
 
-  // Sync emails from IMAP
-  app.post("/api/channel-configs/:id/email/sync", isAuthenticated, async (req: any, res) => {
-    try {
-      const id = parseInt(req.params.id);
+  // POST /api/channel-configs/:id/email/sync - Sincronizar emails
+  app.post(
+    "/api/channel-configs/:id/email/sync",
+    isAuthenticated,
+    validateParams(idParamSchema),
+    asyncHandler(async (req: any, res) => {
+      const { id } = req.validatedParams;
       const async = req.query.async === "true";
 
-      if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
-
       const config = await storage.getChannelConfig(id);
-      if (!config) return res.status(404).json({ message: "Channel config not found" });
-      if (config.type !== "email") return res.status(400).json({ message: "Not an email channel" });
+      if (!config) {
+        return sendNotFound(res, "Channel config not found");
+      }
+      if (config.type !== "email") {
+        return sendError(res, ErrorCodes.INVALID_INPUT, "Not an email channel", 400);
+      }
 
       const emailConfig = config.emailConfig as EmailConfig | undefined;
       if (!emailConfig) {
-        return res.status(400).json({ message: "Email configuration is missing" });
+        return sendError(res, ErrorCodes.INVALID_INPUT, "Email configuration is missing", 400);
       }
 
       const user = req.user as any;
@@ -317,11 +336,15 @@ export function registerChannelConfigRoutes(app: Express) {
 
         const job = await enqueueJob(JobTypes.SYNC_EMAIL, payload);
 
-        return res.status(202).json({
-          message: "Email sync queued",
-          jobId: job.id,
-          status: job.status,
-        });
+        return sendSuccess(
+          res,
+          {
+            message: "Email sync queued",
+            jobId: job.id,
+            status: job.status,
+          },
+          202
+        );
       }
 
       // Sync mode: sync immediately
@@ -347,37 +370,45 @@ export function registerChannelConfigRoutes(app: Express) {
         errors: result.errors.length,
       });
 
-      res.json({
-        success: true,
+      sendSuccess(res, {
         newEmails: result.newEmails,
         totalProcessed: result.totalProcessed,
         errors: result.errors,
       });
-    } catch (error) {
-      console.error("Error syncing emails:", error);
-      res.status(500).json({ message: "Failed to sync emails" });
-    }
-  });
+    }),
+  );
 
-  // Send email via SMTP
-  app.post("/api/channel-configs/:id/email/send", isAuthenticated, async (req: any, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+  // POST /api/channel-configs/:id/email/send - Enviar email
+  app.post(
+    "/api/channel-configs/:id/email/send",
+    isAuthenticated,
+    validateParams(idParamSchema),
+    asyncHandler(async (req: any, res) => {
+      const { id } = req.validatedParams;
 
       const { to, cc, bcc, subject, text, html, inReplyTo, references } = req.body;
 
-      if (!to) return res.status(400).json({ message: "Recipient (to) is required" });
-      if (!subject) return res.status(400).json({ message: "Subject is required" });
-      if (!text && !html) return res.status(400).json({ message: "Either text or html body is required" });
+      if (!to) {
+        return sendValidationError(res, "Recipient (to) is required", [{ path: "to", message: "Required" }]);
+      }
+      if (!subject) {
+        return sendValidationError(res, "Subject is required", [{ path: "subject", message: "Required" }]);
+      }
+      if (!text && !html) {
+        return sendValidationError(res, "Either text or html body is required", [{ path: "text", message: "Required" }]);
+      }
 
       const config = await storage.getChannelConfig(id);
-      if (!config) return res.status(404).json({ message: "Channel config not found" });
-      if (config.type !== "email") return res.status(400).json({ message: "Not an email channel" });
+      if (!config) {
+        return sendNotFound(res, "Channel config not found");
+      }
+      if (config.type !== "email") {
+        return sendError(res, ErrorCodes.INVALID_INPUT, "Not an email channel", 400);
+      }
 
       const emailConfig = config.emailConfig as EmailConfig | undefined;
       if (!emailConfig) {
-        return res.status(400).json({ message: "Email configuration is missing" });
+        return sendError(res, ErrorCodes.INVALID_INPUT, "Email configuration is missing", 400);
       }
 
       const result = await sendEmail(emailConfig, {
@@ -397,38 +428,45 @@ export function registerChannelConfigRoutes(app: Express) {
         to,
       });
 
-      res.json({
+      sendSuccess(res, {
         success: true,
         messageId: result.messageId,
         accepted: result.accepted,
         rejected: result.rejected,
       });
-    } catch (error) {
-      console.error("Error sending email:", error);
-      res.status(500).json({ message: "Failed to send email" });
-    }
-  });
+    }),
+  );
 
-  // Connect WhatsApp instance (create and get QR code)
-  app.post("/api/channel-configs/:id/whatsapp/connect", isAuthenticated, async (req: any, res) => {
-    try {
-      const id = parseInt(req.params.id);
+  // ========== WHATSAPP ROUTES ==========
+
+  // POST /api/channel-configs/:id/whatsapp/connect - Conectar WhatsApp
+  app.post(
+    "/api/channel-configs/:id/whatsapp/connect",
+    isAuthenticated,
+    validateParams(idParamSchema),
+    asyncHandler(async (req: any, res) => {
+      const { id } = req.validatedParams;
       const userId = (req.user as any).id;
 
-      if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
-
       const config = await storage.getChannelConfig(id);
-      if (!config) return res.status(404).json({ message: "Channel config not found" });
-      if (config.type !== "whatsapp") return res.status(400).json({ message: "Not a WhatsApp channel" });
+      if (!config) {
+        return sendNotFound(res, "Channel config not found");
+      }
+      if (config.type !== "whatsapp") {
+        return sendError(res, ErrorCodes.INVALID_INPUT, "Not a WhatsApp channel", 400);
+      }
 
       if (!evolutionApi.isConfigured()) {
-        return res.status(503).json({ message: "Evolution API is not configured" });
+        return sendError(res, ErrorCodes.SERVICE_UNAVAILABLE, "Evolution API is not configured", 503);
       }
 
       if (process.env.NODE_ENV === "production" && !process.env.EVOLUTION_WEBHOOK_SECRET) {
-        return res.status(500).json({
-          message: "EVOLUTION_WEBHOOK_SECRET is required in production to validate webhooks",
-        });
+        return sendError(
+          res,
+          ErrorCodes.INTERNAL_ERROR,
+          "EVOLUTION_WEBHOOK_SECRET is required in production to validate webhooks",
+          500
+        );
       }
 
       const organizationId = config.organizationId;
@@ -485,40 +523,43 @@ export function registerChannelConfigRoutes(app: Express) {
         },
       });
 
-      res.json({
+      sendSuccess(res, {
         instanceName,
         qrCode: qrData.base64 || qrData.code,
         pairingCode: qrData.pairingCode,
         status: "qr_pending",
       });
-    } catch (error) {
-      console.error("Error connecting WhatsApp:", error);
-      res.status(500).json({ message: "Failed to connect WhatsApp" });
-    }
-  });
+    }),
+  );
 
-  // Get WhatsApp connection status
-  app.get("/api/channel-configs/:id/whatsapp/status", isAuthenticated, async (req: any, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+  // GET /api/channel-configs/:id/whatsapp/status - Status do WhatsApp
+  app.get(
+    "/api/channel-configs/:id/whatsapp/status",
+    isAuthenticated,
+    validateParams(idParamSchema),
+    asyncHandler(async (req: any, res) => {
+      const { id } = req.validatedParams;
 
       const config = await storage.getChannelConfig(id);
-      if (!config) return res.status(404).json({ message: "Channel config not found" });
-      if (config.type !== "whatsapp") return res.status(400).json({ message: "Not a WhatsApp channel" });
+      if (!config) {
+        return sendNotFound(res, "Channel config not found");
+      }
+      if (config.type !== "whatsapp") {
+        return sendError(res, ErrorCodes.INVALID_INPUT, "Not a WhatsApp channel", 400);
+      }
 
       const whatsappConfig = (config.whatsappConfig || {}) as Record<string, unknown>;
       const instanceName = whatsappConfig.instanceName as string | undefined;
 
       if (!instanceName) {
-        return res.json({
+        return sendSuccess(res, {
           status: "disconnected",
           instanceName: null,
         });
       }
 
       if (!evolutionApi.isConfigured()) {
-        return res.status(503).json({ message: "Evolution API is not configured" });
+        return sendError(res, ErrorCodes.SERVICE_UNAVAILABLE, "Evolution API is not configured", 503);
       }
 
       try {
@@ -545,52 +586,54 @@ export function registerChannelConfigRoutes(app: Express) {
           });
         }
 
-        res.json({
+        sendSuccess(res, {
           status,
           instanceName,
           lastConnectedAt: whatsappConfig.lastConnectedAt,
         });
       } catch {
         // Instance might not exist or is disconnected
-        res.json({
+        sendSuccess(res, {
           status: "disconnected",
           instanceName,
         });
       }
-    } catch (error) {
-      console.error("Error getting WhatsApp status:", error);
-      res.status(500).json({ message: "Failed to get WhatsApp status" });
-    }
-  });
+    }),
+  );
 
-  // Disconnect WhatsApp instance
-  app.post("/api/channel-configs/:id/whatsapp/disconnect", isAuthenticated, async (req: any, res) => {
-    try {
-      const id = parseInt(req.params.id);
+  // POST /api/channel-configs/:id/whatsapp/disconnect - Desconectar WhatsApp
+  app.post(
+    "/api/channel-configs/:id/whatsapp/disconnect",
+    isAuthenticated,
+    validateParams(idParamSchema),
+    asyncHandler(async (req: any, res) => {
+      const { id } = req.validatedParams;
       const userId = (req.user as any).id;
 
-      if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
-
       const config = await storage.getChannelConfig(id);
-      if (!config) return res.status(404).json({ message: "Channel config not found" });
-      if (config.type !== "whatsapp") return res.status(400).json({ message: "Not a WhatsApp channel" });
+      if (!config) {
+        return sendNotFound(res, "Channel config not found");
+      }
+      if (config.type !== "whatsapp") {
+        return sendError(res, ErrorCodes.INVALID_INPUT, "Not a WhatsApp channel", 400);
+      }
 
       const whatsappConfig = (config.whatsappConfig || {}) as Record<string, unknown>;
       const instanceName = whatsappConfig.instanceName as string | undefined;
 
       if (!instanceName) {
-        return res.json({ success: true, message: "No active connection" });
+        return sendSuccess(res, { success: true, message: "No active connection" });
       }
 
       if (!evolutionApi.isConfigured()) {
-        return res.status(503).json({ message: "Evolution API is not configured" });
+        return sendError(res, ErrorCodes.SERVICE_UNAVAILABLE, "Evolution API is not configured", 503);
       }
 
       try {
         await evolutionApi.disconnectInstance(instanceName);
       } catch (error) {
         // Instance might already be disconnected
-        console.log("Instance disconnect error (may already be disconnected):", error);
+        logger.warn("Instance disconnect error (may already be disconnected):", { error });
       }
 
       // Update config
@@ -618,37 +661,44 @@ export function registerChannelConfigRoutes(app: Express) {
         },
       });
 
-      res.json({ success: true, message: "WhatsApp disconnected" });
-    } catch (error) {
-      console.error("Error disconnecting WhatsApp:", error);
-      res.status(500).json({ message: "Failed to disconnect WhatsApp" });
-    }
-  });
+      sendSuccess(res, { success: true, message: "WhatsApp disconnected" });
+    }),
+  );
 
-  // Send WhatsApp message via Evolution API
-  app.post("/api/channel-configs/:id/whatsapp/send", isAuthenticated, async (req: any, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+  // POST /api/channel-configs/:id/whatsapp/send - Enviar mensagem WhatsApp
+  app.post(
+    "/api/channel-configs/:id/whatsapp/send",
+    isAuthenticated,
+    validateParams(idParamSchema),
+    asyncHandler(async (req: any, res) => {
+      const { id } = req.validatedParams;
 
       const { to, text, mediaUrl, mediaType, caption, fileName } = req.body;
 
-      if (!to) return res.status(400).json({ message: "Recipient phone number (to) is required" });
-      if (!text && !mediaUrl) return res.status(400).json({ message: "Either text or mediaUrl is required" });
+      if (!to) {
+        return sendValidationError(res, "Recipient phone number (to) is required", [{ path: "to", message: "Required" }]);
+      }
+      if (!text && !mediaUrl) {
+        return sendValidationError(res, "Either text or mediaUrl is required", [{ path: "text", message: "Required" }]);
+      }
 
       const config = await storage.getChannelConfig(id);
-      if (!config) return res.status(404).json({ message: "Channel config not found" });
-      if (config.type !== "whatsapp") return res.status(400).json({ message: "Not a WhatsApp channel" });
+      if (!config) {
+        return sendNotFound(res, "Channel config not found");
+      }
+      if (config.type !== "whatsapp") {
+        return sendError(res, ErrorCodes.INVALID_INPUT, "Not a WhatsApp channel", 400);
+      }
 
       const whatsappConfig = (config.whatsappConfig || {}) as Record<string, unknown>;
       const instanceName = whatsappConfig.instanceName as string | undefined;
 
       if (!instanceName) {
-        return res.status(400).json({ message: "WhatsApp not connected" });
+        return sendError(res, ErrorCodes.INVALID_INPUT, "WhatsApp not connected", 400);
       }
 
       if (!evolutionApi.isConfigured()) {
-        return res.status(503).json({ message: "Evolution API is not configured" });
+        return sendError(res, ErrorCodes.SERVICE_UNAVAILABLE, "Evolution API is not configured", 503);
       }
 
       let result;
@@ -658,10 +708,7 @@ export function registerChannelConfigRoutes(app: Express) {
         result = await evolutionApi.sendTextMessage(instanceName, to, text);
       }
 
-      res.json({ success: true, result });
-    } catch (error) {
-      console.error("Error sending WhatsApp message:", error);
-      res.status(500).json({ message: "Failed to send WhatsApp message" });
-    }
-  });
+      sendSuccess(res, { success: true, result });
+    }),
+  );
 }
