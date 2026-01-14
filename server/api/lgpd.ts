@@ -308,22 +308,24 @@ export function registerLgpdRoutes(app: Express) {
         await tx.delete(contacts).where(eq(contacts.id, contactId));
         logger.info(`[LGPD] Deleted contact ${contactId}`);
 
-        // 8. Create audit log within transaction
-        await tx.insert(auditLogs).values({
-          entityType: "contact",
-          entityId: contactId,
-          action: "lgpd_delete",
-          userId: currentUser!.id,
-          organizationId: currentUser!.organizationId!,
-          entityName: `${contactSnapshot.firstName} ${contactSnapshot.lastName}`,
-          changes: {
-            deletedContact: contactSnapshot,
-            deletedCounts: counts,
-          },
-        });
-
         logger.info(`[LGPD] Transaction completed for contact ${contactId}`);
         return counts;
+      });
+
+      // 8. Create audit log OUTSIDE transaction
+      // This ensures the audit log persists even if something fails after the transaction
+      // and provides an immutable record of the deletion attempt
+      await db.insert(auditLogs).values({
+        entityType: "contact",
+        entityId: contactId,
+        action: "lgpd_delete",
+        userId: currentUser!.id,
+        organizationId: currentUser!.organizationId!,
+        entityName: `${contactSnapshot.firstName} ${contactSnapshot.lastName}`,
+        changes: {
+          deletedContact: contactSnapshot,
+          deletedCounts,
+        },
       });
 
       logger.info(`[LGPD] Contact ${contactId} and related data deleted`, deletedCounts);

@@ -54,7 +54,10 @@ async function checkDatabase(): Promise<ServiceStatus> {
     const poolStats = getPoolStats();
 
     // Warn if pool is under pressure (waiting > 0 or usage > 80%)
-    const poolUsagePercent = (poolStats.totalCount - poolStats.idleCount) / DB_POOL_MAX * 100;
+    // Safe math: ensure we don't divide by zero and values are valid numbers
+    const activeConnections = Math.max(0, (poolStats.totalCount ?? 0) - (poolStats.idleCount ?? 0));
+    const maxPool = DB_POOL_MAX > 0 ? DB_POOL_MAX : 1; // Prevent division by zero
+    const poolUsagePercent = Math.min(100, (activeConnections / maxPool) * 100);
     const isUnderPressure = poolStats.waitingCount > 0 || poolUsagePercent > 80;
 
     return {

@@ -248,16 +248,19 @@ export function getAllCircuitBreakerMetrics(): Record<string, CircuitBreakerMetr
 export function isServiceFailure(error: unknown): boolean {
   if (error instanceof Error) {
     const message = error.message.toLowerCase();
-    // Network errors, timeouts, 5xx errors are failures
+    // Network errors, timeouts are failures
     if (
       message.includes("timeout") ||
       message.includes("network") ||
       message.includes("econnrefused") ||
       message.includes("econnreset") ||
       message.includes("etimedout") ||
-      message.includes("fetch failed") ||
-      message.includes("5")
+      message.includes("fetch failed")
     ) {
+      return true;
+    }
+    // Check for 5xx status codes in error message (e.g., "status 500", "error 503")
+    if (/\b5\d{2}\b/.test(message)) {
       return true;
     }
   }

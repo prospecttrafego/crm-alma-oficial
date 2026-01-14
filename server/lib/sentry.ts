@@ -37,7 +37,7 @@ export function initSentry(): void {
     ],
 
     // Filter out sensitive data
-    beforeSend(event, hint) {
+    beforeSend(event, _hint) {
       // Remove sensitive headers
       if (event.request?.headers) {
         delete event.request.headers.authorization;

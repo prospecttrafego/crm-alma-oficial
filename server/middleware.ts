@@ -147,8 +147,8 @@ export function getCurrentUser(req: Request): { id: string; email: string; role:
   if (!req.isAuthenticated?.() || !req.user) {
     return null;
   }
-  // Ensure required fields are present
-  if (!req.user.email || !req.user.role || req.user.organizationId === null) {
+  // Ensure required fields are present (use == to catch both null and undefined)
+  if (!req.user.email || !req.user.role || req.user.organizationId == null) {
     return null;
   }
   return {

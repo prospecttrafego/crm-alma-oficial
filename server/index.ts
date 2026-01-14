@@ -1,7 +1,7 @@
 import "./env";
 
 // Initialize Sentry as early as possible
-import { initSentry, sentryRequestHandler, sentryErrorHandler, sentryUserMiddleware } from "./lib/sentry";
+import { initSentry, sentryRequestHandler, sentryErrorHandler } from "./lib/sentry";
 initSentry();
 
 import express from "express";

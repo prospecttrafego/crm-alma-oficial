@@ -49,6 +49,32 @@ const queue: string[] = [];
 let isProcessing = false;
 let workerInterval: NodeJS.Timeout | null = null;
 
+// Track load failures per job to prevent infinite requeue loops (livelock prevention)
+const loadFailures = new Map<string, number>();
+const MAX_LOAD_FAILURES = 5; // After this many failures, skip the job entirely
+
+/**
+ * Clear load failure tracking for a job (called when job is successfully processed or removed)
+ */
+function clearLoadFailure(jobId: string): void {
+  loadFailures.delete(jobId);
+}
+
+/**
+ * Increment load failure count and return whether we should skip this job
+ */
+function recordLoadFailure(jobId: string): boolean {
+  const current = loadFailures.get(jobId) || 0;
+  const newCount = current + 1;
+  loadFailures.set(jobId, newCount);
+
+  if (newCount >= MAX_LOAD_FAILURES) {
+    loadFailures.delete(jobId); // Clean up tracking
+    return true; // Should skip
+  }
+  return false;
+}
+
 /**
  * Start the job worker
  */
@@ -187,12 +213,21 @@ async function processQueue(): Promise<void> {
         }
       }
 
-      // If job couldn't be loaded after retries, requeue it for later processing
+      // If job couldn't be loaded after retries, track the failure
       if (!job) {
-        logger.warn(`[Jobs] Job ${jobId} could not be loaded after ${maxLoadAttempts} attempts, requeuing`);
-        await finalizeJob(jobId, true); // Requeue instead of removing
+        const shouldSkip = recordLoadFailure(jobId);
+        if (shouldSkip) {
+          logger.error(`[Jobs] Job ${jobId} could not be loaded after ${MAX_LOAD_FAILURES} total attempts, skipping permanently`);
+          await finalizeJob(jobId, false); // Remove from queue permanently
+        } else {
+          logger.warn(`[Jobs] Job ${jobId} could not be loaded after ${maxLoadAttempts} attempts, requeuing for later`);
+          await finalizeJob(jobId, true); // Requeue for later attempt
+        }
         continue;
       }
+
+      // Job loaded successfully, clear any load failure tracking
+      clearLoadFailure(jobId);
 
       if (job.status !== "pending") {
         await finalizeJob(jobId, false);
