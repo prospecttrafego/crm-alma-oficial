@@ -1,3 +1,8 @@
+/**
+ * Contact Storage Module
+ * Handles all database operations for contacts
+ */
+
 import { contacts, type Contact, type InsertContact } from "@shared/schema";
 import { db } from "../db";
 import { and, asc, count, desc, eq, ilike, or, sql } from "drizzle-orm";
@@ -9,6 +14,11 @@ import {
   type PaginatedResult,
 } from "./helpers";
 
+/**
+ * Get all contacts for an organization
+ * @param _organizationId - Organization ID (overridden by tenant in single-tenant mode)
+ * @returns Array of contacts
+ */
 export async function getContacts(_organizationId: number): Promise<Contact[]> {
   const tenantOrganizationId = await getTenantOrganizationId();
   return await db
@@ -17,6 +27,12 @@ export async function getContacts(_organizationId: number): Promise<Contact[]> {
     .where(eq(contacts.organizationId, tenantOrganizationId));
 }
 
+/**
+ * Get paginated contacts with optional search
+ * @param _organizationId - Organization ID (overridden by tenant in single-tenant mode)
+ * @param params - Pagination params (page, limit, search, sortOrder)
+ * @returns Paginated result with contacts and metadata
+ */
 export async function getContactsPaginated(
   _organizationId: number,
   params: PaginationParams,
@@ -69,6 +85,11 @@ export async function getContactsPaginated(
   };
 }
 
+/**
+ * Get a single contact by ID
+ * @param id - Contact ID
+ * @returns Contact or undefined if not found
+ */
 export async function getContact(id: number): Promise<Contact | undefined> {
   const tenantOrganizationId = await getTenantOrganizationId();
   const [contact] = await db

@@ -15,10 +15,10 @@ Este documento contém TODOS os pontos identificados na análise crítica, organ
 |-----------|--------|--------|
 | 1 - Segurança e Integridade | ✅ CONCLUÍDO | `a297941` |
 | 2 - Confiabilidade Integrações | ✅ CONCLUÍDO | `77c6c9f` |
-| 3 - Refatoração Frontend | ✅ CONCLUÍDO | (pendente commit) |
-| 4 - Refatoração Backend | ✅ CONCLUÍDO | (pendente commit) |
-| 5 - Performance | ⏳ PENDENTE | - |
-| 6 - Qualidade de Código | ⏳ PENDENTE | - |
+| 3 - Refatoração Frontend | ✅ CONCLUÍDO | `ca38860` |
+| 4 - Refatoração Backend | ✅ CONCLUÍDO | `ca38860` |
+| 5 - Performance | ✅ CONCLUÍDO | `cad3cb3` |
+| 6 - Qualidade de Código | ✅ CONCLUÍDO | (pendente commit) |
 | 7 - Segurança Adicional | ⏳ PENDENTE | - |
 | 8 - Observabilidade e DevOps | ⏳ PENDENTE | - |
 
@@ -394,45 +394,51 @@ const { data } = useQuery({
 
 ---
 
-## Milestone 6: Qualidade de Código
+## Milestone 6: Qualidade de Código ✅ CONCLUÍDO
 
 **Prioridade:** P2 **Estimativa:** 16 horas
+
+**Status:** Implementado (pendente commit)
 
 ### 6.1 Extrair Magic Numbers/Strings
 
 **Arquivos:** Diversos
 
-- **6.1.1** Criar `server/constants.ts` com todas as constantes
-- **6.1.2** Mover `PASSWORD_RESET_TOKEN_LENGTH` para constants
-- **6.1.3** Mover `MESSAGES_CACHE_TTL_SECONDS` para constants
-- **6.1.4** Mover `MAX_CACHED_MESSAGES` para constants
-- **6.1.5** Mover `LOGIN_WINDOW_MS` para constants
-- **6.1.6** Mover `PROCESSING_STALE_MS` para constants
+- [x] **6.1.1** Criar `server/constants.ts` com todas as constantes
+- [x] **6.1.2** Mover `PASSWORD_RESET_TOKEN_LENGTH` para constants
+- [x] **6.1.3** Mover `MESSAGES_CACHE_TTL_SECONDS` para constants
+- [x] **6.1.4** Mover `MAX_CACHED_MESSAGES` para constants
+- [x] **6.1.5** Mover `LOGIN_WINDOW_MS` para constants
+- [x] **6.1.6** Mover `PROCESSING_STALE_MS` para constants
 
 ### 6.2 Corrigir Keyboard Shortcuts
 
-**Arquivos:** `client/src/pages/inbox.tsx`
+**Arquivos:** `client/src/pages/inbox.tsx`, `client/src/contexts/InboxContext.tsx`
 
-- **6.2.1** Usar `useRef` para armazenar handler
-- **6.2.2** Evitar recriar listener a cada mudança de dependência
-- **6.2.3** Adicionar debounce para keypresses rápidos
-- **6.2.4** Limpar listeners corretamente no unmount
+**Nota:** Já implementado durante Milestone 3 com padrão useRef correto.
+
+- [x] **6.2.1** Usar `useRef` para armazenar handler
+- [x] **6.2.2** Evitar recriar listener a cada mudança de dependência
+- [x] **6.2.3** Adicionar debounce para keypresses rápidos
+- [x] **6.2.4** Limpar listeners corretamente no unmount
 
 ### 6.3 Corrigir Refs e Intervalos
 
-**Arquivos:** `client/src/pages/inbox.tsx`
+**Arquivos:** `client/src/contexts/InboxContext.tsx`
 
-- **6.3.1** Adicionar cleanup de `recordingIntervalRef` em useEffect
-- **6.3.2** Garantir que gravação para se componente desmontar
-- **6.3.3** Organizar refs em grupos lógicos
+**Nota:** Já implementado durante Milestone 3 com cleanup em useEffect.
+
+- [x] **6.3.1** Adicionar cleanup de `recordingIntervalRef` em useEffect
+- [x] **6.3.2** Garantir que gravação para se componente desmontar
+- [x] **6.3.3** Organizar refs em grupos lógicos
 
 ### 6.4 Documentação Inline
 
 **Arquivos:** Diversos
 
-- **6.4.1** Adicionar JSDoc em funções públicas de storage
-- **6.4.2** Documentar parâmetros e retornos
-- **6.4.3** Adicionar exemplos de uso onde apropriado
+- [x] **6.4.1** Adicionar JSDoc em funções públicas de storage
+- [x] **6.4.2** Documentar parâmetros e retornos
+- [ ] **6.4.3** Adicionar exemplos de uso onde apropriado - Parcial, somente nas funções principais
 
 ### 6.5 Implementar Email de Reset de Senha
 
@@ -440,10 +446,10 @@ const { data } = useQuery({
 
 **Arquivos:** `server/auth.ts`, criar `server/services/email.ts`
 
-- **6.5.1** ~~Criar serviço de email (SMTP ou provider)~~ - ADIADO
-- **6.5.2** ~~Implementar template de reset de senha~~ - ADIADO
-- **6.5.3** ~~Conectar no fluxo de forgot-password~~ - ADIADO
-- **6.5.4** Documentar TODO no CLAUDE.md como débito conhecido
+- ~~**6.5.1** Criar serviço de email (SMTP ou provider)~~ - ADIADO
+- ~~**6.5.2** Implementar template de reset de senha~~ - ADIADO
+- ~~**6.5.3** Conectar no fluxo de forgot-password~~ - ADIADO
+- [x] **6.5.4** Documentar TODO no CLAUDE.md como débito conhecido
 
 ---
 

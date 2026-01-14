@@ -2,6 +2,13 @@
  * Job Queue Types and Constants
  */
 
+// Re-export constants from central constants file for backwards compatibility
+export {
+  MAX_JOBS,
+  PROCESSING_STALE_MS,
+  STALE_SWEEP_INTERVAL_MS,
+} from "../constants";
+
 // Job status enum
 export type JobStatus = "pending" | "processing" | "completed" | "failed";
 
@@ -47,11 +54,6 @@ export interface QueueHealth {
   workerRunning: boolean;
   stats: QueueStats;
 }
-
-// Constants
-export const MAX_JOBS = 1000;
-export const PROCESSING_STALE_MS = 15 * 60 * 1000; // 15 minutes
-export const STALE_SWEEP_INTERVAL_MS = 60 * 1000; // 1 minute
 
 // Redis keys
 export const REDIS_QUEUE_KEY = "alma:jobs:queue";

@@ -21,12 +21,15 @@ import {
 } from "./redis";
 import { logger } from "./logger";
 import { sendSuccess, sendError, sendForbidden, sendUnauthorized, ErrorCodes } from "./response";
+import {
+  PASSWORD_RESET_TOKEN_BYTES,
+  PASSWORD_RESET_TOKEN_EXPIRY_MINUTES,
+  LOGIN_MAX_ATTEMPTS,
+  LOGIN_WINDOW_MS,
+  SESSION_TTL_MS,
+} from "./constants";
 
 const BCRYPT_ROUNDS = 12;
-
-// Password reset token configuration
-const PASSWORD_RESET_TOKEN_BYTES = 32; // 32 bytes = 64 hex characters
-const PASSWORD_RESET_TOKEN_EXPIRY_MINUTES = 15; // Token expires in 15 minutes (security best practice)
 
 /**
  * Generate a secure random token for password reset
@@ -42,8 +45,6 @@ function generateSecureToken(): string {
  * Mais restritivo que o rate limit geral para proteger contra brute force
  */
 const loginAttempts = new Map<string, { count: number; resetAt: number }>();
-const LOGIN_MAX_ATTEMPTS = 5;
-const LOGIN_WINDOW_MS = 60 * 1000; // 1 minuto
 
 function getClientIp(req: Request): string {
   const forwarded = req.headers["x-forwarded-for"];
@@ -169,8 +170,7 @@ export const rateLimitMiddleware: RequestHandler = async (req, res, next) => {
  * Configura middleware de sessao com PostgreSQL
  */
 export function getSession() {
-  const sessionTtlMs = 7 * 24 * 60 * 60 * 1000; // 1 semana
-  const sessionTtlSec = Math.ceil(sessionTtlMs / 1000);
+  const sessionTtlSec = Math.ceil(SESSION_TTL_MS / 1000);
   const pgStore = connectPg(session);
   const sessionStore = new pgStore({
     pool,
@@ -188,7 +188,7 @@ export function getSession() {
     cookie: {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      maxAge: sessionTtlMs,
+      maxAge: SESSION_TTL_MS,
       sameSite: "lax",
     },
   });

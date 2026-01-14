@@ -6,6 +6,13 @@ import { Ratelimit } from "@upstash/ratelimit";
 import { z } from "zod";
 import type { Message } from "@shared/schema";
 import { createServiceLogger } from "./logger";
+import {
+  LOGIN_RATE_LIMIT_MAX,
+  MESSAGES_CACHE_TTL_SECONDS,
+  MAX_CACHED_MESSAGES,
+  PRESENCE_TTL_SECONDS,
+  DEFAULT_CACHE_TTL_SECONDS,
+} from "./constants";
 
 // Cache version - increment when Message schema changes to auto-invalidate old cache
 const CACHE_VERSION = "v1";
@@ -20,7 +27,6 @@ let redis: Redis | null = null;
 let ratelimit: Ratelimit | null = null;
 let loginRatelimit: Ratelimit | null = null;
 
-const LOGIN_RATE_LIMIT_MAX = 5;
 const LOGIN_RATE_LIMIT_WINDOW = "1 m";
 
 if (redisUrl && redisToken) {
@@ -53,8 +59,6 @@ if (redisUrl && redisToken) {
 
 // Versioned cache key to auto-invalidate on schema changes
 const MESSAGES_CACHE_KEY = (conversationId: number) => `alma:messages:${CACHE_VERSION}:${conversationId}`;
-const MESSAGES_CACHE_TTL = 300; // 5 minutos
-const MAX_CACHED_MESSAGES = 20;
 
 // Zod schema for validating cached messages (minimal validation for performance)
 const cachedMessageSchema = z.object({
@@ -105,7 +109,7 @@ export async function setCachedMessages(conversationId: number, messages: Messag
   try {
     // Cachear apenas as ultimas 20 mensagens
     const toCache = messages.slice(-MAX_CACHED_MESSAGES);
-    await redis.setex(MESSAGES_CACHE_KEY(conversationId), MESSAGES_CACHE_TTL, toCache);
+    await redis.setex(MESSAGES_CACHE_KEY(conversationId), MESSAGES_CACHE_TTL_SECONDS, toCache);
   } catch (error) {
     redisLogger.error("[Redis] Erro ao salvar cache de mensagens", { error });
   }
@@ -276,7 +280,6 @@ export async function resetLoginRateLimit(identifier: string): Promise<void> {
 // ========== PRESENCE (USUARIOS ONLINE) ==========
 
 const PRESENCE_KEY = "alma:presence";
-const PRESENCE_TTL = 60; // 1 minuto
 
 /**
  * Marcar usuario como online
@@ -320,7 +323,7 @@ export async function getOnlineUsers(): Promise<string[]> {
     // Filtrar usuarios que estao online (dentro do TTL)
     for (const [userId, timestamp] of Object.entries(presence)) {
       const lastSeen = parseInt(timestamp, 10);
-      if (now - lastSeen < PRESENCE_TTL * 1000) {
+      if (now - lastSeen < PRESENCE_TTL_SECONDS * 1000) {
         onlineUsers.push(userId);
       }
     }
@@ -343,7 +346,7 @@ export async function isUserOnline(userId: string): Promise<boolean> {
     if (!timestamp) return false;
 
     const lastSeen = parseInt(timestamp, 10);
-    return Date.now() - lastSeen < PRESENCE_TTL * 1000;
+    return Date.now() - lastSeen < PRESENCE_TTL_SECONDS * 1000;
   } catch (error) {
     redisLogger.error("[Redis] Erro ao verificar se usuario esta online", { error });
     return false;
@@ -369,7 +372,7 @@ export async function getCache<T>(key: string): Promise<T | null> {
 /**
  * Cache generico - definir valor
  */
-export async function setCache<T>(key: string, value: T, ttlSeconds = 300): Promise<void> {
+export async function setCache<T>(key: string, value: T, ttlSeconds = DEFAULT_CACHE_TTL_SECONDS): Promise<void> {
   if (!redis) return;
 
   try {

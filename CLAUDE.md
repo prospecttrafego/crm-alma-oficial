@@ -1011,6 +1011,28 @@ pm2 logs crm-alma --lines 100
 
 ---
 
+## Debitos Tecnicos Conhecidos
+
+Esta secao documenta funcionalidades planejadas mas ainda nao implementadas.
+
+### Email de Reset de Senha
+
+**Status:** ADIADO (implementar em fase posterior)
+
+O fluxo de password reset gera token e armazena no banco, mas **nao envia email** automaticamente. Atualmente:
+- Token e gerado e armazenado via `createPasswordResetToken()`
+- Token expira em 15 minutos (configuravel em `server/constants.ts`)
+- O endpoint `/api/forgot-password` retorna sucesso mas nao envia email
+- Em producao, o admin deve criar mecanismo manual ou implementar servico de email
+
+**Para implementar:**
+1. Criar `server/services/email.ts` com provider SMTP ou servico (SendGrid, AWS SES, etc.)
+2. Criar template de email para reset de senha
+3. Conectar no fluxo de forgot-password em `server/auth.ts`
+4. Adicionar variaveis de ambiente para configuracao SMTP
+
+---
+
 ## Contato e Suporte
 
 - **Repositorio**: github.com/prospecttrafego/crm-alma-oficial
