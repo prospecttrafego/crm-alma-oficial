@@ -23,7 +23,10 @@ Estrutura atual (nível alto):
     validation/     # Schemas Zod centralizados (shared/contracts)
     storage/        # DAL por domínio (contacts, deals, etc.)
     integrations/   # Integrações externas
+    services/       # Lógica de negócio reutilizável
     jobs/           # Background jobs
+    lib/            # Bibliotecas internas (sentry, circuit-breaker)
+    constants.ts    # Constantes centralizadas
     middleware.ts   # Middlewares padronizados
     response.ts     # Helpers de resposta API
   shared/
@@ -32,6 +35,7 @@ Estrutura atual (nível alto):
     apiSchemas.ts   # Schemas Zod das respostas da API (runtime contract)
     apiSchemas.integrations.ts # Schemas de integrações (payloads/redactions)
     types/          # Tipos compartilhados
+  migrations/       # Migrações do banco (Drizzle)
   scripts/
   script/
   dist/
@@ -121,7 +125,9 @@ server/
   integrations/       # Integrações externas
   services/           # Serviços de negócio (deal-auto-creator, whatsapp-config, email-ingest)
   jobs/               # Background jobs (queue, handlers, DLQ, storage)
+  lib/                # Bibliotecas internas (sentry, circuit-breaker)
   types/              # Type augmentations (Express, etc.)
+  constants.ts        # Constantes centralizadas (limites, TTLs, timeouts)
   middleware.ts       # Middlewares (asyncHandler, validate*, getCurrentUser)
   response.ts         # Helpers de resposta (sendSuccess, sendError, toSafeUser)
 ```
@@ -253,6 +259,54 @@ O que evitar:
 
 ---
 
+### `server/lib/` — Bibliotecas internas reutilizáveis
+- O que é: módulos internos que encapsulam funcionalidades transversais (cross-cutting concerns).
+- Por que existe: centraliza código de infraestrutura que pode ser usado em múltiplos lugares.
+
+Estrutura atual:
+
+```
+server/lib/
+  sentry.ts         # Integração Sentry (error tracking, middleware, helpers)
+  circuit-breaker.ts # Circuit breaker pattern para integrações externas
+```
+
+O que você encontra:
+- `sentry.ts`: inicialização do Sentry, middleware de request/error, helpers para captura manual de erros
+- `circuit-breaker.ts`: implementação do padrão circuit breaker para proteger contra falhas em cascata
+
+O que pode ser mudado/alterado:
+- Adicionar novas bibliotecas internas (ex.: retry, cache, rate-limiter).
+- Configurar thresholds dos circuit breakers por integração.
+
+O que evitar:
+- Colocar lógica de negócio aqui (isso vai em `services/`).
+- Duplicar funcionalidades já existentes em outras libs.
+
+---
+
+### `server/constants.ts` — Constantes centralizadas
+- O que é: arquivo único com todas as "magic numbers" e configurações do backend.
+- Por que existe: facilita manutenção e evita valores hardcoded espalhados pelo código.
+
+Categorias de constantes:
+- Autenticação (TTLs, limites de tentativas)
+- Database pool (min/max conexões, timeouts)
+- Cache/Redis (TTLs, limites)
+- Background jobs (limites, intervalos)
+- API/Paginação (defaults, limites)
+- Serviços externos (timeouts, thresholds)
+- Upload de arquivos (tamanho máximo: 50MB)
+
+O que pode ser mudado/alterado:
+- Ajustar valores conforme necessidade de performance/segurança.
+- Adicionar novas constantes para features.
+
+O que evitar:
+- Colocar secrets/credenciais aqui (use variáveis de ambiente).
+
+---
+
 ### `server/types/` — Type augmentations e definições
 - O que é: arquivos de definição de tipos que estendem bibliotecas externas.
 - Por que existe: permite que o TypeScript entenda extensões customizadas (ex.: propriedades adicionais no Request do Express).
@@ -310,6 +364,34 @@ O que evitar: mudanças sem atualizar o banco (migração/push), porque o backen
 
 ---
 
+## `/migrations/` — Migrações do banco de dados (Drizzle)
+
+```
+migrations/
+  0000_great_hammerhead.sql   # Migração inicial
+  0001_mute_cargill.sql       # ...
+  0004_audit_logs_immutable.sql  # Trigger para logs imutáveis
+  0005_special_joseph.sql     # CHECK constraints e indexes
+  meta/
+    _journal.json             # Histórico de migrações aplicadas
+    0000_snapshot.json        # Snapshots de schema
+```
+
+- O que é: arquivos SQL gerados pelo Drizzle (ou manuais) para alterar o schema do banco.
+- Como funciona: `npm run db:migrate` aplica as migrações pendentes.
+- Migrações especiais:
+  - `0004_audit_logs_immutable.sql`: trigger PostgreSQL que impede UPDATE/DELETE na tabela audit_logs
+  - `0005_special_joseph.sql`: adiciona CHECK constraints e indexes LOWER(email)
+
+O que pode ser mudado/alterado:
+- Criar migrações manuais para triggers, functions, ou alterações que o Drizzle não gera automaticamente.
+
+O que evitar:
+- Editar migrações já aplicadas em produção (crie uma nova migração para corrigir).
+- Deletar migrações sem atualizar o journal.
+
+---
+
 ## `/scripts/` — Scripts utilitários (tarefas manuais)
 
 ```
@@ -318,8 +400,8 @@ scripts/
 ```
 
 - O que é: scripts para migrações, correções pontuais, importação/exportação de dados.
-- Quando mexer: quando você precisa rodar uma tarefa “de manutenção” (ex.: migrar dados antigos).
-- O que evitar: usar scripts como “solução permanente” para lógica do sistema (o lugar disso é o backend).
+- Quando mexer: quando você precisa rodar uma tarefa "de manutenção" (ex.: migrar dados antigos).
+- O que evitar: usar scripts como "solução permanente" para lógica do sistema (o lugar disso é o backend).
 
 ---
 

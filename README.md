@@ -31,8 +31,11 @@ Sistema de CRM (Customer Relationship Management) desenvolvido para a agencia di
 - Calendario de eventos
 - Templates de email
 - Notificacoes em tempo real
-- Logs de auditoria
+- Logs de auditoria (imutaveis)
 - Multi-organizacao (parcial: schema suporta, execucao atual em modo single-tenant por instalacao)
+- Monitoramento de erros (Sentry)
+- Circuit breaker para integracoes externas
+- URLs assinadas para arquivos (1h expiracao)
 
 ## Stack Tecnologica
 
@@ -53,6 +56,7 @@ Sistema de CRM (Customer Relationship Management) desenvolvido para a agencia di
 | Storage | Supabase Storage | 2.87.3 |
 | Real-time | WebSocket (ws) | 8.18.0 |
 | AI | OpenAI | 6.10.0 |
+| Monitoramento | Sentry | 10.34.0 |
 
 ## Design System
 
@@ -105,14 +109,18 @@ npm run dev
 │   ├── routes.ts            # Agregador (auth + rate limit + API + WebSocket)
 │   ├── middleware.ts        # Middlewares padronizados (asyncHandler, validate*)
 │   ├── response.ts          # Helpers de resposta (sendSuccess, sendError, etc)
+│   ├── constants.ts         # Constantes centralizadas (limites, TTLs, etc)
 │   ├── validation/          # Schemas Zod para validacao de entrada (shared/contracts)
 │   │   ├── index.ts         # Re-exports
 │   │   └── schemas.ts       # Schemas de validacao
 │   ├── api/                 # Rotas HTTP por domínio (módulos)
 │   ├── ws/                  # WebSocket (/ws) + broadcast
 │   ├── jobs/                # Background jobs (Redis/fallback memoria)
+│   ├── lib/                 # Bibliotecas internas
+│   │   ├── sentry.ts        # Integracao Sentry (error tracking)
+│   │   └── circuit-breaker.ts # Circuit breaker para integracoes
 │   ├── logger.ts            # Logs estruturados (requestId + integrações)
-│   ├── health.ts            # Health check (DB + integrações opcionais)
+│   ├── health.ts            # Health check (DB, jobs, circuit breakers, integracoes)
 │   ├── storage/             # DAL por dominio (contacts, deals, etc.)
 │   ├── storage.ts           # Facade do storage (re-export dos modulos)
 │   ├── auth.ts              # Autenticacao Passport.js
@@ -184,6 +192,8 @@ Notas importantes:
 | `EVOLUTION_API_KEY` | Nao | API key da Evolution API |
 | `EVOLUTION_INSTANCE_PREFIX` | Nao | Prefixo unico por deploy para evitar colisao de instancias (quando varios CRMs compartilham a mesma Evolution API) |
 | `EVOLUTION_WEBHOOK_SECRET` | Nao | Segredo para validar webhooks da Evolution API |
+| `SENTRY_DSN` | Nao | DSN do Sentry para rastreamento de erros |
+| `APP_VERSION` | Nao | Versao da aplicacao (usado pelo Sentry para release tracking) |
 
 ## Comandos Disponiveis
 
@@ -203,7 +213,11 @@ npm run db:migrate-ptbr # Ajustes pontuais (dados legados PT-BR)
 
 ## Health check
 
-- `GET /api/health` retorna status do banco e integrações opcionais (Redis/Supabase/Evolution API) quando configuradas.
+- `GET /api/health` retorna status de:
+  - Banco de dados (PostgreSQL) - status da conexao e uso do pool
+  - Fila de jobs (Redis) - status do worker e backlog
+  - Circuit breakers - estado dos circuit breakers de integracoes
+  - Integracoes opcionais (Redis/Supabase/Evolution API) quando configuradas
 
 ## Padrao de Resposta da API
 
