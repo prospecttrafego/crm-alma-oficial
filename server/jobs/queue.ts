@@ -1,13 +1,24 @@
 /**
- * Simple Background Job Queue
- * In-memory queue with optional Redis-backed persistence
- *
- * For production at scale, consider using BullMQ with Redis
+ * Background Job Queue with Redis persistence
+ * In production, Redis is REQUIRED for job persistence across restarts
+ * In development, falls back to in-memory queue with a warning
  */
 
 import { logger } from "../logger";
 import { nanoid } from "nanoid";
 import { redis } from "../redis";
+import { moveToDeadLetter } from "./dead-letter";
+
+// Production check at startup
+const isProduction = process.env.NODE_ENV === "production";
+if (isProduction && !redis) {
+  logger.error("[Jobs] CRITICAL: Redis is not configured but required in production!");
+  logger.error("[Jobs] Set UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN environment variables");
+  // Don't throw - allow graceful degradation, but log strongly
+}
+if (!redis) {
+  logger.warn("[Jobs] Running with in-memory queue (jobs will be lost on restart)");
+}
 
 // Job status enum
 export type JobStatus = "pending" | "processing" | "completed" | "failed";
@@ -342,8 +353,12 @@ async function processQueue(): Promise<void> {
           job.completedAt = new Date();
           await saveJob(job);
           await finalizeJob(jobId, false);
+
+          // Move to dead letter queue for analysis and potential retry
+          await moveToDeadLetter(job, errorMsg);
+
           logger.error(
-            `[Jobs] Job ${job.id} failed permanently after ${job.attempts} attempts`
+            `[Jobs] Job ${job.id} failed permanently after ${job.attempts} attempts (moved to DLQ)`
           );
         }
       }
@@ -473,4 +488,45 @@ export async function cleanupJobs(maxAgeMs: number = 24 * 60 * 60 * 1000): Promi
   }
 
   return removed;
+}
+
+/**
+ * Check if Redis is available for job persistence
+ */
+export function isRedisAvailable(): boolean {
+  return !!redis;
+}
+
+/**
+ * Health check for job queue
+ */
+export async function getJobQueueHealth(): Promise<{
+  healthy: boolean;
+  redisAvailable: boolean;
+  isProduction: boolean;
+  workerRunning: boolean;
+  stats: {
+    pending: number;
+    processing: number;
+    completed: number;
+    failed: number;
+    total: number;
+  };
+}> {
+  const stats = await getQueueStats();
+  const redisAvailable = isRedisAvailable();
+  const workerRunning = !!workerInterval;
+
+  // In production, we require Redis
+  const healthy = isProduction
+    ? redisAvailable && workerRunning
+    : workerRunning;
+
+  return {
+    healthy,
+    redisAvailable,
+    isProduction,
+    workerRunning,
+    stats,
+  };
 }

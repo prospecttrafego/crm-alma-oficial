@@ -6,6 +6,7 @@
 
 import { whatsappLogger } from '../../logger';
 import { withRetry } from '../../retry';
+import { getCircuitBreaker, isServiceFailure, type CircuitBreakerMetrics } from '../../lib/circuit-breaker';
 
 // Timeout padrao para chamadas externas (30 segundos)
 const DEFAULT_TIMEOUT_MS = 30000;
@@ -51,10 +52,18 @@ export interface EvolutionInstanceInfo {
 export class EvolutionApiService {
   private baseUrl: string;
   private apiKey: string;
+  private circuitBreaker;
 
   constructor() {
     this.baseUrl = (process.env.EVOLUTION_API_URL || '').replace(/\/+$/, '');
     this.apiKey = process.env.EVOLUTION_API_KEY || '';
+    this.circuitBreaker = getCircuitBreaker({
+      name: 'evolution-api',
+      failureThreshold: 5,
+      resetTimeout: 30000, // 30 seconds
+      successThreshold: 2,
+      isFailure: isServiceFailure,
+    });
   }
 
   /**
@@ -75,7 +84,21 @@ export class EvolutionApiService {
   }
 
   /**
-   * Make a request to Evolution API with timeout and retry
+   * Get circuit breaker metrics
+   */
+  getCircuitBreakerMetrics(): CircuitBreakerMetrics {
+    return this.circuitBreaker.getMetrics();
+  }
+
+  /**
+   * Check if Evolution API is available (circuit breaker state)
+   */
+  isAvailable(): boolean {
+    return this.isConfigured() && this.circuitBreaker.isAvailable();
+  }
+
+  /**
+   * Make a request to Evolution API with timeout, retry, and circuit breaker
    */
   private async request<T>(
     method: string,
@@ -89,7 +112,8 @@ export class EvolutionApiService {
 
     const url = `${this.baseUrl}${endpoint}`;
 
-    return withRetry(async () => {
+    // Wrap the entire request with circuit breaker
+    return this.circuitBreaker.execute(() => withRetry(async () => {
       const start = Date.now();
 
       const options: RequestInit = {
@@ -156,7 +180,7 @@ export class EvolutionApiService {
         }
         return true;
       },
-    });
+    }));
   }
 
   /**

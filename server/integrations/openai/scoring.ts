@@ -1,8 +1,46 @@
 import OpenAI from "openai";
 import { openaiLogger } from "../../logger";
+import { getCircuitBreaker, isServiceFailure, getErrorStatusCode, type CircuitBreakerMetrics } from "../../lib/circuit-breaker";
+import {
+  checkOpenAIRateLimit,
+  recordOpenAICall,
+  getCachedScore,
+  cacheScore,
+  withExponentialBackoff,
+} from "./rate-limiter";
 
 // Timeout padrao para chamadas OpenAI (30 segundos)
 const OPENAI_TIMEOUT_MS = 30000;
+
+// Circuit breaker for OpenAI API
+const openaiCircuitBreaker = getCircuitBreaker({
+  name: 'openai-api',
+  failureThreshold: 3,
+  resetTimeout: 60000, // 1 minute (longer due to potential rate limits)
+  successThreshold: 2,
+  isFailure: (error) => {
+    // Don't count 4xx errors (except 429) as circuit breaker failures
+    const statusCode = getErrorStatusCode(error);
+    if (statusCode !== undefined && statusCode >= 400 && statusCode < 500 && statusCode !== 429) {
+      return false;
+    }
+    return isServiceFailure(error);
+  },
+});
+
+/**
+ * Get OpenAI circuit breaker metrics
+ */
+export function getOpenAICircuitBreakerMetrics(): CircuitBreakerMetrics {
+  return openaiCircuitBreaker.getMetrics();
+}
+
+/**
+ * Check if OpenAI is available
+ */
+export function isOpenAIAvailable(): boolean {
+  return !!process.env.OPENAI_API_KEY && openaiCircuitBreaker.isAvailable();
+}
 
 /**
  * Cliente OpenAI para funcionalidades de AI (lead scoring, recomendacoes)
@@ -80,8 +118,22 @@ export async function scoreContact(
   contact: ContactData,
   activities: ActivitySummary,
   conversations: ConversationSummary,
-  deals: { count: number; totalValue: number; wonDeals: number }
+  deals: { count: number; totalValue: number; wonDeals: number },
+  options: { skipCache?: boolean } = {}
 ): Promise<LeadScoringResult> {
+  // Check cache first (unless explicitly skipped)
+  if (!options.skipCache) {
+    const cached = await getCachedScore("contact", contact.id);
+    if (cached) {
+      return {
+        score: cached.score,
+        factors: cached.factors,
+        recommendation: cached.recommendation,
+        nextBestAction: cached.nextBestAction,
+      };
+    }
+  }
+
   const completenessScore = calculateContactCompleteness(contact);
   const recencyScore = calculateRecency(activities.lastActivityDate, conversations.lastMessageDate);
   const activityScore = calculateActivityScore(activities);
@@ -133,14 +185,36 @@ export async function scoreContact(
     }
   );
 
-  return { score, factors, recommendation, nextBestAction };
+  const result = { score, factors, recommendation, nextBestAction };
+
+  // Cache the result
+  await cacheScore("contact", contact.id, {
+    ...result,
+    cachedAt: Date.now(),
+  });
+
+  return result;
 }
 
 export async function scoreDeal(
   deal: DealData,
   activities: ActivitySummary,
-  conversations: ConversationSummary
+  conversations: ConversationSummary,
+  options: { skipCache?: boolean } = {}
 ): Promise<LeadScoringResult> {
+  // Check cache first (unless explicitly skipped)
+  if (!options.skipCache) {
+    const cached = await getCachedScore("deal", deal.id);
+    if (cached) {
+      return {
+        score: cached.score,
+        factors: cached.factors,
+        recommendation: cached.recommendation,
+        nextBestAction: cached.nextBestAction,
+      };
+    }
+  }
+
   const completenessScore = calculateDealCompleteness(deal);
   const recencyScore = calculateRecency(activities.lastActivityDate, conversations.lastMessageDate);
   const activityScore = calculateActivityScore(activities);
@@ -191,7 +265,15 @@ export async function scoreDeal(
     }
   );
 
-  return { score, factors, recommendation, nextBestAction };
+  const result = { score, factors, recommendation, nextBestAction };
+
+  // Cache the result
+  await cacheScore("deal", deal.id, {
+    ...result,
+    cachedAt: Date.now(),
+  });
+
+  return result;
 }
 
 function calculateContactCompleteness(contact: ContactData): number {
@@ -275,16 +357,32 @@ async function getAIRecommendation(
   entityType: "contact" | "deal",
   data: Record<string, unknown>
 ): Promise<{ recommendation: string; nextBestAction: string }> {
-  // Se OpenAI nao esta configurado, retorna recomendacao padrao
-  if (!openai) {
-    return {
-      recommendation: entityType === "contact"
-        ? "Este contato mostra engajamento moderado. Considere entrar em contato para entender melhor suas necessidades."
-        : "Este negocio esta progredindo. Foque em resolver objecoes e avancar para a proxima etapa.",
-      nextBestAction: entityType === "contact"
-        ? "Agende uma ligacao de descoberta para entender requisitos"
-        : "Faca follow-up em propostas pendentes ou agende uma demo",
-    };
+  // Default recommendation fallback
+  const defaultRecommendation = {
+    recommendation: entityType === "contact"
+      ? "Este contato mostra engajamento moderado. Considere entrar em contato para entender melhor suas necessidades."
+      : "Este negocio esta progredindo. Foque em resolver objecoes e avancar para a proxima etapa.",
+    nextBestAction: entityType === "contact"
+      ? "Agende uma ligacao de descoberta para entender requisitos"
+      : "Faca follow-up em propostas pendentes ou agende uma demo",
+  };
+
+  // Check if OpenAI is configured and circuit breaker allows requests
+  if (!openai || !openaiCircuitBreaker.isAvailable()) {
+    if (openai && !openaiCircuitBreaker.isAvailable()) {
+      openaiLogger.warn("OpenAI circuit breaker is open, returning default recommendation");
+    }
+    return defaultRecommendation;
+  }
+
+  // Check rate limits before making API call
+  const rateLimitCheck = await checkOpenAIRateLimit();
+  if (!rateLimitCheck.allowed) {
+    openaiLogger.warn("OpenAI rate limit or quota exceeded, returning default recommendation", {
+      reason: rateLimitCheck.reason,
+      dailyRemaining: rateLimitCheck.dailyRemaining,
+    });
+    return defaultRecommendation;
   }
 
   try {
@@ -345,12 +443,20 @@ Provide a JSON response with:
 1. "recommendation": A 2-3 sentence analysis of this deal's progress and likelihood of closing
 2. "nextBestAction": A specific, actionable next step to move this deal forward`;
 
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [{ role: "user", content: prompt }],
-      response_format: { type: "json_object" },
-      max_completion_tokens: 500,
-    });
+    // Wrap OpenAI call with circuit breaker and exponential backoff for 429 errors
+    const response = await openaiCircuitBreaker.execute(() =>
+      withExponentialBackoff(() =>
+        openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          messages: [{ role: "user", content: prompt }],
+          response_format: { type: "json_object" },
+          max_completion_tokens: 500,
+        })
+      )
+    );
+
+    // Record successful API call for daily tracking
+    await recordOpenAICall();
 
     const content = response.choices[0]?.message?.content;
     if (content) {
@@ -364,6 +470,7 @@ Provide a JSON response with:
     openaiLogger.error("AI recommendation error", {
       error: error instanceof Error ? error.message : String(error),
       entityType,
+      circuitState: openaiCircuitBreaker.getState(),
     });
   }
 
