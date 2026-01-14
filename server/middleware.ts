@@ -29,10 +29,14 @@ export const securityHeaders: RequestHandler = (_req, res, next) => {
  */
 export function validateBody<T extends z.ZodTypeAny>(schema: T): RequestHandler {
   return (req, res, next) => {
-    if ((req.method === "PATCH" || req.method === "PUT") && req.body && typeof req.body === "object" && !Array.isArray(req.body)) {
-      // organizationId is server-managed; ignore any client attempts to update it
+    if (req.body && typeof req.body === "object" && !Array.isArray(req.body)) {
+      // organizationId is server-managed; reject any client attempts to set/modify it
       if ("organizationId" in req.body) {
-        delete (req.body as Record<string, unknown>).organizationId;
+        return sendValidationError(
+          res,
+          "O campo 'organizationId' é gerenciado pelo servidor e não pode ser modificado pelo cliente.",
+          [{ path: "organizationId", message: "Campo não permitido em requisições de cliente" }]
+        );
       }
     }
 

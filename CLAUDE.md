@@ -569,13 +569,16 @@ DELETE /api/activities/:id              # Excluir atividade
 
 ```
 POST   /api/files/upload-url            # Gerar URL de upload assinada
-POST   /api/files                       # Registrar arquivo enviado no banco
+POST   /api/files                       # Registrar arquivo enviado no banco (max 50MB)
 GET    /api/files/:entityType/:entityId # Listar arquivos de uma entidade
 DELETE /api/files/:id                   # Remover registro e tentar deletar do storage
-GET    /objects/:path                   # Baixar arquivo (rota protegida)
+GET    /api/files/:id/signed-url        # Obter URL assinada temporaria (1h expiracao)
+GET    /objects/:path                   # Baixar arquivo (rota protegida, deprecated)
 POST   /api/audio/transcribe            # Transcricao por URL (Whisper/OpenAI)
 POST   /api/files/:id/transcribe        # Transcricao de arquivo de audio registrado
 ```
+
+**Nota:** Prefer usar `GET /api/files/:id/signed-url` em vez de `GET /objects/:path` para melhor seguranca.
 
 ### Notificacoes, Calendario, Auditoria e Relatorios
 
@@ -771,6 +774,13 @@ GOOGLE_REDIRECT_URI=https://crm.seudominio.com/api/auth/google/callback
 # Chave base64 de 32 bytes para criptografar tokens (obrigatoria em producao)
 # (gerar com: openssl rand -base64 32)
 GOOGLE_TOKEN_ENCRYPTION_KEY=sua-chave-base64-aqui
+
+# ====== SENTRY (MONITORAMENTO) - OPCIONAL ======
+
+# DSN do projeto Sentry para rastreamento de erros
+SENTRY_DSN=https://xxx@xxx.ingest.sentry.io/xxx
+# Versao da aplicacao (para release tracking)
+APP_VERSION=1.0.0
 ```
 
 ### Gerando SESSION_SECRET

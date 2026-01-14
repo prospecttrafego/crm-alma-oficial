@@ -6,12 +6,28 @@
 import { db, getPoolStats } from "./db";
 import { sql } from "drizzle-orm";
 import { DB_POOL_MAX } from "./constants";
+import { getJobQueueHealth, type QueueHealth } from "./jobs/queue";
+import { getAllCircuitBreakerMetrics, type CircuitBreakerMetrics } from "./lib/circuit-breaker";
 
 export interface ServiceStatus {
   status: "healthy" | "degraded" | "unhealthy";
   latencyMs?: number;
   error?: string;
   details?: Record<string, unknown>;
+}
+
+export interface JobQueueStatus {
+  status: "healthy" | "degraded" | "unhealthy";
+  latencyMs?: number;
+  error?: string;
+  details?: QueueHealth;
+}
+
+export interface CircuitBreakersStatus {
+  status: "healthy" | "degraded" | "unhealthy";
+  latencyMs?: number;
+  error?: string;
+  details?: Record<string, CircuitBreakerMetrics>;
 }
 
 export interface HealthCheckResult {
@@ -23,6 +39,8 @@ export interface HealthCheckResult {
     redis?: ServiceStatus;
     supabase?: ServiceStatus;
     evolutionApi?: ServiceStatus;
+    jobQueue?: JobQueueStatus;
+    circuitBreakers?: CircuitBreakersStatus;
   };
 }
 
@@ -184,15 +202,125 @@ async function checkEvolutionApi(): Promise<ServiceStatus | undefined> {
 }
 
 /**
+ * Verifica status da fila de jobs
+ */
+async function checkJobQueue(): Promise<JobQueueStatus> {
+  const start = Date.now();
+  try {
+    const health = await getJobQueueHealth();
+
+    // Job queue is unhealthy if in production without Redis
+    if (health.isProduction && !health.redisAvailable) {
+      return {
+        status: "unhealthy",
+        latencyMs: Date.now() - start,
+        error: "Redis not available in production",
+        details: health,
+      };
+    }
+
+    // Degraded if worker is not running
+    if (!health.workerRunning) {
+      return {
+        status: "degraded",
+        latencyMs: Date.now() - start,
+        error: "Job worker not running",
+        details: health,
+      };
+    }
+
+    // Degraded if too many pending jobs (backlog)
+    if (health.stats.pending > 100) {
+      return {
+        status: "degraded",
+        latencyMs: Date.now() - start,
+        error: `High job backlog: ${health.stats.pending} pending`,
+        details: health,
+      };
+    }
+
+    return {
+      status: "healthy",
+      latencyMs: Date.now() - start,
+      details: health,
+    };
+  } catch (error) {
+    return {
+      status: "unhealthy",
+      latencyMs: Date.now() - start,
+      error: error instanceof Error ? error.message : "Job queue check failed",
+    };
+  }
+}
+
+/**
+ * Verifica status dos circuit breakers
+ */
+function checkCircuitBreakers(): CircuitBreakersStatus {
+  const start = Date.now();
+  try {
+    const metrics = getAllCircuitBreakerMetrics();
+    const breakerNames = Object.keys(metrics);
+
+    // No circuit breakers registered yet
+    if (breakerNames.length === 0) {
+      return {
+        status: "healthy",
+        latencyMs: Date.now() - start,
+        details: metrics,
+      };
+    }
+
+    // Check for any open circuit breakers
+    const openCircuits = breakerNames.filter((name) => metrics[name].state === "OPEN");
+    const halfOpenCircuits = breakerNames.filter((name) => metrics[name].state === "HALF_OPEN");
+
+    if (openCircuits.length > 0) {
+      return {
+        status: "degraded",
+        latencyMs: Date.now() - start,
+        error: `Circuit breakers OPEN: ${openCircuits.join(", ")}`,
+        details: metrics,
+      };
+    }
+
+    if (halfOpenCircuits.length > 0) {
+      return {
+        status: "degraded",
+        latencyMs: Date.now() - start,
+        error: `Circuit breakers HALF_OPEN: ${halfOpenCircuits.join(", ")}`,
+        details: metrics,
+      };
+    }
+
+    return {
+      status: "healthy",
+      latencyMs: Date.now() - start,
+      details: metrics,
+    };
+  } catch (error) {
+    return {
+      status: "unhealthy",
+      latencyMs: Date.now() - start,
+      error: error instanceof Error ? error.message : "Circuit breaker check failed",
+    };
+  }
+}
+
+/**
  * Executa health check completo
  */
 export async function performHealthCheck(): Promise<HealthCheckResult> {
-  const [database, redis, supabase, evolutionApi] = await Promise.all([
+  const [database, redis, supabase, evolutionApi, jobQueue] = await Promise.all([
     checkDatabase(),
     checkRedis(),
     checkSupabase(),
     checkEvolutionApi(),
+    checkJobQueue(),
   ]);
+
+  // Circuit breakers are synchronous
+  const circuitBreakers = checkCircuitBreakers();
 
   // Determinar status geral baseado nos servicos
   let overallStatus: "healthy" | "degraded" | "unhealthy" = "healthy";
@@ -201,6 +329,18 @@ export async function performHealthCheck(): Promise<HealthCheckResult> {
   if (database.status === "unhealthy") {
     overallStatus = "unhealthy";
   } else if (database.status === "degraded") {
+    overallStatus = "degraded";
+  }
+
+  // Job queue unhealthy in production degrades the system
+  if (jobQueue.status === "unhealthy" && overallStatus !== "unhealthy") {
+    overallStatus = process.env.NODE_ENV === "production" ? "unhealthy" : "degraded";
+  } else if (jobQueue.status === "degraded" && overallStatus === "healthy") {
+    overallStatus = "degraded";
+  }
+
+  // Circuit breakers degraded means external services are having issues
+  if (circuitBreakers.status === "degraded" && overallStatus === "healthy") {
     overallStatus = "degraded";
   }
 
@@ -214,6 +354,8 @@ export async function performHealthCheck(): Promise<HealthCheckResult> {
 
   const services: HealthCheckResult["services"] = {
     database,
+    jobQueue,
+    circuitBreakers,
   };
 
   if (redis) services.redis = redis;

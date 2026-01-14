@@ -125,6 +125,16 @@ export const RETRY_INITIAL_DELAY_MS = 1000;
 export const RETRY_MAX_ATTEMPTS = 3;
 
 // =============================================================================
+// File Upload
+// =============================================================================
+
+/** Maximum file upload size in bytes (50MB) */
+export const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024;
+
+/** Maximum file upload size in MB (for display) */
+export const MAX_FILE_SIZE_MB = 50;
+
+// =============================================================================
 // File Cleanup
 // =============================================================================
 

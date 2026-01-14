@@ -29,6 +29,20 @@
       "when": 1768414401326,
       "tag": "0003_adorable_forgotten_one",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1736870400000,
+      "tag": "0004_audit_logs_immutable",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1768415882901,
+      "tag": "0005_special_joseph",
+      "breakpoints": true
     }
   ]
 }

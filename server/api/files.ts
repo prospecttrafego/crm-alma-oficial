@@ -10,6 +10,7 @@ import { asyncHandler, validateBody, validateParams, validateQuery, getCurrentUs
 import { createFileSchema } from "../validation";
 import { sendSuccess, sendNotFound, sendValidationError, sendServiceUnavailable } from "../response";
 import { logger } from "../logger";
+import { MAX_FILE_SIZE_BYTES, MAX_FILE_SIZE_MB } from "../constants";
 
 const fileEntityParamsSchema = z.object({
   entityType: z.string(),
@@ -58,6 +59,15 @@ export function registerFileRoutes(app: Express) {
 
       if (!uploadURL && !objectPath) {
         return sendValidationError(res, "Either uploadURL or objectPath is required");
+      }
+
+      // Validate file size (50MB limit)
+      if (size && size > MAX_FILE_SIZE_BYTES) {
+        return sendValidationError(
+          res,
+          `Arquivo muito grande. O tamanho máximo permitido é ${MAX_FILE_SIZE_MB}MB.`,
+          [{ path: "size", message: `O arquivo excede o limite de ${MAX_FILE_SIZE_MB}MB` }]
+        );
       }
 
       if (!fileEntityTypes.includes(entityType as FileEntityType)) {

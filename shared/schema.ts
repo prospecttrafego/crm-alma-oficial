@@ -9,6 +9,7 @@ import {
   jsonb,
   index,
   decimal,
+  check,
 } from "drizzle-orm/pg-core";
 import { createSchemaFactory } from "drizzle-zod";
 import { z } from "zod";
@@ -59,6 +60,8 @@ export const users = pgTable(
   (table) => [
     // Composite index for user lookups within organization
     index("idx_users_org_email").on(table.organizationId, table.email),
+    // Case-insensitive email index for login lookups
+    index("idx_users_email_lower").using("btree", sql`LOWER(${table.email})`),
   ]
 );
 
@@ -143,6 +146,8 @@ export const contacts = pgTable(
   (table) => [
     index("idx_contacts_organization").on(table.organizationId),
     index("idx_contacts_email").on(table.email),
+    // Case-insensitive email index for contact lookups
+    index("idx_contacts_email_lower").using("btree", sql`LOWER(${table.email})`),
     index("idx_contacts_phone").on(table.phone),
     index("idx_contacts_phone_normalized").on(table.phoneNormalized),
     index("idx_contacts_company").on(table.companyId),
@@ -162,18 +167,25 @@ export const pipelines = pgTable("pipelines", {
 });
 
 // Pipeline stages table
-export const pipelineStages = pgTable("pipeline_stages", {
-  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-  name: varchar("name", { length: 100 }).notNull(),
-  pipelineId: integer("pipeline_id")
-    .notNull()
-    .references(() => pipelines.id, { onDelete: 'cascade' }),
-  order: integer("order").notNull(),
-  color: varchar("color", { length: 7 }),
-  isWon: boolean("is_won").default(false),
-  isLost: boolean("is_lost").default(false),
-  createdAt: timestamp("created_at").defaultNow(),
-});
+export const pipelineStages = pgTable(
+  "pipeline_stages",
+  {
+    id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+    name: varchar("name", { length: 100 }).notNull(),
+    pipelineId: integer("pipeline_id")
+      .notNull()
+      .references(() => pipelines.id, { onDelete: 'cascade' }),
+    order: integer("order").notNull(),
+    color: varchar("color", { length: 7 }),
+    isWon: boolean("is_won").default(false),
+    isLost: boolean("is_lost").default(false),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => [
+    // Ensure order is non-negative
+    check("chk_stage_order_positive", sql`${table.order} >= 0`),
+  ]
+);
 
 // Deals table
 export const deals = pgTable(
@@ -213,6 +225,10 @@ export const deals = pgTable(
     index("idx_deals_pipeline").on(table.pipelineId),
     index("idx_deals_stage").on(table.stageId),
     index("idx_deals_status").on(table.status),
+    // Ensure probability is between 0 and 100
+    check("chk_deal_probability_range", sql`${table.probability} >= 0 AND ${table.probability} <= 100`),
+    // Ensure value is non-negative
+    check("chk_deal_value_positive", sql`${table.value} IS NULL OR ${table.value} >= 0`),
   ]
 );
 
