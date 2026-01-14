@@ -31,11 +31,13 @@ Sistema de CRM (Customer Relationship Management) desenvolvido para a agencia di
 - Calendario de eventos
 - Templates de email
 - Notificacoes em tempo real
-- Logs de auditoria (imutaveis)
+- Logs de auditoria (imutaveis via trigger PostgreSQL)
 - Multi-organizacao (parcial: schema suporta, execucao atual em modo single-tenant por instalacao)
 - Monitoramento de erros (Sentry)
 - Circuit breaker para integracoes externas
-- URLs assinadas para arquivos (1h expiracao)
+- URLs assinadas para arquivos (15 min expiracao)
+- Upload de arquivos ate 50MB
+- Background jobs com Dead Letter Queue
 
 ## Stack Tecnologica
 
@@ -111,28 +113,25 @@ npm run dev
 │   ├── response.ts          # Helpers de resposta (sendSuccess, sendError, etc)
 │   ├── constants.ts         # Constantes centralizadas (limites, TTLs, etc)
 │   ├── validation/          # Schemas Zod para validacao de entrada (shared/contracts)
-│   │   ├── index.ts         # Re-exports
-│   │   └── schemas.ts       # Schemas de validacao
-│   ├── api/                 # Rotas HTTP por domínio (módulos)
-│   ├── ws/                  # WebSocket (/ws) + broadcast
-│   ├── jobs/                # Background jobs (Redis/fallback memoria)
+│   ├── api/                 # Rotas HTTP por dominio (contacts, deals, files, etc)
+│   ├── ws/                  # WebSocket (/ws) + broadcast + presenca
+│   ├── jobs/                # Background jobs (Redis/fallback memoria + DLQ)
+│   ├── services/            # Logica de negocio (deal-auto-creator, email-ingest)
 │   ├── lib/                 # Bibliotecas internas
 │   │   ├── sentry.ts        # Integracao Sentry (error tracking)
 │   │   └── circuit-breaker.ts # Circuit breaker para integracoes
-│   ├── logger.ts            # Logs estruturados (requestId + integrações)
-│   ├── health.ts            # Health check (DB, jobs, circuit breakers, integracoes)
+│   ├── integrations/        # Integracoes externas
+│   │   ├── evolution/       # WhatsApp (Evolution API)
+│   │   ├── google/          # Google Calendar (OAuth + sync)
+│   │   ├── openai/          # Lead scoring + Whisper (transcricao)
+│   │   ├── supabase/        # Storage (uploads)
+│   │   ├── firebase/        # Push notifications (FCM)
+│   │   └── email/           # IMAP/SMTP
 │   ├── storage/             # DAL por dominio (contacts, deals, etc.)
-│   ├── storage.ts           # Facade do storage (re-export dos modulos)
+│   ├── logger.ts            # Logs estruturados (requestId)
+│   ├── health.ts            # Health check (DB, jobs, circuit breakers)
 │   ├── auth.ts              # Autenticacao Passport.js
 │   ├── db.ts                # Drizzle + conexao Postgres
-│   ├── tenant.ts            # Single-tenant (organizacao)
-│   ├── storage.supabase.ts  # Upload de arquivos (Supabase Storage)
-│   ├── aiScoring.ts         # Lead scoring com IA
-│   ├── whisper.ts           # Transcricao de audio (Whisper/OpenAI)
-│   ├── evolution-api.ts     # Evolution API (WhatsApp)
-│   ├── evolution-message-handler.ts # Webhook handler (WhatsApp)
-│   ├── google-calendar.ts   # Google Calendar (OAuth + sync)
-│   ├── notifications.ts     # Push notifications (Firebase Admin)
 │   ├── redis.ts             # Redis (Upstash)
 │   ├── static.ts            # Servir frontend em producao
 │   └── vite.ts              # Vite middleware (dev)
@@ -144,6 +143,7 @@ npm run dev
 │   └── types/               # Tipos compartilhados frontend/backend
 │       ├── api.ts           # ApiResponse, ErrorCodes, PaginationMeta
 │       └── dto.ts           # DTOs para transferencia de dados
+├── migrations/              # Migracoes SQL (Drizzle + manuais)
 ├── scripts/                 # Scripts utilitarios
 │   └── migrate-users.ts     # Migracao de usuarios
 └── script/
