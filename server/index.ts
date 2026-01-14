@@ -4,6 +4,10 @@ import "./env";
 import { initSentry, sentryRequestHandler, sentryErrorHandler } from "./lib/sentry";
 initSentry();
 
+// Validate constants at startup - fail fast with clear error if misconfigured
+import { validateConstants } from "./constants";
+validateConstants();
+
 import express from "express";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";

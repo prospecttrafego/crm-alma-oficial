@@ -26,6 +26,7 @@ import {
   PASSWORD_RESET_TOKEN_EXPIRY_MINUTES,
   LOGIN_MAX_ATTEMPTS,
   LOGIN_WINDOW_MS,
+  MAX_LOGIN_ATTEMPTS_ENTRIES,
   SESSION_TTL_MS,
 } from "./constants";
 
@@ -59,6 +60,31 @@ function checkLoginRateLimitLocal(ip: string): { allowed: boolean; retryAfter?: 
   const record = loginAttempts.get(ip);
 
   if (!record || now > record.resetAt) {
+    // Before adding new entry, check Map size to prevent memory exhaustion
+    if (!record && loginAttempts.size >= MAX_LOGIN_ATTEMPTS_ENTRIES) {
+      // First, try to clean up expired entries
+      const entries = Array.from(loginAttempts.entries());
+      for (const [key, val] of entries) {
+        if (now > val.resetAt) {
+          loginAttempts.delete(key);
+        }
+        // Stop early if we've freed enough space
+        if (loginAttempts.size < MAX_LOGIN_ATTEMPTS_ENTRIES * 0.9) {
+          break;
+        }
+      }
+
+      // If still at capacity after cleanup, fail closed for safety
+      if (loginAttempts.size >= MAX_LOGIN_ATTEMPTS_ENTRIES) {
+        logger.warn("[Auth] Login attempts Map at capacity, failing closed", {
+          mapSize: loginAttempts.size,
+          maxSize: MAX_LOGIN_ATTEMPTS_ENTRIES,
+          ip: ip.substring(0, 8) + "...", // Log partial IP for debugging
+        });
+        return { allowed: false, retryAfter: 60 };
+      }
+    }
+
     loginAttempts.set(ip, { count: 1, resetAt: now + LOGIN_WINDOW_MS });
     return { allowed: true };
   }
@@ -566,16 +592,27 @@ export async function setupAuth(app: Express) {
       await db.transaction(async (tx) => {
         // Mark token as used FIRST (invalidate before processing)
         // This prevents token reuse if the password update fails
-        await tx
+        // Check rowCount to detect TOCTOU race conditions (another request used the token)
+        const tokenResult = await tx
           .update(passwordResetTokens)
           .set({ usedAt: new Date() })
           .where(eq(passwordResetTokens.token, token));
 
+        if ((tokenResult.rowCount ?? 0) === 0) {
+          // Token was already used by another concurrent request
+          throw new Error("Token já foi utilizado ou expirou");
+        }
+
         // Update user password
-        await tx
+        // Check rowCount to ensure user still exists
+        const userResult = await tx
           .update(users)
           .set({ passwordHash, updatedAt: new Date() })
           .where(eq(users.id, resetToken.userId));
+
+        if ((userResult.rowCount ?? 0) === 0) {
+          throw new Error("Usuário não encontrado");
+        }
       });
 
       logger.info(`Password reset completed for user: ${resetToken.userId}`);

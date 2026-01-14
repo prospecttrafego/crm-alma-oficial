@@ -264,6 +264,9 @@ export class EvolutionMessageHandler {
       whatsappLogger.info(`[Evolution Handler] New message from ${phoneNumber}: ${content.substring(0, 50)}...`);
 
       try {
+        // Collect events to broadcast after all DB operations complete
+        const pendingBroadcasts: Array<{ event: string; data: unknown }> = [];
+
         // Find or create contact by phone number (optimized: direct DB query)
         let contact = await storage.getContactByPhone(phoneNumber, organizationId);
 
@@ -305,13 +308,12 @@ export class EvolutionMessageHandler {
           source: "whatsapp",
         });
 
-        // Broadcast to update UI if deal was created
+        // Queue deal_created broadcast (will be sent after all DB ops complete)
         if (dealResult.created && dealResult.deal) {
-          if (this.broadcast) {
-            this.broadcast(organizationId, "deal_created", { deal: dealResult.deal });
-          } else {
-            whatsappLogger.debug("[Evolution Handler] Broadcast unavailable, skipping deal_created event");
-          }
+          pendingBroadcasts.push({
+            event: "deal_created",
+            data: { deal: dealResult.deal },
+          });
         }
 
         // Process media if present
@@ -332,15 +334,25 @@ export class EvolutionMessageHandler {
 
         whatsappLogger.info(`[Evolution Handler] Created message: ${message.id}${mediaAttachment ? ' with media' : ''}`);
 
-        // Broadcast to connected clients
-        if (this.broadcast) {
-          this.broadcast(organizationId, 'new_message', {
+        // Queue new_message broadcast
+        pendingBroadcasts.push({
+          event: "new_message",
+          data: {
             conversationId: conversation.id,
             message,
             contact,
+          },
+        });
+
+        // Send all broadcasts AFTER all DB operations completed successfully
+        if (this.broadcast) {
+          for (const broadcast of pendingBroadcasts) {
+            this.broadcast(organizationId, broadcast.event, broadcast.data);
+          }
+        } else if (pendingBroadcasts.length > 0) {
+          whatsappLogger.debug("[Evolution Handler] Broadcast unavailable, skipping events", {
+            events: pendingBroadcasts.map(b => b.event),
           });
-        } else {
-          whatsappLogger.debug("[Evolution Handler] Broadcast unavailable, skipping new_message event");
         }
       } catch (error) {
         whatsappLogger.error('[Evolution Handler] Error processing message', {

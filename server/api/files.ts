@@ -30,15 +30,39 @@ const asyncQuerySchema = z.object({
   async: z.string().optional(),
 });
 
+const uploadUrlBodySchema = z.object({
+  size: z.number().int().positive().optional(),
+});
+
 export function registerFileRoutes(app: Express) {
-  // File upload - get presigned URL
+  // File upload - get presigned URL (with optional pre-validation of size)
   app.post(
     "/api/files/upload-url",
     isAuthenticated,
-    asyncHandler(async (_req, res) => {
+    validateBody(uploadUrlBodySchema),
+    asyncHandler(async (req, res) => {
+      const { size } = req.validatedBody || {};
+
+      // Pre-validate file size BEFORE generating upload URL
+      // This prevents wasted bandwidth and orphan files from rejected uploads
+      if (size && size > MAX_FILE_SIZE_BYTES) {
+        return sendValidationError(
+          res,
+          `Arquivo muito grande. O tamanho máximo permitido é ${MAX_FILE_SIZE_MB}MB.`,
+          [{ path: "size", message: `O arquivo excede o limite de ${MAX_FILE_SIZE_MB}MB` }]
+        );
+      }
+
       const objectStorageService = new ObjectStorageService();
       const { uploadURL, objectPath } = await objectStorageService.getObjectEntityUploadURL();
-      sendSuccess(res, { uploadURL, objectPath });
+
+      // Include size limits in response for client awareness
+      sendSuccess(res, {
+        uploadURL,
+        objectPath,
+        maxSizeBytes: MAX_FILE_SIZE_BYTES,
+        maxSizeMB: MAX_FILE_SIZE_MB,
+      });
     })
   );
 

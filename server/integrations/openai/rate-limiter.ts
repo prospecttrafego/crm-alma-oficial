@@ -38,7 +38,7 @@ if (redis) {
 
 export interface RateLimitCheckResult {
   allowed: boolean;
-  reason?: "rate_limit" | "daily_quota";
+  reason?: "rate_limit" | "daily_quota" | "rate_limit_unavailable";
   retryAfter?: number;
   remaining?: number;
   dailyRemaining?: number;
@@ -95,11 +95,15 @@ export async function checkOpenAIRateLimit(identifier: string = "global"): Promi
       dailyRemaining: DAILY_CALL_LIMIT - dailyCount,
     };
   } catch (error) {
-    openaiLogger.error("[OpenAI] Rate limit check failed", {
+    openaiLogger.error("[OpenAI] Rate limit check failed - failing closed for safety", {
       error: error instanceof Error ? error.message : String(error),
     });
-    // On error, allow the call (fail open)
-    return { allowed: true };
+    // On error, deny the call (fail closed) to prevent uncontrolled API costs
+    return {
+      allowed: false,
+      reason: "rate_limit_unavailable",
+      retryAfter: 60,
+    };
   }
 }
 

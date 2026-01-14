@@ -19,6 +19,9 @@ export const LOGIN_MAX_ATTEMPTS = 5;
 /** Window for counting login attempts in milliseconds (1 minute) */
 export const LOGIN_WINDOW_MS = 60 * 1000;
 
+/** Maximum entries in in-memory login attempts Map (prevents memory exhaustion) */
+export const MAX_LOGIN_ATTEMPTS_ENTRIES = 10000;
+
 /** Session TTL in milliseconds (1 week) */
 export const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -143,3 +146,52 @@ export const ORPHAN_FILE_GRACE_DAYS = 7;
 
 /** Maximum files to sample when finding orphans */
 export const ORPHAN_SAMPLE_SIZE = 1000;
+
+// =============================================================================
+// Startup Validation
+// =============================================================================
+
+/**
+ * Validate that constants have sensible values
+ * Call at startup to catch configuration errors early
+ */
+export function validateConstants(): void {
+  const errors: string[] = [];
+
+  // Database pool validation
+  if (DB_POOL_MIN >= DB_POOL_MAX) {
+    errors.push(`DB_POOL_MIN (${DB_POOL_MIN}) must be < DB_POOL_MAX (${DB_POOL_MAX})`);
+  }
+
+  // Time-based validation
+  if (LOGIN_WINDOW_MS < 1000) {
+    errors.push(`LOGIN_WINDOW_MS (${LOGIN_WINDOW_MS}) should be >= 1000ms`);
+  }
+
+  if (SESSION_TTL_MS < OAUTH_STATE_EXPIRY_MS) {
+    errors.push(`SESSION_TTL_MS (${SESSION_TTL_MS}) should be >= OAUTH_STATE_EXPIRY_MS (${OAUTH_STATE_EXPIRY_MS})`);
+  }
+
+  // File size validation
+  if (MAX_FILE_SIZE_BYTES < 1024 * 1024) {
+    errors.push(`MAX_FILE_SIZE_BYTES (${MAX_FILE_SIZE_BYTES}) should be >= 1MB`);
+  }
+
+  // Retry/limit validation
+  if (LOGIN_MAX_ATTEMPTS < 1) {
+    errors.push(`LOGIN_MAX_ATTEMPTS (${LOGIN_MAX_ATTEMPTS}) must be >= 1`);
+  }
+
+  if (RETRY_MAX_ATTEMPTS < 1) {
+    errors.push(`RETRY_MAX_ATTEMPTS (${RETRY_MAX_ATTEMPTS}) must be >= 1`);
+  }
+
+  // Memory bounds validation
+  if (MAX_LOGIN_ATTEMPTS_ENTRIES < 100) {
+    errors.push(`MAX_LOGIN_ATTEMPTS_ENTRIES (${MAX_LOGIN_ATTEMPTS_ENTRIES}) should be >= 100`);
+  }
+
+  if (errors.length > 0) {
+    throw new Error(`Invalid constants configuration:\n  - ${errors.join('\n  - ')}`);
+  }
+}
