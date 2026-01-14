@@ -572,7 +572,7 @@ POST   /api/files/upload-url            # Gerar URL de upload assinada
 POST   /api/files                       # Registrar arquivo enviado no banco (max 50MB)
 GET    /api/files/:entityType/:entityId # Listar arquivos de uma entidade
 DELETE /api/files/:id                   # Remover registro e tentar deletar do storage
-GET    /api/files/:id/signed-url        # Obter URL assinada temporaria (1h expiracao)
+GET    /api/files/:id/signed-url        # Obter URL assinada temporaria (15 min expiracao)
 GET    /objects/:path                   # Baixar arquivo (rota protegida, deprecated)
 POST   /api/audio/transcribe            # Transcricao por URL (Whisper/OpenAI)
 POST   /api/files/:id/transcribe        # Transcricao de arquivo de audio registrado
