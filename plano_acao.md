@@ -18,7 +18,7 @@ Este documento contém TODOS os pontos identificados na análise crítica, organ
 | 3 - Refatoração Frontend | ✅ CONCLUÍDO | `ca38860` |
 | 4 - Refatoração Backend | ✅ CONCLUÍDO | `ca38860` |
 | 5 - Performance | ✅ CONCLUÍDO | `cad3cb3` |
-| 6 - Qualidade de Código | ✅ CONCLUÍDO | (pendente commit) |
+| 6 - Qualidade de Código | ✅ CONCLUÍDO | `0fc8380` |
 | 7 - Segurança Adicional | ⏳ PENDENTE | - |
 | 8 - Observabilidade e DevOps | ⏳ PENDENTE | - |
 
@@ -398,7 +398,7 @@ const { data } = useQuery({
 
 **Prioridade:** P2 **Estimativa:** 16 horas
 
-**Status:** Implementado (pendente commit)
+**Status:** Implementado em commit `0fc8380` (feat(quality): Milestone 6 - Code Quality improvements)
 
 ### 6.1 Extrair Magic Numbers/Strings
 
