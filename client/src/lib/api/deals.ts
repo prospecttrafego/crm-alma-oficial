@@ -2,7 +2,7 @@
  * Deals API - CRUD operations for deals
  */
 
-import { api } from './index';
+import { api } from "./client";
 import { dealSchema } from "@shared/apiSchemas";
 import type { Deal } from '@shared/schema';
 import type { CreateDealDTO, UpdateDealDTO, MoveDealDTO } from '@shared/types';

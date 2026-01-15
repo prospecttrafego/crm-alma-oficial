@@ -293,7 +293,7 @@ typescript
 
 ### Mudanças no Frontend
 
-**Arquivo:** `client/src/pages/contacts.tsx`
+**Arquivo:** `client/src/pages/contacts/index.tsx`
 
 1. **Tabela Customizável:**
     - Usar `@tanstack/react-table` com column visibility
@@ -448,9 +448,9 @@ server/api/contacts.ts            # Agregações de deals
 server/integrations/evolution/    # Evolution API
 
 # Frontend
-client/src/pages/settings.tsx     # Migrar para estrutura modular
+client/src/pages/settings/index.tsx     # Migrar para estrutura modular
 client/src/pages/settings/        # Nova estrutura
-client/src/pages/contacts.tsx     # Tabela customizável
+client/src/pages/contacts/        # Tabela customizável
 client/src/pages/inbox/           # Correções de bugs
 client/src/components/app-sidebar.tsx  # Popover para sub-menus
 ```
@@ -481,10 +481,11 @@ client/src/components/app-sidebar.tsx  # Popover para sub-menus
 - **storage/contacts.ts**: Nova função `getContactsWithStats()` com subqueries otimizadas
 - **Frontend**: Tabela completamente reescrita com @tanstack/react-table
 - **Colunas**: Nome, Email, Telefone, Empresa, Valor Oportunidades, Deals Abertos, Tags, Canal, Responsável, Última Atividade, Criado em
-- **Features**: Sorting em todas as colunas, visibilidade de colunas persistida em localStorage, menu de ações por linha
+- **Features**: Sorting, visibilidade, reordenação e redimensionamento de colunas (persistidos em localStorage), menu de ações por linha
 
 #### Sprint 4 - Melhorias Pipeline
 - **Formulário de Deal**: Novos campos probability (slider 0-100%), expectedCloseDate (date picker), source
+- **Edição de Deal**: Modal de edição ao clicar no card (tags + campos personalizados + histórico/score)
 - **Modal de Perda**: AlertDialog para registrar motivo de perda ao mover deal para stage "Lost"
 - **contracts.ts**: Schema `moveDealSchema` estendido para aceitar `status` e `lostReason`
 - **storage/deals.ts**: Função `moveDealToStage` atualizada para aceitar opções de status/lostReason
@@ -498,9 +499,9 @@ client/src/components/whatsapp-qr-modal.tsx
 client/src/lib/api/contacts.ts
 client/src/locales/en.json
 client/src/locales/pt-BR.json
-client/src/pages/contacts.tsx
+client/src/pages/contacts/
 client/src/pages/inbox/components/MessageComposer.tsx
-client/src/pages/pipeline.tsx
+client/src/pages/pipeline/index.tsx
 client/src/pages/settings/index.tsx
 server/api/contacts.ts
 server/api/deals.ts

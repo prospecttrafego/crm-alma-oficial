@@ -2,7 +2,7 @@
  * Conversations API - CRUD operations for conversations and messages
  */
 
-import { api } from './index';
+import { api } from "./client";
 import { conversationWithRelationsSchema, messagesResponseSchema, conversationSchema, messageSchema } from "@shared/apiSchemas";
 import type { Conversation, Message } from '@shared/schema';
 import type {

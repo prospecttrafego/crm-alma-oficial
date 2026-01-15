@@ -2,7 +2,7 @@
  * Contacts API - CRUD operations for contacts
  */
 
-import { api } from './index';
+import { api } from "./client";
 import { contactSchema } from "@shared/apiSchemas";
 import type { Contact } from '@shared/schema';
 import type { CreateContactDTO, UpdateContactDTO } from '@shared/types';

@@ -2,7 +2,7 @@
  * Auth API
  */
 
-import { api } from "./index";
+import { api } from "./client";
 import { safeUserSchema, messageResponseSchema } from "@shared/apiSchemas";
 import type { SafeUser } from "@shared/types";
 

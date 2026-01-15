@@ -216,6 +216,7 @@ export const deals = pgTable(
     lostReason: varchar("lost_reason", { length: 255 }),
     source: varchar("source", { length: 100 }),
     notes: text("notes"),
+    tags: text("tags").array(),
     customFields: jsonb("custom_fields").$type<Record<string, unknown>>(),
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at").defaultNow(),

@@ -43,6 +43,13 @@
       "when": 1768415882901,
       "tag": "0005_special_joseph",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1768439528986,
+      "tag": "0006_woozy_devos",
+      "breakpoints": true
     }
   ]
 }

@@ -2,7 +2,7 @@
  * Lead Scores API
  */
 
-import { api } from "./index";
+import { api } from "./client";
 import { leadScoreSchema } from "@shared/apiSchemas";
 import type { LeadScore } from "@shared/schema";
 

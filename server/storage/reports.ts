@@ -1,14 +1,11 @@
 import {
   activities,
-  contacts,
-  companies,
-  conversations,
   deals,
   pipelineStages,
   users,
 } from "@shared/schema";
 import { db, pool } from "../db";
-import { and, count, eq, gte, sql } from "drizzle-orm";
+import { and, count, eq, sql } from "drizzle-orm";
 import { getTenantOrganizationId } from "./helpers";
 
 /**

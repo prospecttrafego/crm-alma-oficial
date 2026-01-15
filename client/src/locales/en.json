@@ -47,7 +47,8 @@
     "toggleSidebar": "Toggle sidebar",
     "toggleTheme": "Toggle theme",
     "user": "User",
-    "clear": "Clear"
+    "clear": "Clear",
+    "reset": "Reset"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -588,6 +589,12 @@
     "contact": "Contact",
     "company": "Company",
     "source": "Source",
+    "tagsPlaceholder": "Type and press Enter...",
+    "customFields": "Custom Fields",
+    "customFieldsDescription": "Add extra fields for this deal.",
+    "addCustomField": "Add field",
+    "customFieldKey": "Field name",
+    "customFieldValue": "Value",
     "status": {
       "open": "Open",
       "won": "Won",
@@ -666,6 +673,7 @@
     "createdAt": "Created At",
     "columns": "Columns",
     "toggleColumns": "Toggle columns",
+    "columnsHint": "Drag to reorder. Use the header edge to resize.",
     "viewDetails": "View Details",
     "deleteConfirm": "Are you sure you want to delete \"{{name}}\"?"
   },

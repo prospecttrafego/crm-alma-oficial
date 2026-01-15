@@ -32,13 +32,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
-import {
   Select,
   SelectContent,
   SelectItem,
@@ -47,10 +40,9 @@ import {
 } from "@/components/ui/select";
 import { Plus, DollarSign, User, Building2, GripVertical } from "lucide-react";
 import { FilterPanel, type PipelineFilters } from "@/components/filter-panel";
-import { EntityHistory } from "@/components/entity-history";
-import { LeadScorePanel } from "@/components/LeadScorePanel";
 import type { Deal, PipelineStage, Contact, Company } from "@shared/schema";
 import type { PipelineWithStages } from "@shared/types";
+import { DealEditorDialog } from "./deal-editor-dialog";
 
 interface DealWithRelations extends Deal {
   contact?: Contact;
@@ -520,74 +512,14 @@ export default function PipelinePage() {
         ))}
       </div>
 
-      <Sheet open={!!selectedDeal} onOpenChange={() => setSelectedDeal(null)}>
-        <SheetContent className="w-[400px] sm:w-[540px]">
-          <SheetHeader>
-            <div className="flex items-center justify-between">
-              <SheetTitle>{selectedDeal?.title}</SheetTitle>
-            </div>
-            <SheetDescription>{t("common.details")}</SheetDescription>
-          </SheetHeader>
-
-          {selectedDeal && (
-            <div className="mt-6 space-y-6">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="rounded-md border p-3">
-                  <p className="text-xs text-muted-foreground">{t("pipeline.dealValue")}</p>
-                  <p className="text-lg font-semibold">
-                    R$ {Number(selectedDeal.value || 0).toLocaleString("pt-BR")}
-                  </p>
-                </div>
-                <div className="rounded-md border p-3">
-                  <p className="text-xs text-muted-foreground">{t("pipeline.probability")}</p>
-                  <p className="text-lg font-semibold">
-                    {selectedDeal.probability || 0}%
-                  </p>
-                </div>
-              </div>
-
-              {selectedDeal.contact && (
-                <div className="rounded-md border p-4">
-                  <h4 className="mb-2 text-sm font-medium">{t("pipeline.contact")}</h4>
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
-                      <User className="h-5 w-5 text-primary" />
-                    </div>
-                    <div>
-                      <p className="font-medium">
-                        {selectedDeal.contact.firstName} {selectedDeal.contact.lastName}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {selectedDeal.contact.email}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {selectedDeal.notes && (
-                <div className="rounded-md border p-4">
-                  <h4 className="mb-2 text-sm font-medium">{t("common.notes")}</h4>
-                  <p className="text-sm text-muted-foreground">
-                    {selectedDeal.notes}
-                  </p>
-                </div>
-              )}
-
-              <div className="rounded-md border p-4">
-                <h4 className="mb-2 text-sm font-medium">{t("common.status")}</h4>
-                <Badge>{t(`pipeline.status.${selectedDeal.status}`)}</Badge>
-              </div>
-
-              <LeadScorePanel entityType="deal" entityId={selectedDeal.id} />
-
-              <div className="rounded-md border">
-                <EntityHistory entityType="deal" entityId={selectedDeal.id} />
-              </div>
-            </div>
-          )}
-        </SheetContent>
-      </Sheet>
+      <DealEditorDialog
+        deal={selectedDeal}
+        open={!!selectedDeal}
+        onOpenChange={(open) => {
+          if (!open) setSelectedDeal(null);
+        }}
+        contacts={contacts || []}
+      />
 
       {/* Lost Reason Modal */}
       <AlertDialog open={lostReasonModalOpen} onOpenChange={setLostReasonModalOpen}>

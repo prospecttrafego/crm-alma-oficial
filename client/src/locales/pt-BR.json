@@ -47,7 +47,8 @@
     "toggleSidebar": "Alternar barra lateral",
     "toggleTheme": "Alternar tema",
     "user": "Usuário",
-    "clear": "Limpar"
+    "clear": "Limpar",
+    "reset": "Resetar"
   },
   "nav": {
     "dashboard": "Painel",
@@ -588,6 +589,12 @@
     "contact": "Contato",
     "company": "Empresa",
     "source": "Origem",
+    "tagsPlaceholder": "Digite e pressione Enter...",
+    "customFields": "Campos personalizados",
+    "customFieldsDescription": "Adicione campos extras para este negócio.",
+    "addCustomField": "Adicionar campo",
+    "customFieldKey": "Nome do campo",
+    "customFieldValue": "Valor",
     "status": {
       "open": "Aberto",
       "won": "Ganho",
@@ -666,6 +673,7 @@
     "createdAt": "Criado em",
     "columns": "Colunas",
     "toggleColumns": "Mostrar/ocultar colunas",
+    "columnsHint": "Arraste para reordenar. Use a borda do cabeçalho para redimensionar.",
     "viewDetails": "Ver Detalhes",
     "deleteConfirm": "Tem certeza que deseja excluir \"{{name}}\"?"
   },
