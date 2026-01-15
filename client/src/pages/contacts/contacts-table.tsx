@@ -32,6 +32,7 @@ import {
   getContactsColumnsMeta,
 } from "./contacts-columns";
 import { ContactsColumnsDialog } from "./contacts-columns-dialog";
+import { NewContactDialog } from "./new-contact-dialog";
 
 const COLUMN_VISIBILITY_KEY = "contacts-column-visibility";
 const COLUMN_ORDER_KEY = "contacts-column-order";
@@ -70,6 +71,7 @@ export function ContactsTable({
   const { t, language } = useTranslation();
   const { deleteContact } = useContactMutations();
   const [columnsDialogOpen, setColumnsDialogOpen] = useState(false);
+  const [newContactOpen, setNewContactOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [sorting, setSorting] = useState<SortingState>([]);
 
@@ -196,15 +198,17 @@ export function ContactsTable({
           />
         </div>
 
-        <Button
-          variant="outline"
-          size="sm"
-          className="w-full sm:w-auto"
-          onClick={() => setColumnsDialogOpen(true)}
-        >
-          <Columns className="mr-2 h-4 w-4" />
-          {t("contacts.columns")}
-        </Button>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+          <Button
+            variant="outline"
+            className="w-full sm:w-auto"
+            onClick={() => setColumnsDialogOpen(true)}
+          >
+            <Columns className="mr-2 h-4 w-4" />
+            {t("contacts.columns")}
+          </Button>
+          <NewContactDialog open={newContactOpen} onOpenChange={setNewContactOpen} />
+        </div>
       </div>
 
       <Table
