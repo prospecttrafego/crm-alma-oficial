@@ -1,526 +1,199 @@
-## Plano de Ação: Correções e Melhorias do CRM Alma
+# 📋 PLANO DE AÇÃO COMPLETO - CRM ALMA
 
-## Resumo Executivo
+## ✅ JÁ IMPLEMENTADO
 
-Este plano aborda **4 áreas principais** de correção e melhoria:
-
-1. Integração WhatsApp (Evolution API) - Debug e correção do QR Code
-2. Reestruturação da página de Settings (inspirado em Chatwoot/ClickUp)
-3. Correção de bugs do Inbox
-4. Melhorias na página de Contatos para CRM de vendas
-
-**Estimativa total:** ~60-80 horas **Prioridade:** Alta (bugs críticos) → Média (melhorias de UX)
+- Optimistic updates para mensagens
+- Sistema de rooms WebSocket (broadcast direcionado)
+- Cache update direto (sem refetch)
+- Deduplicação de mensagens (externalId)
+- Status indicators (sending/sent/delivered/read/error)
+- Evolution API v2.3.7 fix (webhook integrado na criação)
 
 ---
 
-## Parte 1: Integração WhatsApp - Correção do QR Code
+## MILESTONE 1: Correções Críticas de UX
 
-### Problema Identificado
+**Prioridade:** ALTA | **Estimativa:** 2-3 dias
 
-- QR Code não carrega ao conectar WhatsApp
-- Instância "alma-staging" aparece na Evolution API (indica que conexão parcial ocorreu)
-- Possível problema de configuração ou tratamento de resposta
-
-### Diagnóstico Necessário
-
-**1.1 Verificar logs do backend:**
-
-bash
-
-```bash
-# Ver logs de criação de instância
-grep -i "evolution" logs/*.log
-```
-
-**1.2 Verificar variáveis de ambiente:**
-
-- `EVOLUTION_API_URL` está correto?
-- `EVOLUTION_API_KEY` está válido?
-- `EVOLUTION_INSTANCE_PREFIX` = "alma-staging"?
-- `EVOLUTION_WEBHOOK_SECRET` configurado em produção?
-
-**1.3 Verificar banco de dados:**
-
-- `channel_configs.whatsappConfig` tem `qrCode` preenchido?
-- `connectionStatus` está em qual estado?
-
-### Arquivos a Modificar
-
-| **Arquivo**                                   | **Mudança**                            |
-| --------------------------------------------- | -------------------------------------- |
-| `server/api/channelConfigs.ts`                | Melhorar tratamento de erro e logs     |
-| `server/integrations/evolution/api.ts`        | Adicionar logs detalhados no getQrCode |
-| `client/src/components/whatsapp-qr-modal.tsx` | Melhorar feedback de erro              |
-
-### Correções Específicas
-
-**1.4 Melhorar tratamento de resposta do QR Code:**
-
-typescript
-
-```typescript
-// server/api/channelConfigs.ts - linha ~495
-const qrData = await evolutionApi.getQrCode(instanceName);
-
-// ADICIONAR VALIDAÇÃO:
-if (!qrData || (!qrData.base64 && !qrData.code)) {
-  whatsappLogger.error(`[WhatsApp] QR Code vazio para instância: ${instanceName}`, { qrData });
-  return sendError(res, ErrorCodes.INTEGRATION_ERROR, "Falha ao obter QR Code da Evolution API", 500);
-}
-```
-
-**1.5 Limpar instâncias órfãs:**
-
-- Criar endpoint para deletar instância antiga na Evolution API
-- Ou adicionar verificação se instância existe antes de criar
+- **1.1 Google Calendar Status Hardcoded** - Buscar status real via API
+- **1.2 Textos Não Traduzidos no ContextPanel** - Adicionar i18n
+- **1.3 Paginação de Contatos** - Implementar server-side pagination
+- **1.4 Validação de Lost Reason** - Campo obrigatório quando status = "lost"
+- **1.5 Landing Page** - Corrigir nome "Convert.CRM" para "Alma"
 
 ---
 
-## Parte 2: Reestruturação da Página de Settings
+## MILESTONE 2: Features de Chat Modernas
 
-### Visão Geral
+**Prioridade:** ALTA | **Estimativa:** 5-7 dias
 
-Transformar Settings de uma página monolítica para um sistema de **navegação por abas/seções** inspirado em Chatwoot e ClickUp.
-
-### Nova Estrutura Proposta
+- **2.1 Reply/Quote de Mensagens**
 
 ```other
-/settings                    → Página principal (lista de seções)
-/settings/profile           → Perfil do usuário
-/settings/organization      → Dados da organização
-/settings/pipelines         → Gerenciamento de pipelines
-/settings/integrations      → Hub de integrações
-/settings/integrations/whatsapp  → Detalhes WhatsApp
-/settings/integrations/email     → Detalhes Email
-/settings/integrations/calendar  → Google Calendar
-/settings/users             → Gerenciamento de usuários (admin)
+-    Migration: replyToId em messages
+
+-    UI de preview no composer
+
+-    Renderização de quoted message
 ```
 
-### Layout Proposto
+- **2.2 @Mentions de Usuários**
 
 ```other
-┌─────────────────────────────────────────────────────────────────┐
-│ ⚙️ Configurações                                                │
-├─────────────────┬───────────────────────────────────────────────┤
-│                 │                                               │
-│ GERAL           │  📱 Integrações                              │
-│ - Perfil        │                                               │
-│ - Organização   │  Conecte suas ferramentas favoritas          │
-│                 │                                               │
-│ VENDAS          │  ┌─────────────┐ ┌─────────────┐             │
-│ - Pipelines     │  │ 📱 WhatsApp │ │ 📧 Email    │             │
-│ - Campos Custom │  │ Conectado ✓ │ │ Configurar  │             │
-│                 │  └─────────────┘ └─────────────┘             │
-│ INTEGRAÇÕES     │                                               │
-│ - WhatsApp      │  ┌─────────────┐ ┌─────────────┐             │
-│ - Email         │  │ 📅 Calendar │ │ 🤖 OpenAI   │             │
-│ - Calendar      │  │ Sincronizado│ │ Ativo       │             │
-│                 │  └─────────────┘ └─────────────┘             │
-│ ADMIN           │                                               │
-│ - Usuários      │                                               │
-│ - Logs          │                                               │
-│                 │                                               │
-└─────────────────┴───────────────────────────────────────────────┘
+-    Autocomplete ao digitar @
+
+-    Notificações para mencionados
+
+-    Highlight de mentions
 ```
 
-### Arquivos a Criar/Modificar
-
-| **Arquivo**                                           | **Ação**                                  |
-| ----------------------------------------------------- | ----------------------------------------- |
-| `client/src/pages/settings/index.tsx`                 | Criar - Página principal com menu lateral |
-| `client/src/pages/settings/layout.tsx`                | Criar - Layout compartilhado              |
-| `client/src/pages/settings/profile.tsx`               | Extrair de settings.tsx                   |
-| `client/src/pages/settings/organization.tsx`          | Extrair de settings.tsx                   |
-| `client/src/pages/settings/pipelines/index.tsx`       | Extrair de settings.tsx                   |
-| `client/src/pages/settings/integrations/index.tsx`    | Criar - Hub de integrações                |
-| `client/src/pages/settings/integrations/whatsapp.tsx` | Criar - Página dedicada                   |
-| `client/src/pages/settings/integrations/email.tsx`    | Criar - Página dedicada                   |
-| `client/src/pages/settings/integrations/calendar.tsx` | Criar - Página dedicada                   |
-| `client/src/pages/settings.tsx`                       | Remover (migrar para estrutura acima)     |
-
-### Página de Integração WhatsApp (Detalhada)
+- **2.3 Busca de Mensagens**
 
 ```other
-┌─────────────────────────────────────────────────────────────────┐
-│ ← Integrações                                                   │
-│                                                                 │
-│ 📱 WhatsApp Business                                           │
-│ Conecte seu WhatsApp para receber e enviar mensagens           │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│ INSTÂNCIAS CONECTADAS                                          │
-│                                                                 │
-│ ┌─────────────────────────────────────────────────────────────┐│
-│ │ 📱 alma-staging                                              ││
-│ │ Status: 🟢 Conectado                                         ││
-│ │ Conectado em: 13/01/2025 às 07:02                           ││
-│ │ Número: +55 11 99999-9999                                   ││
-│ │ Mensagens recebidas: 1.234 | Enviadas: 567                  ││
-│ │                                      [Desconectar] [Logs]   ││
-│ └─────────────────────────────────────────────────────────────┘│
-│                                                                 │
-│                        [+ Nova Conexão]                         │
-│                                                                 │
-├─────────────────────────────────────────────────────────────────┤
-│ CONFIGURAÇÕES                                                   │
-│                                                                 │
-│ Auto-criar deal para novos contatos: [✓]                       │
-│ Pipeline padrão: [Pipeline de Vendas ▼]                        │
-│ Notificar responsável: [✓]                                     │
-│                                                                 │
-├─────────────────────────────────────────────────────────────────┤
-│ WEBHOOK                                                         │
-│                                                                 │
-│ URL: https://crm.almaagencia.com.br/api/webhooks/evolution     │
-│ Secret: ------------                          [Copiar] [Gerar] │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
+-    Full-text search com PostgreSQL
+
+-    Modal de busca (Cmd+F)
+
+-    Navegação para resultado
 ```
 
 ---
 
-## Parte 3: Correção de Bugs do Inbox
+## MILESTONE 3: Resiliência e Offline
 
-### Bug 3.1: Botão de Enviar Mensagem
+**Prioridade:** MÉDIA-ALTA | **Estimativa:** 4-5 dias
 
-**Problema:** O botão alterna entre "Enviar" e "Microfone" de forma confusa.
-
-**Arquivo:** `client/src/pages/inbox/components/MessageComposer.tsx`
-
-**Correção:**
-
-typescript
-
-```typescript
-// Linha ~332 - Sempre mostrar botão de enviar quando há texto
-{newMessage.trim().length > 0 || pendingFiles.length > 0 ? (
-  <Button type="submit" ...>
-    <Send className="h-5 w-5" />
-  </Button>
-) : (
-  // Botão de microfone apenas quando vazio
-  <Button type="button" onClick={onStartRecording} ...>
-    <Mic className="h-5 w-5" />
-  </Button>
-)}
-```
-
-**Melhoria adicional:** Adicionar botão de enviar SEMPRE visível (ao lado do mic):
+- **3.1 Offline Message Queue**
 
 ```other
-[ Campo de texto                    ] [📎] [🎤] [➤]
+-    IndexedDB com idb
+
+-    Sync automático quando online
 ```
 
-### Bug 3.2: "Template" de Mensagem Confuso
-
-**Problema:** Ao clicar em template, substitui todo o texto sem feedback claro.
-
-**Arquivo:** `client/src/pages/inbox.tsx` (linhas 267-278)
-
-**Correção:**
-
-- Adicionar confirmação antes de substituir texto existente
-- Mostrar preview do template antes de aplicar
-- Ou: Inserir template na posição do cursor (não substituir)
-
-### Bug 3.3: Sidebar - Pipeline Inacessível Quando Colapsada
-
-**Problema:** Sub-menus ficam ocultos quando sidebar está no modo ícone.
-
-**Arquivo:** `client/src/components/app-sidebar.tsx`
-
-**Solução:** Usar Popover para mostrar sub-menus quando colapsado
-
-typescript
-
-```typescript
-// Substituir Collapsible por lógica condicional
-{isCollapsed ? (
-  <Popover>
-    <PopoverTrigger asChild>
-      <SidebarMenuButton tooltip={t("nav.pipeline")} ...>
-        <Kanban className="h-4 w-4" />
-      </SidebarMenuButton>
-    </PopoverTrigger>
-    <PopoverContent side="right" className="w-48">
-      {pipelines.map((pipeline) => (
-        <Link key={pipeline.id} href={`/pipeline/${pipeline.id}`}>
-          {pipeline.name}
-        </Link>
-      ))}
-    </PopoverContent>
-  </Popover>
-) : (
-  <Collapsible ...>
-    {/* Comportamento atual */}
-  </Collapsible>
-)}
-```
-
----
-
-## Parte 4: Melhorias na Página de Contatos
-
-### Novos Campos/Colunas Necessários
-
-| **Coluna**          | **Fonte**                             | **Prioridade** |
-| ------------------- | ------------------------------------- | -------------- |
-| Valor Total (Deals) | Agregação de `deals.value`            | Alta           |
-| Qtd. Deals Abertos  | Count de `deals` where status='open'  | Alta           |
-| Tags                | `contacts.tags` (já existe no schema) | Alta           |
-| Canal de Aquisição  | `contacts.source` (já existe)         | Média          |
-| Responsável         | `contacts.ownerId` → `users.name`     | Média          |
-| Última Atividade    | Max de `activities.createdAt`         | Média          |
-| Status do Lead      | Novo campo ou derivado                | Média          |
-| Data de Criação     | `contacts.createdAt`                  | Baixa          |
-
-### Mudanças no Backend
-
-**Arquivo:** `server/api/contacts.ts`
-
-Criar endpoint com agregações:
-
-typescript
-
-```typescript
-// GET /api/contacts?withStats=true
-// Retorna contatos com:
-// - totalDealsValue: sum de deals.value onde status='open'
-// - openDealsCount: count de deals onde status='open'
-// - lastActivityAt: max de activities.createdAt
-// - owner: { id, name } do usuário responsável
-```
-
-### Mudanças no Frontend
-
-**Arquivo:** `client/src/pages/contacts/index.tsx`
-
-1. **Tabela Customizável:**
-    - Usar `@tanstack/react-table` com column visibility
-    - Permitir reordenar colunas (drag-and-drop)
-    - Permitir redimensionar colunas
-    - Salvar preferências em localStorage ou backend
-1. **Novas Colunas:**
-
-typescript
-
-```typescript
-const columns = [
-  { id: 'name', header: 'Nome', ... },
-  { id: 'email', header: 'Email', ... },
-  { id: 'phone', header: 'Telefone', ... },
-  { id: 'company', header: 'Empresa', ... },
-  { id: 'totalValue', header: 'Valor Oportunidades', ... },  // NOVO
-  { id: 'openDeals', header: 'Deals Abertos', ... },         // NOVO
-  { id: 'tags', header: 'Tags', ... },                       // NOVO
-  { id: 'source', header: 'Canal', ... },                    // NOVO
-  { id: 'owner', header: 'Responsável', ... },               // NOVO
-  { id: 'lastActivity', header: 'Última Atividade', ... },   // NOVO
-  { id: 'createdAt', header: 'Criado em', ... },             // NOVO
-];
-```
-
-1. **Filtros Avançados:**
-    - Por tags (multi-select)
-    - Por responsável
-    - Por canal de aquisição
-    - Por range de valor
-    - Por data de criação
-
-### Mudanças no Schema (se necessário)
-
-**Arquivo:** `shared/schema.ts`
-
-Campos que já existem mas podem precisar de ajuste:
-
-- `contacts.tags` - OK (text[])
-- `contacts.source` - OK (varchar)
-- `contacts.ownerId` - OK (FK)
-
-**Novo campo sugerido:**
-
-typescript
-
-```typescript
-// Status do lead (opcional - pode ser derivado do deal)
-leadStatus: varchar("lead_status", { length: 50 })
-  .$type<"new" | "contacted" | "qualified" | "proposal" | "negotiation" | "won" | "lost">(),
-```
-
----
-
-## Parte 5: Melhorias no Pipeline (Relacionado)
-
-### Campos a Adicionar nos Cards do Kanban
-
-Os deals já possuem estes campos, garantir que sejam exibidos:
-
-- `value` - Valor da oportunidade ✓ (já exibe)
-- `probability` - Probabilidade de conversão
-- `expectedCloseDate` - Data prevista de fechamento
-- `source` - Canal de aquisição
-- `lostReason` - Motivo de perda (quando aplicável)
-
-### Formulário de Criação/Edição de Deal
-
-Campos que devem estar disponíveis:
-
-- Título
-- Valor
-- Contato
-- Empresa
-- Probabilidade (slider 0-100%)
-- Data prevista de fechamento
-- Canal de aquisição
-- Tags/Labels
-- Motivo de perda (quando mover para Lost)
-
----
-
-## Ordem de Execução Recomendada
-
-### Sprint 1: Bugs Críticos (Prioridade Alta)
-
-- [x] Corrigir botão de enviar no Inbox
-- [x] Corrigir sidebar colapsada (Pipeline inacessível)
-- [x] Debug da integração WhatsApp (QR Code)
-- [x] Corrigir textos hardcoded em português
-
-### Sprint 2: Reestruturação de Settings
-
-- [x] Criar estrutura de pastas para settings
-- [x] Migrar seções existentes para novas páginas
-- [x] Criar página dedicada de integrações (hub com cards)
-- [x] Implementar navegação com subrotas URL (/settings/profile, /settings/integrations, etc.)
-
-### Sprint 3: Melhorias em Contatos
-
-- [x] Backend: Endpoint com agregações de deals (`?withStats=true`)
-- [x] Frontend: Novas colunas na tabela (valor, deals abertos, tags, source, owner, última atividade)
-- [x] Frontend: Tabela customizável com @tanstack/react-table (visibility, sorting)
-- [x] Frontend: Persistência de preferências em localStorage
-
-### Sprint 4: Melhorias no Pipeline
-
-- [x] Adicionar campos no formulário de deal (probability, expectedCloseDate, source)
-- [x] Modal de motivo de perda ao mover para Lost
-- [x] Fechar dialog automaticamente após criação de deal
-
----
-
-## Verificação Final
-
-### Testes a Executar
-
-1. **WhatsApp:**
-    - Conectar nova instância
-    - QR Code exibe corretamente
-    - Receber mensagem via webhook
-    - Deal auto-criado para novo contato
-1. **Inbox:**
-    - Enviar mensagem de texto
-    - Enviar mensagem com arquivo
-    - Gravar e enviar áudio
-    - Mensagens aparecem em tempo real
-1. **Settings:**
-    - Navegar entre seções
-    - Criar/editar pipeline
-    - Conectar/desconectar WhatsApp
-    - Configurar email
-1. **Contatos:**
-    - Visualizar todas as colunas
-    - Reordenar colunas
-    - Filtrar por tags
-    - Ver valor de oportunidades
-1. **Sidebar:**
-    - Acessar Pipeline com menu colapsado
-    - Tooltip funcionando
-    - Sub-menus acessíveis
-
----
-
-## Arquivos Críticos
+- **3.2 Message Grouping by Time**
 
 ```other
-# Backend
-server/api/channelConfigs.ts      # WhatsApp connect
-server/api/contacts.ts            # Agregações de deals
-server/integrations/evolution/    # Evolution API
+-    Agrupar mensagens do mesmo autor
 
-# Frontend
-client/src/pages/settings/index.tsx     # Migrar para estrutura modular
-client/src/pages/settings/        # Nova estrutura
-client/src/pages/contacts/        # Tabela customizável
-client/src/pages/inbox/           # Correções de bugs
-client/src/components/app-sidebar.tsx  # Popover para sub-menus
+-    Avatar apenas na primeira do grupo
+```
+
+- **3.3 Edit/Delete Messages**
+
+```other
+-    Soft delete com deleted_at
+
+-    Janela de 15 min para edição
+
+-    Badge "editado"
 ```
 
 ---
 
-## Sumário de Execução (Janeiro 2025)
+## MILESTONE 4: Melhorias de Integrações
 
-**Status:** ✅ COMPLETO
+**Prioridade:** MÉDIA | **Estimativa:** 3-4 dias
 
-### O que foi implementado:
+- **4.1 Email Reset de Senha** (DÉBITO TÉCNICO)
 
-#### Sprint 1 - Bugs Críticos
-- **MessageComposer.tsx**: Botões Send e Mic agora aparecem lado a lado (Send sempre visível quando há conteúdo)
-- **app-sidebar.tsx**: Implementado Popover para sub-menus de Pipeline quando sidebar está colapsada
-- **whatsapp-config.ts**: Adicionados logs detalhados para debug do QR Code
-- **whatsapp-qr-modal.tsx**: Implementado retry automático com backoff exponencial e feedback de erro
-- **Traduções**: Corrigidos textos hardcoded ("Responder", "Nota", etc.) em MessageComposer e ContextPanel
+```other
+-    Criar server/services/email.ts
 
-#### Sprint 2 - Reestruturação Settings
-- **Nova estrutura**: `/settings` agora usa layout com sidebar de navegação
-- **Subrotas URL**: `/settings/profile`, `/settings/notifications`, `/settings/pipelines`, `/settings/templates`, `/settings/integrations`
-- **Lazy loading**: Todas as seções carregam sob demanda com React.lazy()
-- **Responsivo**: Layout adaptado para mobile e desktop
+-    Integrar com nodemailer
 
-#### Sprint 3 - Melhorias Contatos
-- **Backend**: Novo endpoint `GET /api/contacts?withStats=true` retorna agregações de deals (totalDealsValue, openDealsCount, lastActivityAt)
-- **storage/contacts.ts**: Nova função `getContactsWithStats()` com subqueries otimizadas
-- **Frontend**: Tabela completamente reescrita com @tanstack/react-table
-- **Colunas**: Nome, Email, Telefone, Empresa, Valor Oportunidades, Deals Abertos, Tags, Canal, Responsável, Última Atividade, Criado em
-- **Features**: Sorting, visibilidade, reordenação e redimensionamento de colunas (persistidos em localStorage), menu de ações por linha
-
-#### Sprint 4 - Melhorias Pipeline
-- **Formulário de Deal**: Novos campos probability (slider 0-100%), expectedCloseDate (date picker), source
-- **Edição de Deal**: Modal de edição ao clicar no card (tags + campos personalizados + histórico/score)
-- **Modal de Perda**: AlertDialog para registrar motivo de perda ao mover deal para stage "Lost"
-- **contracts.ts**: Schema `moveDealSchema` estendido para aceitar `status` e `lostReason`
-- **storage/deals.ts**: Função `moveDealToStage` atualizada para aceitar opções de status/lostReason
-- **UX**: Dialogs fecham automaticamente após sucesso, estado resetado corretamente
-
-### Arquivos modificados (19 total):
-```
-client/src/App.tsx
-client/src/components/app-sidebar.tsx
-client/src/components/whatsapp-qr-modal.tsx
-client/src/lib/api/contacts.ts
-client/src/locales/en.json
-client/src/locales/pt-BR.json
-client/src/pages/contacts/
-client/src/pages/inbox/components/MessageComposer.tsx
-client/src/pages/pipeline/index.tsx
-client/src/pages/settings/index.tsx
-server/api/contacts.ts
-server/api/deals.ts
-server/services/whatsapp-config.ts
-server/storage.ts
-server/storage/contacts.ts
-server/storage/deals.ts
-shared/contracts.ts
-package.json
-package-lock.json
+-    Template HTML de reset
 ```
 
-### Verificações realizadas:
-- ✅ `npm run check` - Sem erros de tipo
-- ✅ `npm run lint` - Sem erros (apenas warnings pré-existentes)
-- ✅ `npm run build` - Build de produção bem-sucedido
-- ✅ Code-reviewer agent - Issues corrigidos
+- **4.2 Google Calendar Bidirectional Sync**
 
-### Notas para deploy:
-- Não há novas migrations de banco de dados
-- Não há novas variáveis de ambiente obrigatórias
-- Dependência `@tanstack/react-table` foi adicionada ao package.json
+```other
+-    CRM → Google sync
+```
+
+- **4.3 Firebase Token Rotation**
+
+```other
+-    Detectar tokens expirados
+
+-    Batch sending
+```
+
+---
+
+## MILESTONE 5: Responsividade e Mobile
+
+**Prioridade:** MÉDIA | **Estimativa:** 3-4 dias
+
+- **5.1 Inbox Mobile** - Botão voltar, swipe gestures
+- **5.2 Pipeline Mobile** - Horizontal scroll, touch-friendly
+- **5.3 Settings Mobile** - Hamburger menu, drawer
+
+---
+
+## MILESTONE 6: Acessibilidade (A11Y)
+
+**Prioridade:** MÉDIA | **Estimativa:** 2-3 dias
+
+- **6.1 ARIA Labels** em botões de ícone
+- **6.2 Keyboard Navigation** completa
+- **6.3 Contraste de Cores** WCAG AA
+
+---
+
+## MILESTONE 7: Features Faltantes
+
+**Prioridade:** BAIXA-MÉDIA | **Estimativa:** 4-5 dias
+
+- **7.1 Command Palette** - Integrar (já existe componente)
+- **7.2 Saved Views UI** - Salvar/carregar filtros
+- **7.3 Notifications Real-time** - WebSocket + badge
+- **7.4 Audit Log Filtros** - Por tipo, usuário, data
+
+---
+
+## MILESTONE 8: Performance e Otimizações
+
+**Prioridade:** BAIXA | **Estimativa:** 2-3 dias
+
+- **8.1 Lazy Loading de Gráficos**
+- **8.2 Virtualization Melhorias**
+- **8.3 Bundle Size** - Code splitting
+
+---
+
+## MILESTONE 9: Qualidade de Código
+
+**Prioridade:** BAIXA | **Estimativa:** 2-3 dias
+
+- **9.1 Refatoração de Arquivos Grandes** (inbox.tsx, MessageComposer)
+- **9.2 Testes** - Unit, E2E, integração
+- **9.3 Documentação** - JSDoc, Storybook
+
+---
+
+## 📊 RESUMO
+
+| **Milestone**     | **Prioridade** | **Dias**        | **Itens**    |
+| ----------------- | -------------- | --------------- | ------------ |
+| 1 - UX Críticas   | 🔴 ALTA        | 2-3             | 5            |
+| 2 - Chat Features | 🔴 ALTA        | 5-7             | 3            |
+| 3 - Offline       | 🟠 MÉDIA-ALTA  | 4-5             | 3            |
+| 4 - Integrações   | 🟡 MÉDIA       | 3-4             | 3            |
+| 5 - Mobile        | 🟡 MÉDIA       | 3-4             | 3            |
+| 6 - A11Y          | 🟡 MÉDIA       | 2-3             | 3            |
+| 7 - Features      | 🟢 BAIXA-MÉDIA | 4-5             | 4            |
+| 8 - Performance   | 🟢 BAIXA       | 2-3             | 3            |
+| 9 - Qualidade     | 🟢 BAIXA       | 2-3             | 3            |
+| **TOTAL**         |                | **~28-37 dias** | **30 itens** |
+
+---
+
+## 🎯 ORDEM DE EXECUÇÃO RECOMENDADA
+
+1. **Milestone 1** → Correções que afetam usabilidade imediata
+2. **Milestone 2** → Features de chat que usuários esperam
+3. **Milestone 4.1** → Email reset é obrigatório para produção
+4. **Milestone 3** → Offline queue melhora confiabilidade
+5. **Milestone 5** → Se há usuários mobile
+6. **Milestones 6-9** → Melhorias incrementais
