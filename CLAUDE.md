@@ -796,155 +796,99 @@ node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 
 ---
 
-## Deploy em Producao
+## Deploy em Producao (Coolify + Docker)
+
+O deploy e feito usando **Coolify** com integracao GitHub e Dockerfile.
 
 ### Pre-requisitos
 
-- **Node.js**: 20.x ou superior
+- **Coolify**: Servidor configurado
 - **PostgreSQL**: 14.x ou superior (ou Supabase)
 - **Supabase**: Projeto com bucket "uploads" criado
-- **VPS**: Ubuntu 22.04 ou similar
 
 ### Passo a Passo Completo
 
-#### 1. Preparar Servidor
+#### 1. Configurar Projeto no Coolify
+
+1. Criar novo projeto no Coolify
+2. Conectar com GitHub (repositorio `prospecttrafego/crm-alma-oficial`)
+3. Selecionar branch (`staging` ou `main`)
+4. Coolify detectara automaticamente o `Dockerfile`
+
+#### 2. Configurar Variaveis de Ambiente
+
+No painel do Coolify, adicionar todas as variaveis:
+
+**Variaveis de Runtime (Environment Variables):**
+- `DATABASE_URL`
+- `SESSION_SECRET`
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `OPENAI_API_KEY` (opcional)
+- `DEFAULT_ORGANIZATION_ID`
+- Demais variaveis conforme `.env.example`
+
+**Variaveis de Build (Build Arguments):**
+- `VITE_ALLOW_REGISTRATION`
+- `VITE_FIREBASE_API_KEY`
+- `VITE_FIREBASE_AUTH_DOMAIN`
+- `VITE_FIREBASE_PROJECT_ID`
+- `VITE_FIREBASE_STORAGE_BUCKET`
+- `VITE_FIREBASE_MESSAGING_SENDER_ID`
+- `VITE_FIREBASE_APP_ID`
+- `VITE_FIREBASE_VAPID_KEY`
+
+**Importante:** Variaveis `VITE_*` sao injetadas no build do frontend (Vite) e devem ser configuradas como Build Arguments no Coolify.
+
+#### 3. Deploy
+
+1. Clicar em "Deploy" no Coolify
+2. O Dockerfile executa build multi-stage automaticamente
+3. Health check configurado em `/api/healthz`
+
+#### 4. Apos o Deploy - Rodar Migrations
+
+**IMPORTANTE:** Migrations devem ser rodadas manualmente apos cada deploy que inclua alteracoes de schema.
 
 ```bash
-# Atualizar sistema
-sudo apt update && sudo apt upgrade -y
-
-# Instalar Node.js 20
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-sudo apt install -y nodejs
-
-# Verificar instalacao
-node --version  # v20.x.x
-npm --version   # 10.x.x
-```
-
-#### 2. Clonar e Configurar
-
-```bash
-# Clonar repositorio
-cd /var/www
-git clone https://github.com/prospecttrafego/crm-alma-oficial.git
-cd crm-alma-oficial
-
-# Instalar dependencias
-npm install
-
-# Criar arquivo de ambiente
-cp .env.example .env.production
-nano .env.production  # Editar com credenciais reais
-```
-
-#### 3. Configurar Banco de Dados
-
-```bash
-# Aplicar migrations
-npm run db:migrate
-
-# Verificar tabelas criadas
-# (conectar no banco e listar tabelas)
-```
-
-#### 4. Build de Producao
-
-```bash
-npm run build
-```
-
-#### 4.1 Aplicar migrations em producao
-
-```bash
+# Conectar no terminal do container via Coolify ou SSH
 npm run db:migrate:prod
 ```
 
-#### 5. Configurar PM2
+#### 5. Criar Primeiro Usuario
 
-```bash
-# Instalar PM2
-npm install -g pm2
+1. Configurar `VITE_ALLOW_REGISTRATION=true` como Build Argument
+2. Fazer redeploy
+3. Acessar a aplicacao e criar conta
+4. Alterar `VITE_ALLOW_REGISTRATION=false`
+5. Fazer novo redeploy
 
-# Iniciar aplicacao
-pm2 start dist/index.cjs --name "crm-alma"
+### Dockerfile
 
-# Verificar status
-pm2 status
+O projeto inclui um Dockerfile otimizado:
 
-# Ver logs
-pm2 logs crm-alma
+```dockerfile
+# Multi-stage build
+FROM node:20-bookworm-slim AS deps      # Dependencias de producao
+FROM node:20-bookworm-slim AS build     # Build (com variaveis VITE_*)
+FROM node:20-bookworm-slim AS runtime   # Imagem final slim
 
-# Configurar auto-start no boot
-pm2 save
-pm2 startup
-# (executar o comando que aparecer)
+# Health check automatico
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:3000/api/healthz'...)
 ```
 
-#### 6. Configurar Nginx
+### Atualizacoes e Redeploy
+
+Para atualizar a aplicacao:
+
+1. Push das alteracoes para o branch configurado (staging/main)
+2. Coolify detecta automaticamente (webhook) ou clicar em "Redeploy"
+3. **Se houver alteracoes de schema:** rodar migrations manualmente apos deploy
 
 ```bash
-# Instalar Nginx
-sudo apt install -y nginx
-
-# Criar configuracao
-sudo nano /etc/nginx/sites-available/crm-alma
-```
-
-Conteudo do arquivo:
-
-```nginx
-server {
-    listen 80;
-    server_name crm.seudominio.com;
-
-    # Tamanho maximo de upload
-    client_max_body_size 50M;
-
-    location / {
-        proxy_pass http://localhost:3000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_cache_bypass $http_upgrade;
-    }
-}
-```
-
-```bash
-# Ativar site
-sudo ln -s /etc/nginx/sites-available/crm-alma /etc/nginx/sites-enabled/
-
-# Testar configuracao
-sudo nginx -t
-
-# Reiniciar Nginx
-sudo systemctl restart nginx
-```
-
-#### 7. Configurar SSL (Certbot)
-
-```bash
-# Instalar Certbot
-sudo apt install -y certbot python3-certbot-nginx
-
-# Gerar certificado
-sudo certbot --nginx -d crm.seudominio.com
-
-# Auto-renovacao
-sudo certbot renew --dry-run
-```
-
-#### 8. Criar Primeiro Usuario
-
-Com `ALLOW_REGISTRATION=true`, acesse a aplicacao e crie uma conta. Depois, altere para `false` no .env.production e reinicie:
-
-```bash
-pm2 restart crm-alma
+# Apos o container subir, conectar e rodar:
+npm run db:migrate:prod
 ```
 
 ---
@@ -982,13 +926,12 @@ Verificar se SESSION_SECRET esta configurado corretamente.
 
 ### Atualizar Aplicacao
 
-```bash
-cd /var/www/crm-alma-oficial
-git pull
-npm install
-npm run build
-pm2 restart crm-alma
-```
+1. Push para o branch configurado no Coolify (staging/main)
+2. Coolify detecta automaticamente via webhook ou clique em "Redeploy"
+3. Se houver alteracoes de schema, rodar migrations apos deploy:
+   ```bash
+   npm run db:migrate:prod
+   ```
 
 ### Backup do Banco
 
@@ -998,16 +941,9 @@ pg_dump -U usuario -h host -d database > backup_$(date +%Y%m%d).sql
 
 ### Monitoramento
 
-```bash
-# Status PM2
-pm2 status
-
-# Monitoramento em tempo real
-pm2 monit
-
-# Logs
-pm2 logs crm-alma --lines 100
-```
+- **Logs:** Acessar via painel do Coolify ou `docker logs`
+- **Health:** `GET /api/health` retorna status detalhado
+- **Metricas:** Coolify exibe uso de CPU/memoria do container
 
 ---
 

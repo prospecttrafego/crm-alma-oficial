@@ -224,65 +224,44 @@ npm run db:migrate-ptbr # Ajustes pontuais (dados legados PT-BR)
 
 - Endpoints JSON retornam `{ success, data }` (erros padronizados). Respostas `204` nao possuem corpo.
 
-## Deploy em VPS (Ubuntu)
+## Deploy via Coolify (Docker)
+
+O deploy e feito usando **Coolify** com integracao GitHub e Dockerfile.
 
 ### Pre-requisitos
-- Node.js 20+
+- Servidor Coolify configurado
 - PostgreSQL (ou usar Supabase)
 - Projeto Supabase com bucket "uploads"
 
 ### Passo a Passo
 
-```bash
-# 1. Clonar repositorio
-git clone https://github.com/prospecttrafego/crm-alma-oficial.git
-cd crm-alma-oficial
+1. **Conectar repositorio no Coolify:**
+   - Criar novo projeto no Coolify
+   - Conectar com GitHub (repositorio `prospecttrafego/crm-alma-oficial`)
+   - Selecionar branch `staging` ou `main`
 
-# 2. Instalar dependencias
-npm install
+2. **Configurar variaveis de ambiente no Coolify:**
+   - Adicionar todas as variaveis do `.env.example`
+   - Variaveis `VITE_*` devem ser configuradas como **Build Arguments**
 
-# 3. Configurar ambiente
-cp .env.example .env.production
-nano .env.production  # Preencher credenciais
+3. **Deploy:**
+   - O Coolify usa o `Dockerfile` automaticamente
+   - Build multi-stage: deps → build → runtime
+   - Health check configurado em `/api/healthz`
 
-# 4. Aplicar migrations no banco
-npm run db:migrate
+4. **Apos o deploy, rodar migrations manualmente:**
+   ```bash
+   # Conectar no terminal do container ou servidor
+   npm run db:migrate:prod
+   ```
 
-# 5. Build de producao
-npm run build
+### Dockerfile
 
-# 6. Aplicar migrations em producao
-npm run db:migrate:prod
-
-# 7. Instalar PM2 globalmente
-npm install -g pm2
-
-# 8. Iniciar aplicacao
-pm2 start dist/index.cjs --name "crm-alma"
-
-# 9. Configurar auto-start
-pm2 save
-pm2 startup
-```
-
-### Nginx (Proxy Reverso)
-
-```nginx
-server {
-    listen 80;
-    server_name seu-dominio.com;
-
-    location / {
-        proxy_pass http://localhost:3000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_cache_bypass $http_upgrade;
-    }
-}
-```
+O projeto inclui um Dockerfile otimizado com:
+- Multi-stage build (deps, build, runtime)
+- Node.js 20 slim
+- Health check automatico
+- Variaveis VITE_* como build args
 
 ## Configuracao do Supabase
 
