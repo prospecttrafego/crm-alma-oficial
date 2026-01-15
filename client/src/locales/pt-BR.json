@@ -675,7 +675,23 @@
       "confirm": "Tem certeza que deseja excluir esta mensagem?",
       "deleted": "Esta mensagem foi excluída"
     },
-    "edited": "editado"
+    "edited": "editado",
+    "offlineQueue": {
+      "queued": "Mensagem enfileirada",
+      "willSync": "Será enviada quando a conexão for restaurada"
+    },
+    "offlineSync": {
+      "synced": "{{count}} mensagem(ns) sincronizada(s)",
+      "failed": "{{count}} mensagem(ns) falhou(aram) ao sincronizar"
+    },
+    "messageStatus": {
+      "queued": "Na fila",
+      "syncing": "Sincronizando...",
+      "sending": "Enviando...",
+      "sent": "Enviado",
+      "delivered": "Entregue",
+      "error": "Erro no envio"
+    }
   },
   "contacts": {
     "title": "Contatos",

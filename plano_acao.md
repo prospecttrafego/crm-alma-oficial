@@ -156,26 +156,31 @@
 
 ## MILESTONE 3: Resiliencia e Offline
 
-**Prioridade:** MEDIA-ALTA | **Status:** Pendente
+**Prioridade:** MEDIA-ALTA | **Status:** ✅ Concluido
 
-### 3.1 Offline Message Queue
+### 3.1 Offline Message Queue ✅
 
 #### Setup
-- [ ] Instalar dependencia `idb`
-- [ ] Criar `client/src/lib/offlineDb.ts` (IndexedDB setup)
+- [x] Instalar dependencia `idb`
+- [x] Criar `client/src/lib/offlineDb.ts` (IndexedDB setup)
 
 #### Implementacao
-- [ ] Criar hook `useOfflineQueue.ts`
-- [ ] Criar `client/src/lib/offlineSync.ts`
-- [ ] Integrar com InboxContext
-- [ ] Detectar reconexao e sincronizar fila
-- [ ] Indicador visual de mensagem pendente
-- [ ] **Arquivos:**
+- [x] Criar hook `useOfflineQueue.ts`
+- [x] Criar `client/src/lib/offlineSync.ts`
+- [x] Integrar com inbox.tsx (detectar offline e enfileirar mensagens)
+- [x] Detectar reconexao WebSocket e sincronizar fila automaticamente
+- [x] Indicador visual de mensagem pendente (CloudOff icon para "queued", RefreshCw spinning para "syncing")
+- [x] Adicionar i18n para status de mensagens offline
+- [x] **Arquivos:**
   - `client/src/lib/offlineDb.ts` (novo)
   - `client/src/hooks/useOfflineQueue.ts` (novo)
   - `client/src/lib/offlineSync.ts` (novo)
-  - `client/src/contexts/InboxContext.tsx`
+  - `client/src/pages/inbox.tsx`
+  - `client/src/pages/inbox/types.ts` (status "queued", "syncing")
+  - `client/src/pages/inbox/components/MessageBubble.tsx`
   - `client/src/hooks/useWebSocket.ts`
+  - `client/src/locales/pt-BR.json`
+  - `client/src/locales/en.json`
 
 ### 3.2 Message Grouping by Time ✅
 

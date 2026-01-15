@@ -72,6 +72,7 @@
     "firebase": "^12.7.0",
     "firebase-admin": "^13.6.0",
     "googleapis": "^169.0.0",
+    "idb": "^8.0.3",
     "imap": "^0.8.19",
     "input-otp": "^1.4.2",
     "lucide-react": "^0.453.0",

@@ -675,7 +675,23 @@
       "confirm": "Are you sure you want to delete this message?",
       "deleted": "This message was deleted"
     },
-    "edited": "edited"
+    "edited": "edited",
+    "offlineQueue": {
+      "queued": "Message queued",
+      "willSync": "Will be sent when connection is restored"
+    },
+    "offlineSync": {
+      "synced": "{{count}} message(s) synced",
+      "failed": "{{count}} message(s) failed to sync"
+    },
+    "messageStatus": {
+      "queued": "Queued",
+      "syncing": "Syncing...",
+      "sending": "Sending...",
+      "sent": "Sent",
+      "delivered": "Delivered",
+      "error": "Send error"
+    }
   },
   "contacts": {
     "title": "Contacts",

@@ -9,13 +9,15 @@ export interface PendingFile {
 
 /**
  * Status de entrega de mensagem (para optimistic updates)
+ * - queued: Mensagem salva localmente (offline)
+ * - syncing: Mensagem sendo sincronizada apos reconexao
  * - sending: Mensagem sendo enviada ao servidor
  * - sent: Servidor recebeu e salvou
  * - delivered: Entregue ao destinatario (WebSocket confirmou)
  * - read: Lido pelo destinatario
  * - error: Falha ao enviar
  */
-export type MessageStatus = "sending" | "sent" | "delivered" | "read" | "error";
+export type MessageStatus = "queued" | "syncing" | "sending" | "sent" | "delivered" | "read" | "error";
 
 /**
  * Mensagem do inbox com campos adicionais para optimistic updates
@@ -27,6 +29,8 @@ export type InboxMessage = MessagesResponse["messages"][number] & {
   _tempId?: string;
   /** Erro se _status === 'error' */
   _error?: string;
+  /** ID do IndexedDB para mensagens offline (para rastreamento) */
+  _offlineId?: string;
 };
 
 export type TypingUser = {

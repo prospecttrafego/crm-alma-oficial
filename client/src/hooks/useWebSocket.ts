@@ -4,6 +4,7 @@
  */
 import { useEffect, useRef, useCallback, useState } from "react";
 import { queryClient } from "@/lib/queryClient";
+import { onWebSocketReconnect } from "@/lib/offlineSync";
 
 // Tipos de eventos do servidor
 export type WebSocketEventType =
@@ -159,6 +160,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
 
       ws.onopen = () => {
         console.log("[WebSocket] Conectado");
+        const wasDisconnected = !wsRef.current || reconnectAttemptsRef.current > 0;
         setIsConnected(true);
         reconnectAttemptsRef.current = 0;
 
@@ -168,6 +170,13 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
             type: "presence",
             payload: { userId, userName }
           }));
+        }
+
+        // Trigger offline message sync on reconnect
+        if (wasDisconnected) {
+          onWebSocketReconnect().catch((error) => {
+            console.error("[WebSocket] Error syncing offline messages:", error);
+          });
         }
       };
 

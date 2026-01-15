@@ -1,6 +1,6 @@
 "use client";
 
-import { AtSign, Check, CheckCheck, Clock, AlertCircle, RotateCcw, Pencil } from "lucide-react";
+import { AtSign, Check, CheckCheck, Clock, AlertCircle, RotateCcw, Pencil, CloudOff, RefreshCw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { FileList } from "@/components/file-uploader";
@@ -25,7 +25,7 @@ type MessageBubbleProps = {
 };
 
 /**
- * Message status indicator (sending, sent, delivered, read, error)
+ * Message status indicator (queued, syncing, sending, sent, delivered, read, error)
  */
 function MessageStatusIndicator({
   message,
@@ -34,11 +34,24 @@ function MessageStatusIndicator({
   message: InboxMessage;
   onRetry?: () => void;
 }) {
+  const { t } = useTranslation();
   const status: MessageStatus = message._status || (
     message.readBy && message.readBy.length > 0 ? "read" : "sent"
   );
 
   switch (status) {
+    case "queued":
+      return (
+        <div className="flex items-center gap-1" title={t("inbox.messageStatus.queued")}>
+          <CloudOff className="h-3.5 w-3.5 text-amber-500" />
+        </div>
+      );
+    case "syncing":
+      return (
+        <div className="flex items-center gap-1" title={t("inbox.messageStatus.syncing")}>
+          <RefreshCw className="h-3.5 w-3.5 animate-spin text-blue-500" />
+        </div>
+      );
     case "sending":
       return (
         <Clock className="h-3.5 w-3.5 animate-pulse text-muted-foreground" />

@@ -10,6 +10,7 @@ import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useWebSocket, useConversationRoom } from "@/hooks/useWebSocket";
+import { useOfflineQueue } from "@/hooks/useOfflineQueue";
 import { useTranslation } from "@/contexts/LanguageContext";
 import {
   InboxProvider,
@@ -86,13 +87,35 @@ function InboxContent() {
   } = useInbox();
 
   // WebSocket for real-time features
-  const { sendTyping, getTypingUsers } = useWebSocket({
+  const { sendTyping, getTypingUsers, isConnected: wsConnected } = useWebSocket({
     onMessage: (message) => {
       if (message.type === "message:created" && message.data) {
         const messageData = message.data as { senderId?: string; senderType?: string };
         if (messageData.senderType !== "user" || messageData.senderId !== user?.id) {
           playMessageReceived();
         }
+      }
+    },
+  });
+
+  // Offline queue for message resilience
+  const { isOnline, queueMessage, queueCount, isSyncing } = useOfflineQueue({
+    onSyncComplete: (successCount, failedCount) => {
+      if (successCount > 0) {
+        toast({ title: t("inbox.offlineSync.synced", { count: successCount }) });
+        // Refresh messages after sync
+        if (selectedConversation) {
+          queryClient.invalidateQueries({
+            queryKey: ["/api/conversations", selectedConversation.id, "messages"],
+          });
+        }
+        queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
+      }
+      if (failedCount > 0) {
+        toast({
+          title: t("inbox.offlineSync.failed", { count: failedCount }),
+          variant: "destructive",
+        });
       }
     },
   });
@@ -647,17 +670,84 @@ function InboxContent() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [setSelectedConversation, setIsInternalComment]);
 
-  const handleSendMessage = useCallback((e: React.FormEvent) => {
+  const handleSendMessage = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMessage.trim() && pendingFiles.length === 0) return;
+    if (!selectedConversation || !user) return;
+
+    const messageContent = newMessage || (pendingFiles.length > 0 ? "[Attachment]" : "");
+    const tempId = crypto.randomUUID();
+
+    // If offline, queue the message for later sync
+    if (!isOnline || !wsConnected) {
+      const offlineMsg = await queueMessage({
+        conversationId: selectedConversation.id,
+        content: messageContent,
+        isInternal: isInternalComment,
+        replyToId: replyingTo?.id ?? null,
+      });
+
+      // Add queued message to cache for immediate UI feedback
+      const queryKey = ["/api/conversations", selectedConversation.id, "messages"];
+      const queuedMessage: InboxMessage = {
+        id: -Date.now(),
+        conversationId: selectedConversation.id,
+        senderId: user.id,
+        senderType: "user",
+        content: messageContent,
+        contentType: "text",
+        isInternal: isInternalComment,
+        attachments: null,
+        metadata: null,
+        mentions: null,
+        readBy: [user.id],
+        externalId: null,
+        replyToId: replyingTo?.id ?? null,
+        createdAt: new Date(),
+        editedAt: null,
+        deletedAt: null,
+        originalContent: null,
+        _status: "queued",
+        _tempId: tempId,
+        _offlineId: offlineMsg.id,
+      };
+
+      queryClient.setQueryData<{ pages: Array<{ messages: InboxMessage[]; nextCursor: number | null; hasMore: boolean }>; pageParams: unknown[] }>(
+        queryKey,
+        (old) => {
+          if (!old || !old.pages || old.pages.length === 0) {
+            return {
+              pages: [{ messages: [queuedMessage], nextCursor: null, hasMore: false }],
+              pageParams: [undefined],
+            };
+          }
+          const newPages = [...old.pages];
+          const lastPageIndex = newPages.length - 1;
+          newPages[lastPageIndex] = {
+            ...newPages[lastPageIndex],
+            messages: [...newPages[lastPageIndex].messages, queuedMessage],
+          };
+          return { ...old, pages: newPages };
+        }
+      );
+
+      clearMessageState();
+      toast({
+        title: t("inbox.offlineQueue.queued"),
+        description: t("inbox.offlineQueue.willSync"),
+      });
+      return;
+    }
+
+    // Online: send normally with optimistic update
     sendMessageMutation.mutate({
-      content: newMessage || (pendingFiles.length > 0 ? "[Attachment]" : ""),
+      content: messageContent,
       isInternal: isInternalComment,
       attachments: pendingFiles.filter((f) => f.status === "uploaded"),
       replyToId: replyingTo?.id ?? null,
-      _tempId: crypto.randomUUID(), // ID temporario para tracking de optimistic update
+      _tempId: tempId,
     });
-  }, [newMessage, pendingFiles, isInternalComment, replyingTo, sendMessageMutation]);
+  }, [newMessage, pendingFiles, isInternalComment, replyingTo, sendMessageMutation, isOnline, wsConnected, selectedConversation, user, queueMessage, clearMessageState, toast, t]);
 
   const formatTime = useCallback((date: Date | string | null) => formatInboxTime(t, date), [t]);
   const channelLabel = useCallback((channel: string) => getChannelLabel(t, channel), [t]);
