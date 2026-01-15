@@ -245,6 +245,16 @@ export async function createMessage(message: InsertMessage): Promise<Message> {
     throw new Error("Conversation not found");
   }
 
+  // Deduplication: if externalId is provided, check if message already exists
+  // This prevents duplicate messages on reconnection or retry scenarios
+  if (message.externalId) {
+    const existing = await getMessageByExternalId(message.externalId);
+    if (existing) {
+      // Return existing message instead of creating duplicate
+      return existing;
+    }
+  }
+
   // If message is from a user, pre-populate readBy with the sender
   // This prevents the sender's own message from counting as unread for them
   const messageData = { ...message };

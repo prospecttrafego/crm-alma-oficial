@@ -16,7 +16,7 @@ import {
 } from "../middleware";
 import { sendSuccess, sendNotFound, toSafeUser } from "../response";
 import { storage } from "../storage";
-import { broadcast } from "../ws/index";
+import { broadcast, broadcastToConversation } from "../ws/index";
 
 // Schema estendido para query de conversas
 const conversationsQuerySchema = paginationQuerySchema.extend({
@@ -202,7 +202,8 @@ export function registerConversationRoutes(app: Express) {
         senderId,
         senderType: "user",
       });
-      broadcast("message:created", message);
+      // Broadcast direcionado para usuarios inscritos na conversa
+      broadcastToConversation(conversationId, "message:created", message);
 
       // Create notification for assigned user if not the sender
       const conversation = await storage.getConversation(conversationId);
@@ -269,8 +270,8 @@ export function registerConversationRoutes(app: Express) {
 
       const count = await storage.markMessagesAsRead(conversationId, userId);
 
-      // Broadcast read event to other users
-      broadcast("message:read", { conversationId, userId, count });
+      // Broadcast read event para usuarios inscritos na conversa
+      broadcastToConversation(conversationId, "message:read", { conversationId, userId, count });
 
       sendSuccess(res, { success: true, count });
     }),

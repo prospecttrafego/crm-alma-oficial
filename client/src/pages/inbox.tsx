@@ -5,7 +5,7 @@ import type { VirtuosoHandle } from "react-virtuoso";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
-import { useWebSocket } from "@/hooks/useWebSocket";
+import { useWebSocket, useConversationRoom } from "@/hooks/useWebSocket";
 import { useTranslation } from "@/contexts/LanguageContext";
 import {
   conversationsApi,
@@ -23,7 +23,7 @@ import { MessageComposer } from "@/pages/inbox/components/MessageComposer";
 import { MessageList } from "@/pages/inbox/components/MessageList";
 import { ThreadHeader } from "@/pages/inbox/components/ThreadHeader";
 import { TypingIndicator } from "@/pages/inbox/components/TypingIndicator";
-import type { PendingFile, TypingUser } from "@/pages/inbox/types";
+import type { PendingFile, TypingUser, InboxMessage } from "@/pages/inbox/types";
 import { formatInboxTime, getChannelLabel, getStatusLabel, substituteVariables } from "@/pages/inbox/utils";
 import type { InboxFilters } from "@/components/filter-panel";
 
@@ -68,6 +68,10 @@ export default function InboxPage() {
       }
     },
   });
+
+  // Inscrever na room da conversa selecionada para receber eventos direcionados
+  // (mensagens, typing indicators, etc.) ao inves de broadcast global
+  useConversationRoom(selectedConversation?.id ?? null);
 
   // Get typing users for current conversation
   const currentTypingUsers = selectedConversation
@@ -277,14 +281,27 @@ export default function InboxPage() {
     toast({ title: t("toast.updated") });
   };
 
+  /**
+   * Mutation com optimistic updates para envio de mensagens
+   * A mensagem aparece imediatamente com status "sending"
+   */
   const sendMessageMutation = useMutation({
-    mutationFn: async (data: { content: string; isInternal: boolean; attachments?: PendingFile[] }) => {
-      if (!selectedConversation) return;
+    mutationFn: async (data: {
+      content: string;
+      isInternal: boolean;
+      attachments?: PendingFile[];
+      _tempId: string; // ID temporario para tracking
+    }) => {
+      if (!selectedConversation) throw new Error("No conversation selected");
+
       const messageData = await conversationsApi.sendMessage(selectedConversation.id, {
         content: data.content,
         isInternal: data.isInternal,
+        // Enviar _tempId como externalId para idempotencia em retries
+        externalId: data._tempId,
       });
-      
+
+      // Registrar arquivos se houver
       if (data.attachments && data.attachments.length > 0) {
         for (const pf of data.attachments) {
           if (pf.uploadURL && pf.status === "uploaded") {
@@ -299,22 +316,201 @@ export default function InboxPage() {
           }
         }
       }
-      return messageData;
+
+      return { ...messageData, _tempId: data._tempId };
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: ["/api/conversations", selectedConversation?.id, "messages"],
-      });
+
+    // OPTIMISTIC UPDATE: Inserir mensagem no cache ANTES de enviar ao servidor
+    onMutate: async (newMessageData) => {
+      if (!selectedConversation || !user) return;
+
+      const queryKey = ["/api/conversations", selectedConversation.id, "messages"];
+
+      // 1. Cancelar refetches pendentes para evitar sobrescrever nosso update
+      await queryClient.cancelQueries({ queryKey });
+
+      // 2. Snapshot do estado atual (para rollback em caso de erro)
+      const previousMessages = queryClient.getQueryData<{ pages: MessagesResponse[] }>(queryKey);
+
+      // 3. Criar mensagem otimista
+      const optimisticMessage: InboxMessage = {
+        id: -Date.now(), // ID negativo temporario
+        conversationId: selectedConversation.id,
+        senderId: user.id,
+        senderType: "user",
+        content: newMessageData.content,
+        contentType: "text",
+        isInternal: newMessageData.isInternal,
+        attachments: null,
+        metadata: null,
+        mentions: null,
+        readBy: [user.id], // Usuario ja "leu" sua propria mensagem
+        externalId: null,
+        createdAt: new Date(), // Date object, nao string
+        // Campos de optimistic update
+        _status: "sending",
+        _tempId: newMessageData._tempId,
+      };
+
+      // 4. Inserir mensagem otimista no cache
+      queryClient.setQueryData<{ pages: Array<{ messages: InboxMessage[]; nextCursor: number | null; hasMore: boolean }>; pageParams: unknown[] }>(
+        queryKey,
+        (old) => {
+          if (!old || !old.pages || old.pages.length === 0) {
+            return {
+              pages: [{ messages: [optimisticMessage], nextCursor: null, hasMore: false }],
+              pageParams: [undefined],
+            };
+          }
+
+          // Append na ultima pagina (mensagens mais recentes)
+          const newPages = [...old.pages];
+          const lastPageIndex = newPages.length - 1;
+          newPages[lastPageIndex] = {
+            ...newPages[lastPageIndex],
+            messages: [...newPages[lastPageIndex].messages, optimisticMessage],
+          };
+
+          return { ...old, pages: newPages };
+        }
+      );
+
+      // 5. Atualizar lista de conversas (lastMessageAt)
+      queryClient.setQueryData<ConversationWithRelations[]>(
+        ["/api/conversations"],
+        (old) => {
+          if (!old) return old;
+          return old
+            .map((conv) =>
+              conv.id === selectedConversation.id
+                ? { ...conv, lastMessageAt: new Date() }
+                : conv
+            )
+            .sort((a, b) => {
+              const aTime = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0;
+              const bTime = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0;
+              return bTime - aTime;
+            });
+        }
+      );
+
+      // Retornar contexto para rollback
+      return { previousMessages, tempId: newMessageData._tempId };
+    },
+
+    // SUCESSO: Substituir mensagem otimista pela real
+    onSuccess: (serverMessage, variables, context) => {
+      if (!selectedConversation || !serverMessage || !context) return;
+
+      const queryKey = ["/api/conversations", selectedConversation.id, "messages"];
+
+      // Substituir mensagem otimista pela mensagem real do servidor
+      queryClient.setQueryData<{ pages: Array<{ messages: InboxMessage[]; nextCursor: number | null; hasMore: boolean }>; pageParams: unknown[] }>(
+        queryKey,
+        (old) => {
+          if (!old) return old;
+
+          return {
+            ...old,
+            pages: old.pages.map((page) => ({
+              ...page,
+              messages: page.messages.map((msg) =>
+                msg._tempId === context.tempId
+                  ? { ...serverMessage, _status: "sent" as const, _tempId: undefined } as InboxMessage
+                  : msg
+              ),
+            })),
+          };
+        }
+      );
+
+      // Atualizar conversa com dados reais
       queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
+
       setNewMessage("");
       setPendingFiles([]);
-      // Play sent sound
       playMessageSent();
     },
-    onError: () => {
-      toast({ title: t("toast.error"), variant: "destructive" });
+
+    // ERRO: Rollback para estado anterior e marcar mensagem como erro
+    onError: (error, variables, context) => {
+      if (!context?.previousMessages || !selectedConversation) {
+        toast({ title: t("toast.error"), variant: "destructive" });
+        return;
+      }
+
+      const queryKey = ["/api/conversations", selectedConversation.id, "messages"];
+
+      // Marcar mensagem como erro (em vez de remover, para permitir retry)
+      queryClient.setQueryData<{ pages: Array<{ messages: InboxMessage[]; nextCursor: number | null; hasMore: boolean }>; pageParams: unknown[] }>(
+        queryKey,
+        (old) => {
+          if (!old) return context.previousMessages as { pages: Array<{ messages: InboxMessage[]; nextCursor: number | null; hasMore: boolean }>; pageParams: unknown[] };
+
+          return {
+            ...old,
+            pages: old.pages.map((page) => ({
+              ...page,
+              messages: page.messages.map((msg) =>
+                msg._tempId === context.tempId
+                  ? { ...msg, _status: "error" as const, _error: String(error) }
+                  : msg
+              ),
+            })),
+          };
+        }
+      );
+
+      toast({
+        title: t("toast.error"),
+        description: "Falha ao enviar mensagem. Clique para tentar novamente.",
+        variant: "destructive"
+      });
     },
   });
+
+  /**
+   * Retry de mensagem que falhou
+   */
+  const retryMessage = useCallback((tempId: string) => {
+    if (!selectedConversation) return;
+
+    const queryKey = ["/api/conversations", selectedConversation.id, "messages"];
+    const data = queryClient.getQueryData<{ pages: Array<{ messages: InboxMessage[]; nextCursor: number | null; hasMore: boolean }> }>(queryKey);
+
+    if (!data) return;
+
+    // Encontrar mensagem com erro
+    for (const page of data.pages) {
+      const failedMsg = page.messages.find(
+        (m) => m._tempId === tempId && m._status === "error"
+      );
+      if (failedMsg) {
+        // Reenviar
+        sendMessageMutation.mutate({
+          content: failedMsg.content,
+          isInternal: failedMsg.isInternal || false,
+          _tempId: crypto.randomUUID(), // Novo tempId
+        });
+
+        // Remover mensagem antiga com erro
+        queryClient.setQueryData<{ pages: Array<{ messages: InboxMessage[]; nextCursor: number | null; hasMore: boolean }>; pageParams: unknown[] }>(
+          queryKey,
+          (old) => {
+            if (!old) return old;
+            return {
+              ...old,
+              pages: old.pages.map((p) => ({
+                ...p,
+                messages: p.messages.filter((m) => m._tempId !== tempId),
+              })),
+            };
+          }
+        );
+        break;
+      }
+    }
+  }, [selectedConversation, sendMessageMutation]);
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = e.target.files;
@@ -433,6 +629,7 @@ export default function InboxPage() {
       content: newMessage || (pendingFiles.length > 0 ? "[Attachment]" : ""),
       isInternal: isInternalComment,
       attachments: pendingFiles.filter((f) => f.status === "uploaded"),
+      _tempId: crypto.randomUUID(), // ID temporario para tracking de optimistic update
     });
   };
 
@@ -484,6 +681,7 @@ export default function InboxPage() {
                 isFetchingNextPage={!!isFetchingNextPage}
                 loadMoreMessages={loadMoreMessages}
                 formatTime={formatTime}
+                onRetryMessage={retryMessage}
               />
             </div>
 

@@ -204,19 +204,87 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
 
           // Auto-invalidar queries
           if (autoInvalidate) {
-            const queriesToInvalidate = eventToQueryMap[message.type];
-            if (queriesToInvalidate) {
-              queriesToInvalidate.forEach((queryKey) => {
-                queryClient.invalidateQueries({ queryKey: [queryKey] });
-              });
-            }
-
-            // Para mensagens, invalidar query especifica da conversa
+            // Para mensagens, fazer append DIRETO no cache (sem refetch!)
             if (message.type === "message:created" && message.data) {
-              const messageData = message.data as { conversationId?: number };
-              if (messageData.conversationId) {
-                queryClient.invalidateQueries({
-                  queryKey: ["/api/conversations", messageData.conversationId, "messages"],
+              const newMessage = message.data as {
+                id: number;
+                conversationId: number;
+                senderId?: string;
+                senderType?: string;
+                content: string;
+                contentType?: string;
+                isInternal?: boolean;
+                createdAt: string;
+                readBy?: string[];
+                [key: string]: unknown;
+              };
+
+              if (newMessage.conversationId) {
+                const queryKey = ["/api/conversations", newMessage.conversationId, "messages"];
+
+                // Append direto no cache
+                type MessageInCache = { id?: number; _tempId?: string };
+                queryClient.setQueryData<{
+                  pages: Array<{ messages: MessageInCache[]; nextCursor: number | null; hasMore: boolean }>;
+                  pageParams: unknown[];
+                }>(queryKey, (old) => {
+                  if (!old || !old.pages || old.pages.length === 0) return old;
+
+                  // Verificar se mensagem ja existe (evitar duplicata de msg otimista)
+                  const lastPage = old.pages[old.pages.length - 1];
+                  const exists = lastPage.messages.some(
+                    (m) =>
+                      m.id === newMessage.id ||
+                      // Verificar se e a mesma mensagem otimista pelo conteudo e tempo
+                      (m._tempId && Math.abs(new Date(newMessage.createdAt).getTime() - Date.now()) < 5000)
+                  );
+
+                  if (exists) return old;
+
+                  // Append na ultima pagina
+                  const newPages = [...old.pages];
+                  const lastPageIndex = newPages.length - 1;
+                  newPages[lastPageIndex] = {
+                    ...newPages[lastPageIndex],
+                    messages: [...newPages[lastPageIndex].messages, newMessage as MessageInCache],
+                  };
+
+                  return { ...old, pages: newPages };
+                });
+
+                // Atualizar lista de conversas (lastMessageAt, unreadCount)
+                queryClient.setQueryData<Array<{ id: number; lastMessageAt?: string; unreadCount?: number; [key: string]: unknown }>>(
+                  ["/api/conversations"],
+                  (old) => {
+                    if (!old) return old;
+                    return old
+                      .map((conv) =>
+                        conv.id === newMessage.conversationId
+                          ? {
+                              ...conv,
+                              lastMessageAt: newMessage.createdAt,
+                              // Incrementar unreadCount se msg nao e do usuario atual
+                              unreadCount:
+                                newMessage.senderType === "contact"
+                                  ? (conv.unreadCount || 0) + 1
+                                  : conv.unreadCount,
+                            }
+                          : conv
+                      )
+                      .sort(
+                        (a, b) =>
+                          new Date(b.lastMessageAt || 0).getTime() -
+                          new Date(a.lastMessageAt || 0).getTime()
+                      );
+                  }
+                );
+              }
+            } else {
+              // Para outros eventos, usar invalidacao normal
+              const queriesToInvalidate = eventToQueryMap[message.type];
+              if (queriesToInvalidate) {
+                queriesToInvalidate.forEach((queryKey) => {
+                  queryClient.invalidateQueries({ queryKey: [queryKey] });
                 });
               }
             }
@@ -321,4 +389,44 @@ export function useGlobalWebSocket() {
 
 export function getGlobalWebSocket() {
   return globalWsInstance;
+}
+
+/**
+ * Hook para inscrever automaticamente em uma room de conversa.
+ * Quando o usuario abre uma conversa, ele se inscreve para receber
+ * apenas eventos daquela conversa especifica (mensagens, typing, etc.)
+ *
+ * Ao sair da conversa (ou desmontar o componente), a inscricao e cancelada.
+ *
+ * IMPORTANTE: Este hook deve ser usado em conjunto com useGlobalWebSocket
+ * no componente pai (ex.: App.tsx). Ele depende do singleton global.
+ */
+export function useConversationRoom(conversationId: number | null) {
+  const previousConversationIdRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const ws = getGlobalWebSocket();
+    if (!ws) return;
+
+    const { send, isConnected } = ws;
+    if (!isConnected) return;
+
+    // Sair da room anterior se mudou de conversa
+    if (previousConversationIdRef.current && previousConversationIdRef.current !== conversationId) {
+      send("room:leave", { conversationId: previousConversationIdRef.current });
+    }
+
+    // Entrar na nova room
+    if (conversationId) {
+      send("room:join", { conversationId });
+      previousConversationIdRef.current = conversationId;
+    }
+
+    return () => {
+      // Sair da room ao desmontar
+      if (conversationId && ws.isConnected) {
+        ws.send("room:leave", { conversationId });
+      }
+    };
+  }, [conversationId]);
 }

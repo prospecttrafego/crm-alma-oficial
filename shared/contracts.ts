@@ -138,8 +138,11 @@ export const createMessageSchema = baseInsertMessageSchema
     senderId: true,
     senderType: true,
     readBy: true,
-    externalId: true,
     createdAt: true,
+  })
+  // externalId is optional for idempotency (client can send a UUID to prevent duplicates on retry)
+  .extend({
+    externalId: baseInsertMessageSchema.shape.externalId.optional(),
   });
 
 // ===== ACTIVITIES =====

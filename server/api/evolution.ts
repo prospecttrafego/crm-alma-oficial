@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { isAuthenticated } from "../auth";
 import { storage } from "../storage";
-import { broadcast } from "../ws/index";
+import { broadcast, broadcastToConversation } from "../ws/index";
 import { evolutionApi } from "../integrations/evolution/api";
 import { evolutionHandler, type EvolutionWebhookEvent } from "../integrations/evolution/handler";
 import { whatsappLogger } from "../logger";
@@ -79,9 +79,12 @@ export function registerEvolutionRoutes(app: Express) {
 
       const organizationId = config.organizationId;
 
-      // Set broadcast function for real-time updates
+      // Set broadcast functions for real-time updates
       evolutionHandler.setBroadcast((orgId, eventType, data) => {
         broadcast(`whatsapp:${eventType}`, { organizationId: orgId, data });
+      });
+      evolutionHandler.setBroadcastToConversation((conversationId, eventType, data) => {
+        broadcastToConversation(conversationId, eventType, data);
       });
 
       // Process the webhook event

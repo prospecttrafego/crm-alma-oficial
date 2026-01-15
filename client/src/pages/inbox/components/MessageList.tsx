@@ -1,13 +1,14 @@
 "use client";
 
-import { forwardRef } from "react";
+import { forwardRef, useCallback } from "react";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
-import { AtSign, Check, CheckCheck, Loader2 } from "lucide-react";
+import { AtSign, Check, CheckCheck, Clock, Loader2, AlertCircle, RotateCcw } from "lucide-react";
 
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 import { FileList } from "@/components/file-uploader";
 import { useTranslation } from "@/contexts/LanguageContext";
-import type { InboxMessage } from "@/pages/inbox/types";
+import type { InboxMessage, MessageStatus } from "@/pages/inbox/types";
 
 type Props = {
   messages: InboxMessage[];
@@ -17,7 +18,58 @@ type Props = {
   isFetchingNextPage: boolean;
   loadMoreMessages: () => void;
   formatTime: (date: Date | string | null) => string;
+  onRetryMessage?: (tempId: string) => void;
 };
+
+/**
+ * Componente para renderizar o indicador de status da mensagem
+ */
+function MessageStatusIndicator({
+  message,
+  onRetry,
+}: {
+  message: InboxMessage;
+  onRetry?: () => void;
+}) {
+  // Determinar status: usa _status se existir, senao infere de readBy
+  const status: MessageStatus = message._status || (
+    message.readBy && message.readBy.length > 0 ? "read" : "sent"
+  );
+
+  switch (status) {
+    case "sending":
+      return (
+        <Clock className="h-3.5 w-3.5 animate-pulse text-muted-foreground" />
+      );
+    case "sent":
+      return <Check className="h-3.5 w-3.5 text-muted-foreground" />;
+    case "delivered":
+      return <CheckCheck className="h-3.5 w-3.5 text-muted-foreground" />;
+    case "read":
+      return <CheckCheck className="h-3.5 w-3.5 text-primary" />;
+    case "error":
+      return (
+        <div className="flex items-center gap-1">
+          <AlertCircle className="h-3.5 w-3.5 text-destructive" />
+          {onRetry && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-5 w-5 p-0"
+              onClick={(e) => {
+                e.stopPropagation();
+                onRetry();
+              }}
+            >
+              <RotateCcw className="h-3 w-3 text-destructive" />
+            </Button>
+          )}
+        </div>
+      );
+    default:
+      return <Check className="h-3.5 w-3.5" />;
+  }
+}
 
 export const MessageList = forwardRef<VirtuosoHandle, Props>(function MessageList(
   {
@@ -28,6 +80,7 @@ export const MessageList = forwardRef<VirtuosoHandle, Props>(function MessageLis
     isFetchingNextPage,
     loadMoreMessages,
     formatTime,
+    onRetryMessage,
   },
   ref
 ) {
@@ -102,11 +155,14 @@ export const MessageList = forwardRef<VirtuosoHandle, Props>(function MessageLis
             <div className="mt-1 flex items-center justify-end gap-1 text-[11px] text-muted-foreground">
               {formatTime(message.createdAt)}
               {message.senderType === "user" && (
-                message.readBy && message.readBy.length > 0 ? (
-                  <CheckCheck className="h-3.5 w-3.5 text-primary" />
-                ) : (
-                  <Check className="h-3.5 w-3.5" />
-                )
+                <MessageStatusIndicator
+                  message={message}
+                  onRetry={
+                    message._tempId && message._status === "error"
+                      ? () => onRetryMessage?.(message._tempId!)
+                      : undefined
+                  }
+                />
               )}
             </div>
           </div>

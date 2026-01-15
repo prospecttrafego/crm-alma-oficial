@@ -69,6 +69,7 @@ export interface EvolutionQRCodeUpdate {
 
 // WebSocket broadcast function type
 type BroadcastFn = (organizationId: number, event: string, data: unknown) => void;
+type BroadcastToConversationFn = (conversationId: number, event: string, data: unknown) => void;
 
 // Attachment structure for messages
 interface MessageAttachment {
@@ -81,6 +82,7 @@ interface MessageAttachment {
 
 export class EvolutionMessageHandler {
   private broadcast: BroadcastFn | null = null;
+  private broadcastToConversation: BroadcastToConversationFn | null = null;
   private objectStorage: ObjectStorageService;
 
   constructor() {
@@ -92,6 +94,13 @@ export class EvolutionMessageHandler {
    */
   setBroadcast(fn: BroadcastFn) {
     this.broadcast = fn;
+  }
+
+  /**
+   * Set the broadcast function for conversation-specific WebSocket notifications
+   */
+  setBroadcastToConversation(fn: BroadcastToConversationFn) {
+    this.broadcastToConversation = fn;
   }
 
   /**
@@ -381,7 +390,12 @@ export class EvolutionMessageHandler {
 
         whatsappLogger.info(`[Evolution Handler] Created message: ${message.id}${mediaAttachment ? ' with media' : ''}`);
 
-        // Broadcast to connected clients
+        // Broadcast direcionado para usuarios inscritos na conversa
+        if (this.broadcastToConversation) {
+          this.broadcastToConversation(conversation.id, 'message:created', message);
+        }
+
+        // Broadcast global para organizacao (legado/notificacoes)
         if (this.broadcast) {
           this.broadcast(organizationId, 'new_message', {
             conversationId: conversation.id,

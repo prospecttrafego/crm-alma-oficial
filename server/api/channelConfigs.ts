@@ -13,7 +13,7 @@ import {
 } from "../middleware";
 import { sendSuccess, sendNotFound, sendError, sendValidationError, ErrorCodes } from "../response";
 import { storage } from "../storage";
-import { broadcast } from "../ws/index";
+import { broadcast, broadcastToConversation } from "../ws/index";
 import { evolutionApi } from "../integrations/evolution/api";
 import {
   verifySmtpConnection,
@@ -136,7 +136,8 @@ async function processIncomingEmail(
     status: "open",
   });
 
-  broadcast("message:created", { ...message, conversation });
+  // Broadcast direcionado para usuarios inscritos na conversa
+  broadcastToConversation(conversation.id, "message:created", { ...message, conversation });
 
   logger.info("[Email] Processed incoming email", {
     messageId: email.messageId,
