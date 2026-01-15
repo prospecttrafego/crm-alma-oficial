@@ -125,7 +125,7 @@ function Router() {
           <Route path="/activities" component={ActivitiesPage} />
           <Route path="/calendar" component={CalendarPage} />
           <Route path="/reports" component={ReportsPage} />
-          <Route path="/settings" component={SettingsPage} />
+          <Route path="/settings/*?" component={SettingsPage} />
           <Route path="/audit-log" component={AuditLogPage} />
           <Route component={NotFound} />
         </Switch>

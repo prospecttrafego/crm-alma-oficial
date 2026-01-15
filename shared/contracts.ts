@@ -72,6 +72,8 @@ export const updateDealSchema = baseUpdateDealSchema
 
 export const moveDealSchema = z.object({
   stageId: z.number().int().positive(),
+  status: z.enum(["open", "won", "lost"]).optional(),
+  lostReason: z.string().optional(),
 });
 
 // ===== PIPELINES =====

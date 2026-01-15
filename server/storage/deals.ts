@@ -204,15 +204,25 @@ export async function deleteDeal(id: number): Promise<void> {
 }
 
 /**
+ * Options for moving a deal to a new stage
+ */
+interface MoveDealOptions {
+  status?: "open" | "won" | "lost";
+  lostReason?: string;
+}
+
+/**
  * Move a deal to a different stage in its pipeline
  * Automatically updates deal status to 'won' or 'lost' if target stage is marked as such
  * @param dealId - Deal ID to move
  * @param stageId - Target stage ID (must be in same pipeline)
+ * @param options - Optional status and lostReason overrides
  * @returns Updated deal or undefined if deal/stage not found or stage not in same pipeline
  */
 export async function moveDealToStage(
   dealId: number,
   stageId: number,
+  options?: MoveDealOptions,
 ): Promise<Deal | undefined> {
   const tenantOrganizationId = await getTenantOrganizationId();
 
@@ -237,13 +247,21 @@ export async function moveDealToStage(
 
   if (stage.pipelineId !== deal.pipelineId) return undefined;
 
-  let status = "open";
-  if (stage.isWon) status = "won";
-  if (stage.isLost) status = "lost";
+  // Use provided status or infer from stage flags
+  let status: string = options?.status || "open";
+  if (!options?.status) {
+    if (stage.isWon) status = "won";
+    if (stage.isLost) status = "lost";
+  }
+
+  const updateData: Record<string, unknown> = { stageId, status, updatedAt: new Date() };
+  if (options?.lostReason !== undefined) {
+    updateData.lostReason = options.lostReason;
+  }
 
   const [updated] = await db
     .update(deals)
-    .set({ stageId, status, updatedAt: new Date() })
+    .set(updateData)
     .where(and(eq(deals.id, dealId), eq(deals.organizationId, tenantOrganizationId)))
     .returning();
   return updated;

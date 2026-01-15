@@ -48,6 +48,7 @@ Sistema de CRM (Customer Relationship Management) desenvolvido para a agencia di
 | Styling | Tailwind CSS | 4.1.18 |
 | Componentes | shadcn/ui + Radix UI | - |
 | Estado | TanStack Query | 5.60.5 |
+| Tabelas | TanStack Table | 8.21.3 |
 | Roteamento | Wouter | 3.3.5 |
 | Backend | Express | 4.21.2 |
 | Linguagem | TypeScript | 5.9.3 |

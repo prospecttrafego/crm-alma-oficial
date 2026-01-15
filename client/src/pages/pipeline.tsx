@@ -22,6 +22,16 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Sheet,
   SheetContent,
   SheetDescription,
@@ -60,6 +70,12 @@ export default function PipelinePage() {
   const [dragOverStage, setDragOverStage] = useState<number | null>(null);
   const [filters, setFilters] = useState<PipelineFilters>({});
   const [selectedPipelineId, setSelectedPipelineId] = useState<number | null>(urlPipelineId);
+  // Lost reason modal state
+  const [lostReasonModalOpen, setLostReasonModalOpen] = useState(false);
+  const [pendingLostDrop, setPendingLostDrop] = useState<{ deal: DealWithRelations; stageId: number } | null>(null);
+  const [lostReason, setLostReason] = useState("");
+  // Form state for dynamic probability display
+  const [probabilityValue, setProbabilityValue] = useState(10);
 
   // Sync URL parameter with state
   useEffect(() => {
@@ -121,10 +137,44 @@ export default function PipelinePage() {
     e.preventDefault();
     setDragOverStage(null);
     if (draggedDeal && draggedDeal.stageId !== stageId) {
-      moveDeal.mutate({ id: draggedDeal.id, data: { stageId } });
+      // Check if target stage is a "lost" stage
+      const targetStage = pipeline?.stages?.find(s => s.id === stageId);
+      if (targetStage?.isLost) {
+        // Show lost reason modal
+        setPendingLostDrop({ deal: draggedDeal, stageId });
+        setLostReason("");
+        setLostReasonModalOpen(true);
+      } else {
+        moveDeal.mutate({ id: draggedDeal.id, data: { stageId } });
+      }
     }
     setDraggedDeal(null);
-  }, [draggedDeal, moveDeal]);
+  }, [draggedDeal, moveDeal, pipeline?.stages]);
+
+  const handleConfirmLostDeal = useCallback(() => {
+    if (pendingLostDrop) {
+      moveDeal.mutate({
+        id: pendingLostDrop.deal.id,
+        data: {
+          stageId: pendingLostDrop.stageId,
+          status: "lost",
+          lostReason: lostReason || undefined,
+        },
+      }, {
+        onSuccess: () => {
+          setLostReasonModalOpen(false);
+          setPendingLostDrop(null);
+          setLostReason("");
+        },
+      });
+    }
+  }, [pendingLostDrop, lostReason, moveDeal]);
+
+  const handleCancelLostDeal = useCallback(() => {
+    setLostReasonModalOpen(false);
+    setPendingLostDrop(null);
+    setLostReason("");
+  }, []);
 
   const handleCreateDeal = useCallback((e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -132,13 +182,22 @@ export default function PipelinePage() {
     const firstStage = pipeline?.stages?.[0];
     if (!firstStage || !pipeline) return;
 
+    const expectedCloseDateValue = formData.get("expectedCloseDate") as string;
     createDeal.mutate({
       title: formData.get("title") as string,
       value: formData.get("value") as string,
       pipelineId: pipeline.id,
       stageId: firstStage.id,
       contactId: formData.get("contactId") ? Number(formData.get("contactId")) : undefined,
+      probability: Number(formData.get("probability")) || 10,
+      expectedCloseDate: expectedCloseDateValue?.trim() ? new Date(expectedCloseDateValue) : null,
+      source: (formData.get("source") as string) || undefined,
       notes: formData.get("notes") as string,
+    }, {
+      onSuccess: () => {
+        setNewDealOpen(false);
+        setProbabilityValue(10);
+      },
     });
   }, [pipeline, createDeal]);
 
@@ -260,7 +319,10 @@ export default function PipelinePage() {
             onFiltersChange={(f) => setFilters(f as PipelineFilters)}
             stages={pipeline?.stages}
           />
-          <Dialog open={newDealOpen} onOpenChange={setNewDealOpen}>
+          <Dialog open={newDealOpen} onOpenChange={(open) => {
+            setNewDealOpen(open);
+            if (!open) setProbabilityValue(10); // Reset on close
+          }}>
           <DialogTrigger asChild>
             <Button className="w-full sm:w-auto" data-testid="button-new-deal">
               <Plus className="mr-2 h-4 w-4" />
@@ -311,6 +373,43 @@ export default function PipelinePage() {
                       </option>
                     ))}
                   </select>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="probability">{t("pipeline.probability")}</Label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        id="probability"
+                        name="probability"
+                        type="range"
+                        min="0"
+                        max="100"
+                        value={probabilityValue}
+                        onChange={(e) => setProbabilityValue(Number(e.target.value))}
+                        className="h-2"
+                        data-testid="input-deal-probability"
+                      />
+                      <span className="text-sm text-muted-foreground w-10 text-right">{probabilityValue}%</span>
+                    </div>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="expectedCloseDate">{t("pipeline.expectedCloseDate")}</Label>
+                    <Input
+                      id="expectedCloseDate"
+                      name="expectedCloseDate"
+                      type="date"
+                      data-testid="input-deal-expectedCloseDate"
+                    />
+                  </div>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="source">{t("contacts.source")}</Label>
+                  <Input
+                    id="source"
+                    name="source"
+                    placeholder={t("pipeline.sourcePlaceholder")}
+                    data-testid="input-deal-source"
+                  />
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="notes">{t("common.notes")}</Label>
@@ -489,6 +588,37 @@ export default function PipelinePage() {
           )}
         </SheetContent>
       </Sheet>
+
+      {/* Lost Reason Modal */}
+      <AlertDialog open={lostReasonModalOpen} onOpenChange={setLostReasonModalOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("pipeline.lostReasonTitle")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("pipeline.lostReasonDescription")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="py-4">
+            <Label htmlFor="lostReason">{t("pipeline.lostReason")}</Label>
+            <Textarea
+              id="lostReason"
+              value={lostReason}
+              onChange={(e) => setLostReason(e.target.value)}
+              placeholder={t("pipeline.lostReasonPlaceholder")}
+              className="mt-2"
+              rows={3}
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={handleCancelLostDeal}>
+              {t("common.cancel")}
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmLostDeal}>
+              {t("common.confirm")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

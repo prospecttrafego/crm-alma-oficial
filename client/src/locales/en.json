@@ -201,6 +201,14 @@
   },
   "settings": {
     "title": "Settings",
+    "subtitle": "Manage your preferences and integrations",
+    "nav": {
+      "profile": "Profile",
+      "notifications": "Notifications",
+      "pipelines": "Pipelines",
+      "templates": "Templates",
+      "integrations": "Integrations"
+    },
     "profile": {
       "title": "Profile",
       "subtitle": "Your personal information",
@@ -248,7 +256,13 @@
       "subtitle": "Connect external services to sync data automatically",
       "connected": "Connected",
       "notConnected": "Not connected",
-      "connect": "Connect"
+      "partiallyConnected": "Partially connected",
+      "notConfigured": "Not configured",
+      "inactive": "Inactive",
+      "connect": "Connect",
+      "whatsappDescription": "Send and receive WhatsApp messages via Evolution API",
+      "emailDescription": "Configure IMAP/SMTP email accounts to sync messages",
+      "calendarDescription": "Sync events with Google Calendar"
     },
     "channels": {
       "title": "Channel Integrations",
@@ -270,6 +284,8 @@
         "emailDescription": "Configure IMAP/SMTP settings to sync emails with your inbox.",
         "whatsappDescription": "Connect your WhatsApp Business API account."
       },
+      "testConnection": "Test connection",
+      "sync": "Sync",
       "toast": {
         "created": "Channel configuration created successfully",
         "createError": "Failed to create channel configuration",
@@ -278,11 +294,17 @@
         "deleted": "Channel configuration deleted successfully",
         "deleteError": "Failed to delete channel configuration",
         "testSuccess": "Connection test successful",
-        "testError": "Connection test failed"
+        "testError": "Connection test failed",
+        "disconnectError": "Failed to disconnect",
+        "syncSuccess": "Sync completed ({{count}} items imported)",
+        "syncError": "Sync failed"
       },
       "email": {
         "title": "Email Configuration",
         "subtitle": "Configure IMAP/SMTP access to sync emails",
+        "noConfigs": "No email accounts configured",
+        "noConfigsDescription": "Add an email account to sync messages with your inbox.",
+        "noEmailSet": "Email not configured",
         "imapHost": "IMAP Server",
         "imapPort": "IMAP Port",
         "imapSecure": "Secure IMAP (SSL/TLS)",
@@ -316,7 +338,16 @@
         "viaEvolution": "WhatsApp via Evolution API",
         "configNamePlaceholder": "e.g., Main WhatsApp, Support",
         "disconnectSuccess": "WhatsApp disconnected successfully",
-        "disconnectError": "Failed to disconnect WhatsApp"
+        "disconnectError": "Failed to disconnect WhatsApp",
+        "noConfigs": "No WhatsApp accounts configured",
+        "noConfigsDescription": "Add a WhatsApp account to send and receive messages.",
+        "scanQr": "Scan QR",
+        "reconnect": "Reconnect",
+        "lastConnected": "Last connected",
+        "disconnectConfirm": {
+          "title": "Disconnect WhatsApp?",
+          "description": "The WhatsApp session will be ended. You will need to scan the QR Code again to reconnect."
+        }
       }
     },
     "googleCalendar": {
@@ -333,11 +364,15 @@
       "syncNow": "Sync now",
       "connected": "Connected",
       "connectedAs": "Connected as {{email}}",
-      "lastSync": "Last sync: {{date}}",
+      "lastSync": "Last sync",
       "neverSynced": "Never synced",
       "never": "Never",
       "notConnected": "Google Calendar not connected",
       "connectDescription": "Connect your Google account to sync events automatically",
+      "syncStatus": "Sync status",
+      "syncSuccess": "Synced successfully",
+      "syncFailed": "Sync failed",
+      "eventsImported": "Events imported",
       "disconnectConfirm": {
         "title": "Disconnect Google Calendar?",
         "description": "This will remove the connection to your Google account. Already synced events will remain in the system."
@@ -559,6 +594,10 @@
       "lost": "Lost"
     },
     "lostReason": "Lost Reason",
+    "lostReasonTitle": "Record Loss",
+    "lostReasonDescription": "Why was this deal lost? Recording the reason helps improve your future strategies.",
+    "lostReasonPlaceholder": "E.g.: High price, competitor, lack of budget...",
+    "sourcePlaceholder": "E.g.: Referral, Google Ads, Social Media...",
     "noDeals": "No deals in this stage",
     "dragToMove": "Drag to move",
     "totalValue": "Total Value",
@@ -566,6 +605,9 @@
   },
   "inbox": {
     "title": "Inbox",
+    "reply": "Reply",
+    "note": "Note",
+    "emojiSearch": "Search emoji...",
     "templates": "Templates",
     "newConversation": "New Conversation",
     "noConversations": "No conversations",
@@ -617,7 +659,15 @@
     "exportContacts": "Export Contacts",
     "detailsAndActivity": "Contact details and activity",
     "activityTimeline": "Activity Timeline",
-    "noActivities": "No activities yet"
+    "noActivities": "No activities yet",
+    "dealsValue": "Deals Value",
+    "openDeals": "Open Deals",
+    "lastActivity": "Last Activity",
+    "createdAt": "Created At",
+    "columns": "Columns",
+    "toggleColumns": "Toggle columns",
+    "viewDetails": "View Details",
+    "deleteConfirm": "Are you sure you want to delete \"{{name}}\"?"
   },
   "activities": {
     "title": "Activities",

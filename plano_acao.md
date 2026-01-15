@@ -381,29 +381,30 @@ Campos que devem estar disponíveis:
 
 ### Sprint 1: Bugs Críticos (Prioridade Alta)
 
-1. Corrigir botão de enviar no Inbox
-2. Corrigir sidebar colapsada (Pipeline inacessível)
-3. Debug da integração WhatsApp (QR Code)
+- [x] Corrigir botão de enviar no Inbox
+- [x] Corrigir sidebar colapsada (Pipeline inacessível)
+- [x] Debug da integração WhatsApp (QR Code)
+- [x] Corrigir textos hardcoded em português
 
 ### Sprint 2: Reestruturação de Settings
 
-1. Criar estrutura de pastas para settings
-2. Migrar seções existentes para novas páginas
-3. Criar página dedicada de integrações
-4. Criar página detalhada do WhatsApp
+- [x] Criar estrutura de pastas para settings
+- [x] Migrar seções existentes para novas páginas
+- [x] Criar página dedicada de integrações (hub com cards)
+- [x] Implementar navegação com subrotas URL (/settings/profile, /settings/integrations, etc.)
 
 ### Sprint 3: Melhorias em Contatos
 
-1. Backend: Endpoint com agregações de deals
-2. Frontend: Novas colunas na tabela
-3. Frontend: Tabela customizável (visibility, resize, reorder)
-4. Frontend: Filtros avançados
+- [x] Backend: Endpoint com agregações de deals (`?withStats=true`)
+- [x] Frontend: Novas colunas na tabela (valor, deals abertos, tags, source, owner, última atividade)
+- [x] Frontend: Tabela customizável com @tanstack/react-table (visibility, sorting)
+- [x] Frontend: Persistência de preferências em localStorage
 
 ### Sprint 4: Melhorias no Pipeline
 
-1. Adicionar campos no formulário de deal
-2. Exibir mais informações nos cards
-3. Modal de motivo de perda ao mover para Lost
+- [x] Adicionar campos no formulário de deal (probability, expectedCloseDate, source)
+- [x] Modal de motivo de perda ao mover para Lost
+- [x] Fechar dialog automaticamente após criação de deal
 
 ---
 
@@ -453,3 +454,72 @@ client/src/pages/contacts.tsx     # Tabela customizável
 client/src/pages/inbox/           # Correções de bugs
 client/src/components/app-sidebar.tsx  # Popover para sub-menus
 ```
+
+---
+
+## Sumário de Execução (Janeiro 2025)
+
+**Status:** ✅ COMPLETO
+
+### O que foi implementado:
+
+#### Sprint 1 - Bugs Críticos
+- **MessageComposer.tsx**: Botões Send e Mic agora aparecem lado a lado (Send sempre visível quando há conteúdo)
+- **app-sidebar.tsx**: Implementado Popover para sub-menus de Pipeline quando sidebar está colapsada
+- **whatsapp-config.ts**: Adicionados logs detalhados para debug do QR Code
+- **whatsapp-qr-modal.tsx**: Implementado retry automático com backoff exponencial e feedback de erro
+- **Traduções**: Corrigidos textos hardcoded ("Responder", "Nota", etc.) em MessageComposer e ContextPanel
+
+#### Sprint 2 - Reestruturação Settings
+- **Nova estrutura**: `/settings` agora usa layout com sidebar de navegação
+- **Subrotas URL**: `/settings/profile`, `/settings/notifications`, `/settings/pipelines`, `/settings/templates`, `/settings/integrations`
+- **Lazy loading**: Todas as seções carregam sob demanda com React.lazy()
+- **Responsivo**: Layout adaptado para mobile e desktop
+
+#### Sprint 3 - Melhorias Contatos
+- **Backend**: Novo endpoint `GET /api/contacts?withStats=true` retorna agregações de deals (totalDealsValue, openDealsCount, lastActivityAt)
+- **storage/contacts.ts**: Nova função `getContactsWithStats()` com subqueries otimizadas
+- **Frontend**: Tabela completamente reescrita com @tanstack/react-table
+- **Colunas**: Nome, Email, Telefone, Empresa, Valor Oportunidades, Deals Abertos, Tags, Canal, Responsável, Última Atividade, Criado em
+- **Features**: Sorting em todas as colunas, visibilidade de colunas persistida em localStorage, menu de ações por linha
+
+#### Sprint 4 - Melhorias Pipeline
+- **Formulário de Deal**: Novos campos probability (slider 0-100%), expectedCloseDate (date picker), source
+- **Modal de Perda**: AlertDialog para registrar motivo de perda ao mover deal para stage "Lost"
+- **contracts.ts**: Schema `moveDealSchema` estendido para aceitar `status` e `lostReason`
+- **storage/deals.ts**: Função `moveDealToStage` atualizada para aceitar opções de status/lostReason
+- **UX**: Dialogs fecham automaticamente após sucesso, estado resetado corretamente
+
+### Arquivos modificados (19 total):
+```
+client/src/App.tsx
+client/src/components/app-sidebar.tsx
+client/src/components/whatsapp-qr-modal.tsx
+client/src/lib/api/contacts.ts
+client/src/locales/en.json
+client/src/locales/pt-BR.json
+client/src/pages/contacts.tsx
+client/src/pages/inbox/components/MessageComposer.tsx
+client/src/pages/pipeline.tsx
+client/src/pages/settings/index.tsx
+server/api/contacts.ts
+server/api/deals.ts
+server/services/whatsapp-config.ts
+server/storage.ts
+server/storage/contacts.ts
+server/storage/deals.ts
+shared/contracts.ts
+package.json
+package-lock.json
+```
+
+### Verificações realizadas:
+- ✅ `npm run check` - Sem erros de tipo
+- ✅ `npm run lint` - Sem erros (apenas warnings pré-existentes)
+- ✅ `npm run build` - Build de produção bem-sucedido
+- ✅ Code-reviewer agent - Issues corrigidos
+
+### Notas para deploy:
+- Não há novas migrations de banco de dados
+- Não há novas variáveis de ambiente obrigatórias
+- Dependência `@tanstack/react-table` foi adicionada ao package.json

@@ -34,6 +34,11 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/hooks/useAuth";
 import { useTranslation } from "@/contexts/LanguageContext";
@@ -160,46 +165,87 @@ export function AppSidebar() {
                 </SidebarMenuItem>
               ))}
 
-              {/* Pipeline with submenu */}
-              <Collapsible
-                asChild
-                defaultOpen={location.startsWith("/pipeline")}
-                className="group/collapsible"
-              >
-                <SidebarMenuItem>
-                  <CollapsibleTrigger asChild>
-                    <SidebarMenuButton
-                      tooltip={t("nav.pipeline")}
-                      isActive={location.startsWith("/pipeline")}
-                    >
-                      <Kanban className="h-4 w-4" />
-                      <span>{t("nav.pipeline")}</span>
-                      <ChevronRight className="ml-auto h-4 w-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
-                    </SidebarMenuButton>
-                  </CollapsibleTrigger>
-                  <CollapsibleContent>
-                    <SidebarMenuSub>
-                      {pipelines.map((pipeline) => (
-                        <SidebarMenuSubItem key={pipeline.id}>
-                          <SidebarMenuSubButton
-                            asChild
-                            isActive={location === `/pipeline/${pipeline.id}`}
+              {/* Pipeline with submenu - uses Popover when collapsed, Collapsible when expanded */}
+              {isCollapsed ? (
+                <Popover>
+                  <SidebarMenuItem>
+                    <PopoverTrigger asChild>
+                      <SidebarMenuButton
+                        tooltip={t("nav.pipeline")}
+                        isActive={location.startsWith("/pipeline")}
+                      >
+                        <Kanban className="h-4 w-4" />
+                        <span>{t("nav.pipeline")}</span>
+                      </SidebarMenuButton>
+                    </PopoverTrigger>
+                    <PopoverContent side="right" align="start" className="w-48 p-1">
+                      <div className="flex flex-col gap-1">
+                        {pipelines.map((pipeline) => (
+                          <Link
+                            key={pipeline.id}
+                            href={`/pipeline/${pipeline.id}`}
+                            className={`flex items-center justify-between rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-accent ${
+                              location === `/pipeline/${pipeline.id}` ? "bg-accent" : ""
+                            }`}
                           >
-                            <Link href={`/pipeline/${pipeline.id}`}>
-                              <span>{pipeline.name}</span>
-                              {pipeline.isDefault && (
-                                <span className="ml-auto text-[10px] text-muted-foreground">
-                                  {t("settings.pipelines.default")}
-                                </span>
-                              )}
-                            </Link>
-                          </SidebarMenuSubButton>
-                        </SidebarMenuSubItem>
-                      ))}
-                    </SidebarMenuSub>
-                  </CollapsibleContent>
-                </SidebarMenuItem>
-              </Collapsible>
+                            <span>{pipeline.name}</span>
+                            {pipeline.isDefault && (
+                              <span className="text-[10px] text-muted-foreground">
+                                {t("settings.pipelines.default")}
+                              </span>
+                            )}
+                          </Link>
+                        ))}
+                        {pipelines.length === 0 && (
+                          <span className="px-2 py-1.5 text-sm text-muted-foreground">
+                            {t("settings.pipelines.noPipelines")}
+                          </span>
+                        )}
+                      </div>
+                    </PopoverContent>
+                  </SidebarMenuItem>
+                </Popover>
+              ) : (
+                <Collapsible
+                  asChild
+                  defaultOpen={location.startsWith("/pipeline")}
+                  className="group/collapsible"
+                >
+                  <SidebarMenuItem>
+                    <CollapsibleTrigger asChild>
+                      <SidebarMenuButton
+                        tooltip={t("nav.pipeline")}
+                        isActive={location.startsWith("/pipeline")}
+                      >
+                        <Kanban className="h-4 w-4" />
+                        <span>{t("nav.pipeline")}</span>
+                        <ChevronRight className="ml-auto h-4 w-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+                      </SidebarMenuButton>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <SidebarMenuSub>
+                        {pipelines.map((pipeline) => (
+                          <SidebarMenuSubItem key={pipeline.id}>
+                            <SidebarMenuSubButton
+                              asChild
+                              isActive={location === `/pipeline/${pipeline.id}`}
+                            >
+                              <Link href={`/pipeline/${pipeline.id}`}>
+                                <span>{pipeline.name}</span>
+                                {pipeline.isDefault && (
+                                  <span className="ml-auto text-[10px] text-muted-foreground">
+                                    {t("settings.pipelines.default")}
+                                  </span>
+                                )}
+                              </Link>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        ))}
+                      </SidebarMenuSub>
+                    </CollapsibleContent>
+                  </SidebarMenuItem>
+                </Collapsible>
+              )}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

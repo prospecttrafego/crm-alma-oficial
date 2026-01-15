@@ -18,28 +18,32 @@ import { storage } from "../storage";
 
 export function registerContactRoutes(app: Express) {
   // GET /api/contacts - Listar contatos (com paginacao opcional)
+  // Query params:
+  //   - withStats=true: Retorna contatos com estatisticas agregadas (deals, activities)
+  //   - page, limit, search, sortBy, sortOrder: Paginacao (nao combinavel com withStats)
   app.get(
     "/api/contacts",
     isAuthenticated,
     validateQuery(paginationQuerySchema),
     asyncHandler(async (req, res) => {
+      const org = await storage.getDefaultOrganization();
+      if (!org) {
+        return sendSuccess(res, []);
+      }
+
+      // Check for withStats flag
+      const withStats = req.query?.withStats === "true";
+      if (withStats) {
+        const contactsWithStats = await storage.getContactsWithStats(org.id);
+        return sendSuccess(res, contactsWithStats);
+      }
+
       const paginationRequested =
         req.query?.page !== undefined ||
         req.query?.limit !== undefined ||
         req.query?.search !== undefined ||
         req.query?.sortBy !== undefined ||
         req.query?.sortOrder !== undefined;
-
-      const org = await storage.getDefaultOrganization();
-      if (!org) {
-        if (!paginationRequested) return sendSuccess(res, []);
-        const page = req.validatedQuery.page ?? 1;
-        const limit = req.validatedQuery.limit ?? 20;
-        return sendSuccess(res, {
-          data: [],
-          pagination: { page, limit, total: 0, totalPages: 0, hasMore: false },
-        });
-      }
 
       const { page, limit, search, sortBy, sortOrder } = req.validatedQuery;
 

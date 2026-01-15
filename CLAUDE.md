@@ -512,6 +512,7 @@ Endpoints que suportam modo assíncrono (`?async=true`):
 
 ```
 GET    /api/contacts                    # Listar contatos
+GET    /api/contacts?withStats=true     # Listar contatos com agregacoes (totalDealsValue, openDealsCount, lastActivityAt)
 POST   /api/contacts                    # Criar contato
 GET    /api/contacts/:id                # Detalhes do contato
 PATCH  /api/contacts/:id                # Atualizar contato
@@ -539,7 +540,7 @@ POST   /api/deals                       # Criar deal
 GET    /api/deals/:id                   # Detalhes do deal
 PATCH  /api/deals/:id                   # Atualizar deal
 DELETE /api/deals/:id                   # Excluir deal
-PATCH  /api/deals/:id/stage             # Mover deal de stage
+PATCH  /api/deals/:id/stage             # Mover deal de stage (aceita status e lostReason opcionais)
 ```
 
 ### Conversas e Mensagens

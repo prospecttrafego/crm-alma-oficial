@@ -5,7 +5,7 @@
 
 import { evolutionApi } from "../integrations/evolution/api";
 import { storage } from "../storage";
-import { logger } from "../logger";
+import { logger, whatsappLogger } from "../logger";
 import type { ChannelConfig } from "@shared/schema";
 
 export interface WhatsAppConnectionResult {
@@ -43,23 +43,42 @@ export async function connectWhatsApp(
   config: ChannelConfig,
   userId: string
 ): Promise<WhatsAppConnectionResult> {
+  whatsappLogger.info("[WhatsApp] Starting connection process", {
+    channelConfigId: config.id,
+    organizationId: config.organizationId,
+    userId,
+  });
+
   if (!evolutionApi.isConfigured()) {
+    whatsappLogger.error("[WhatsApp] Evolution API is not configured", {
+      hasUrl: !!process.env.EVOLUTION_API_URL,
+      hasKey: !!process.env.EVOLUTION_API_KEY,
+    });
     throw new Error("Evolution API is not configured");
   }
 
   if (process.env.NODE_ENV === "production" && !process.env.EVOLUTION_WEBHOOK_SECRET) {
+    whatsappLogger.error("[WhatsApp] EVOLUTION_WEBHOOK_SECRET is required in production");
     throw new Error("EVOLUTION_WEBHOOK_SECRET is required in production to validate webhooks");
   }
 
   const organizationId = config.organizationId;
   const instanceName = buildInstanceName(organizationId, config.id);
+  whatsappLogger.info("[WhatsApp] Instance name built", { instanceName });
 
   // Check if instance already exists
+  whatsappLogger.debug("[WhatsApp] Checking if instance exists...");
   const existingInstance = await evolutionApi.getInstanceInfo(instanceName);
+  whatsappLogger.info("[WhatsApp] Instance check result", {
+    instanceName,
+    exists: !!existingInstance,
+  });
 
   if (!existingInstance) {
     // Create new instance
+    whatsappLogger.info("[WhatsApp] Creating new instance...", { instanceName });
     await evolutionApi.createInstance(instanceName);
+    whatsappLogger.info("[WhatsApp] Instance created successfully", { instanceName });
   }
 
   // Set (or refresh) webhook URL for this instance
@@ -69,10 +88,41 @@ export async function connectWhatsApp(
   if (webhookSecret) {
     webhookUrl.searchParams.set("token", webhookSecret);
   }
+  // Log webhook URL without exposing the token
+  const logUrl = new URL(webhookUrl.toString());
+  if (logUrl.searchParams.has("token")) {
+    logUrl.searchParams.set("token", "***");
+  }
+  whatsappLogger.info("[WhatsApp] Setting webhook", {
+    instanceName,
+    webhookUrl: logUrl.toString(),
+  });
   await evolutionApi.setWebhook(instanceName, webhookUrl.toString());
+  whatsappLogger.info("[WhatsApp] Webhook set successfully");
 
   // Get QR code
+  whatsappLogger.info("[WhatsApp] Requesting QR code...", { instanceName });
   const qrData = await evolutionApi.getQrCode(instanceName);
+  whatsappLogger.info("[WhatsApp] QR code response received", {
+    instanceName,
+    hasBase64: !!qrData?.base64,
+    hasCode: !!qrData?.code,
+    hasPairingCode: !!qrData?.pairingCode,
+    base64Length: qrData?.base64?.length || 0,
+    codeLength: qrData?.code?.length || 0,
+  });
+
+  // Validate QR code response
+  if (!qrData || (!qrData.base64 && !qrData.code)) {
+    whatsappLogger.error("[WhatsApp] QR Code response is empty or invalid", {
+      instanceName,
+      hasBase64: !!qrData?.base64,
+      hasCode: !!qrData?.code,
+      hasPairingCode: !!qrData?.pairingCode,
+      // Don't log the actual QR data to avoid security risks
+    });
+    throw new Error("Failed to get QR Code from Evolution API - empty response");
+  }
 
   // Update channel config with instance name and QR code
   const whatsappConfig = (config.whatsappConfig || {}) as Record<string, unknown>;

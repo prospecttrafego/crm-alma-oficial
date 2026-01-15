@@ -173,9 +173,10 @@ export function registerDealRoutes(app: Express) {
     validateBody(moveDealSchema),
     asyncHandler(async (req, res) => {
       const { id } = req.validatedParams;
+      const { stageId, status, lostReason } = req.validatedBody;
       const userId = getCurrentUser(req)!.id;
 
-      const deal = await storage.moveDealToStage(id, req.validatedBody.stageId);
+      const deal = await storage.moveDealToStage(id, stageId, { status, lostReason });
       if (!deal) {
         return sendNotFound(res, "Deal not found");
       }
