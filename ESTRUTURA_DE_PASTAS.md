@@ -92,11 +92,22 @@ client/
 - O que evitar: mudar a “API” dos componentes (props) sem checar onde eles são usados, porque isso quebra telas.
 
 #### `client/src/hooks/`
-- O que é: “atalhos” de lógica do frontend (ex.: autenticação, WebSocket, notificações).
+- O que é: "atalhos" de lógica do frontend (ex.: autenticação, WebSocket, notificações, push).
+- Hooks principais:
+  - `useAuth.ts`: autenticação e sessão
+  - `useWebSocket.ts`: conexão WebSocket e eventos real-time
+  - `useDesktopNotifications.ts`: Web Notifications API (notificações desktop)
+  - `usePushNotifications.ts`: Firebase Cloud Messaging (push)
+  - `useToast.ts`: notificações toast in-app
 - O que pode mudar: melhorar organização, separar hooks por tema, adicionar novos hooks para features.
 
 #### `client/src/lib/`
 - O que é: utilitários e configurações do frontend (ex.: cliente de API, helpers, formatações).
+- Subpastas principais:
+  - `lib/api/`: clientes de API tipados (contacts, deals, conversations, search, auditLogs, etc.)
+  - `lib/firebase.ts`: configuração Firebase (push)
+  - `lib/queryClient.ts`: configuração TanStack Query
+  - `lib/utils.ts`: utilitários gerais (cn, formatters)
 - O que pode mudar: centralizar chamadas HTTP, melhorar helpers, configurar libs.
 
 #### `client/src/contexts/`
@@ -152,6 +163,8 @@ O que você encontra aqui (exemplos reais):
 - `server/api/deals.ts`: deals (`/api/deals`)
 - `server/api/conversations.ts`: inbox (conversas/mensagens)
 - `server/api/files.ts`: arquivos (upload/download/transcrição)
+- `server/api/search.ts`: busca global (contacts, deals, conversations)
+- `server/api/auditLogs.ts`: logs de auditoria (com filtros e paginação)
 - `server/api/channelConfigs.ts`: configurações de canais (email/whatsapp)
 - `server/api/googleCalendar.ts`: rotas da integração do Google Calendar
 - `server/api/evolution.ts`: status + webhook do WhatsApp (Evolution API)

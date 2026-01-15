@@ -49,6 +49,7 @@ import type {
 import type { PaginationParams, PaginatedResult } from "./storage/helpers";
 import type { UpdateUserProfileInput } from "./storage/users";
 import type { ContactWithStats } from "./storage/contacts";
+import type { AuditLogsFilters, PaginatedAuditLogsResult } from "./storage/auditLogs";
 
 import * as usersStorage from "./storage/users";
 import * as organizationsStorage from "./storage/organizations";
@@ -250,6 +251,7 @@ export interface IStorage {
 
   // Audit logs
   getAuditLogs(organizationId: number, limit?: number): Promise<AuditLog[]>;
+  getAuditLogsPaginated(filters: AuditLogsFilters, page?: number, limit?: number): Promise<PaginatedAuditLogsResult>;
   getAuditLogsByEntity(entityType: AuditLogEntityType, entityId: number): Promise<AuditLog[]>;
   createAuditLog(log: InsertAuditLog): Promise<AuditLog>;
 

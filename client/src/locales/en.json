@@ -96,7 +96,17 @@
     "navigation": "Navigation",
     "quickActions": "Quick Actions",
     "newDeal": "Create New Deal",
-    "newContact": "Add New Contact"
+    "newContact": "Add New Contact",
+    "searchResults": "Search Results",
+    "contacts": "Contacts",
+    "deals": "Deals",
+    "conversations": "Conversations",
+    "searching": "Searching...",
+    "typeToSearch": "Type to search contacts, deals and conversations",
+    "recentSearches": "Recent Searches",
+    "clearRecent": "Clear history",
+    "createDealFor": "Create deal for",
+    "noSearchResults": "No results for"
   },
   "notifications": {
     "title": "Notifications",
@@ -108,9 +118,12 @@
     "title": "Audit Log",
     "subtitle": "Track all changes made to your CRM data",
     "empty": "No audit logs yet. Changes to deals, contacts, and companies will appear here.",
+    "noResults": "No results found with the applied filters.",
     "system": "System",
     "unknownUser": "Unknown User",
     "by": "by",
+    "exportCsv": "Export CSV",
+    "showing": "Showing {{from}}-{{to}} of {{total}} records",
     "table": {
       "timestamp": "Timestamp",
       "user": "User",
@@ -118,10 +131,30 @@
       "entityType": "Entity Type",
       "entityName": "Entity Name"
     },
+    "filters": {
+      "title": "Filters",
+      "action": "Action",
+      "entityType": "Entity Type",
+      "user": "User",
+      "dateFrom": "Date From",
+      "dateTo": "Date To",
+      "allActions": "All Actions",
+      "allEntities": "All Entities",
+      "allUsers": "All Users",
+      "selectDate": "Select",
+      "clear": "Clear"
+    },
+    "pagination": {
+      "page": "Page {{current}} of {{total}}",
+      "previous": "Previous",
+      "next": "Next"
+    },
     "actions": {
       "create": "Created",
       "update": "Updated",
-      "delete": "Deleted"
+      "delete": "Deleted",
+      "lgpd_export": "LGPD Export",
+      "lgpd_delete": "LGPD Delete"
     },
     "entities": {
       "deal": "Deal",
@@ -130,7 +163,9 @@
       "conversation": "Conversation",
       "activity": "Activity",
       "pipeline": "Pipeline",
-      "email_template": "Email Template"
+      "email_template": "Email Template",
+      "file": "File",
+      "integration": "Integration"
     }
   },
   "entityHistory": {
@@ -184,7 +219,15 @@
       "saved": "View saved successfully",
       "saveError": "Failed to save view",
       "deleted": "View deleted"
-    }
+    },
+    "filter": "filter",
+    "filtersCount": "filters",
+    "source": "Source",
+    "allSources": "All sources",
+    "tags": "Tags",
+    "hasDeals": "Has deals",
+    "withDeals": "Only with deals",
+    "allContacts": "All contacts"
   },
   "notFound": {
     "title": "404 Page Not Found",

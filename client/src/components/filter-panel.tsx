@@ -25,7 +25,19 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Filter, Save, X, ChevronDown, Trash2, Calendar } from "lucide-react";
+import {
+  Filter,
+  Save,
+  X,
+  ChevronDown,
+  Trash2,
+  Calendar,
+  Inbox,
+  Kanban,
+  Users,
+  FileText,
+  Tag,
+} from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { savedViewsApi } from "@/lib/api/savedViews";
 import { usersApi } from "@/lib/api/users";
@@ -53,14 +65,56 @@ export interface InboxFilters {
   assignedToId?: string;
 }
 
-interface FilterPanelProps {
-  type: "pipeline" | "inbox";
-  filters: PipelineFilters | InboxFilters;
-  onFiltersChange: (filters: PipelineFilters | InboxFilters) => void;
+export interface ContactsFilters {
+  source?: string;
+  tags?: string[];
+  hasDeals?: boolean;
+}
+
+export interface AuditLogFilters {
+  action?: string;
+  entityType?: string;
+  userId?: string;
+  dateFrom?: string;
+  dateTo?: string;
+}
+
+type FilterType = "pipeline" | "inbox" | "contacts" | "auditLog";
+type FilterTypeMap = {
+  pipeline: PipelineFilters;
+  inbox: InboxFilters;
+  contacts: ContactsFilters;
+  auditLog: AuditLogFilters;
+};
+
+interface FilterPanelProps<T extends FilterType = FilterType> {
+  type: T;
+  filters: FilterTypeMap[T];
+  onFiltersChange: (filters: FilterTypeMap[T]) => void;
   stages?: PipelineStage[];
 }
 
-export function FilterPanel({ type, filters, onFiltersChange, stages }: FilterPanelProps) {
+// Icons and colors for saved views based on type
+const savedViewIcons: Record<string, typeof Kanban> = {
+  pipeline: Kanban,
+  inbox: Inbox,
+  contacts: Users,
+  auditLog: FileText,
+};
+
+const savedViewColors: Record<string, string> = {
+  pipeline: "bg-green-500/10 text-green-600 dark:text-green-400",
+  inbox: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
+  contacts: "bg-purple-500/10 text-purple-600 dark:text-purple-400",
+  auditLog: "bg-orange-500/10 text-orange-600 dark:text-orange-400",
+};
+
+export function FilterPanel<T extends FilterType>({
+  type,
+  filters,
+  onFiltersChange,
+  stages,
+}: FilterPanelProps<T>) {
   const { toast } = useToast();
   const { t, language } = useTranslation();
   const locale = language === "pt-BR" ? ptBR : enUS;
@@ -412,37 +466,59 @@ export function FilterPanel({ type, filters, onFiltersChange, stages }: FilterPa
 
       {savedViews && savedViews.length > 0 && (
         <Popover>
-        <PopoverTrigger asChild>
-          <Button variant="outline" size="sm" data-testid="button-saved-views">
-            {t("filters.savedViews")}
-            <ChevronDown className="ml-2 h-4 w-4" />
-          </Button>
-        </PopoverTrigger>
-          <PopoverContent className="w-64" align="start">
+          <PopoverTrigger asChild>
+            <Button variant="outline" size="sm" data-testid="button-saved-views">
+              {t("filters.savedViews")}
+              <Badge variant="secondary" className="ml-2">
+                {savedViews.length}
+              </Badge>
+              <ChevronDown className="ml-2 h-4 w-4" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-72" align="start">
             <div className="space-y-1">
-              {savedViews.map((view) => (
-                <div
-                  key={view.id}
-                  className="flex items-center justify-between rounded-md p-2 hover-elevate"
-                >
-                  <button
-                    className="flex-1 text-left text-sm"
-                    onClick={() => handleLoadView(view)}
-                    data-testid={`saved-view-${view.id}`}
+              {savedViews.map((view) => {
+                const ViewIcon = savedViewIcons[type] || Tag;
+                const viewColor = savedViewColors[type] || "bg-muted text-muted-foreground";
+                const filterCount = Object.values(view.filters || {}).filter(
+                  (v) => v !== undefined && v !== ""
+                ).length;
+
+                return (
+                  <div
+                    key={view.id}
+                    className="flex items-center justify-between rounded-md p-2 hover:bg-muted/50 transition-colors"
                   >
-                    {view.name}
-                  </button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6"
-                    onClick={() => deleteViewMutation.mutate(view.id)}
-                    data-testid={`delete-view-${view.id}`}
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </Button>
-                </div>
-              ))}
+                    <button
+                      className="flex flex-1 items-center gap-2 text-left"
+                      onClick={() => handleLoadView(view)}
+                      data-testid={`saved-view-${view.id}`}
+                    >
+                      <span className={`flex h-6 w-6 items-center justify-center rounded ${viewColor}`}>
+                        <ViewIcon className="h-3.5 w-3.5" />
+                      </span>
+                      <div className="flex flex-col">
+                        <span className="text-sm font-medium">{view.name}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {filterCount} {filterCount === 1 ? t("filters.filter") : t("filters.filtersCount")}
+                        </span>
+                      </div>
+                    </button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deleteViewMutation.mutate(view.id);
+                      }}
+                      data-testid={`delete-view-${view.id}`}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                );
+              })}
             </div>
           </PopoverContent>
         </Popover>

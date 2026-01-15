@@ -96,7 +96,17 @@
     "navigation": "Navegação",
     "quickActions": "Ações rápidas",
     "newDeal": "Criar novo negócio",
-    "newContact": "Adicionar novo contato"
+    "newContact": "Adicionar novo contato",
+    "searchResults": "Resultados da busca",
+    "contacts": "Contatos",
+    "deals": "Negócios",
+    "conversations": "Conversas",
+    "searching": "Buscando...",
+    "typeToSearch": "Digite para buscar contatos, negócios e conversas",
+    "recentSearches": "Buscas recentes",
+    "clearRecent": "Limpar histórico",
+    "createDealFor": "Criar negócio para",
+    "noSearchResults": "Nenhum resultado para"
   },
   "notifications": {
     "title": "Notificações",
@@ -108,9 +118,12 @@
     "title": "Log de auditoria",
     "subtitle": "Acompanhe todas as mudanças feitas nos dados do CRM",
     "empty": "Nenhum log de auditoria ainda. Mudanças em negócios, contatos e empresas aparecerão aqui.",
+    "noResults": "Nenhum resultado encontrado com os filtros aplicados.",
     "system": "Sistema",
     "unknownUser": "Usuário desconhecido",
     "by": "por",
+    "exportCsv": "Exportar CSV",
+    "showing": "Mostrando {{from}}-{{to}} de {{total}} registros",
     "table": {
       "timestamp": "Data/hora",
       "user": "Usuário",
@@ -118,10 +131,30 @@
       "entityType": "Tipo de entidade",
       "entityName": "Nome da entidade"
     },
+    "filters": {
+      "title": "Filtros",
+      "action": "Ação",
+      "entityType": "Tipo de entidade",
+      "user": "Usuário",
+      "dateFrom": "Data inicial",
+      "dateTo": "Data final",
+      "allActions": "Todas as ações",
+      "allEntities": "Todas as entidades",
+      "allUsers": "Todos os usuários",
+      "selectDate": "Selecionar",
+      "clear": "Limpar"
+    },
+    "pagination": {
+      "page": "Página {{current}} de {{total}}",
+      "previous": "Anterior",
+      "next": "Próxima"
+    },
     "actions": {
       "create": "Criado",
       "update": "Atualizado",
-      "delete": "Excluído"
+      "delete": "Excluído",
+      "lgpd_export": "Exportação LGPD",
+      "lgpd_delete": "Exclusão LGPD"
     },
     "entities": {
       "deal": "Negócio",
@@ -130,7 +163,9 @@
       "conversation": "Conversa",
       "activity": "Atividade",
       "pipeline": "Funil",
-      "email_template": "Modelo de e-mail"
+      "email_template": "Modelo de e-mail",
+      "file": "Arquivo",
+      "integration": "Integração"
     }
   },
   "entityHistory": {
@@ -184,7 +219,15 @@
       "saved": "Visão salva com sucesso",
       "saveError": "Falha ao salvar visão",
       "deleted": "Visão excluída"
-    }
+    },
+    "filter": "filtro",
+    "filtersCount": "filtros",
+    "source": "Origem",
+    "allSources": "Todas as origens",
+    "tags": "Tags",
+    "hasDeals": "Com negócios",
+    "withDeals": "Apenas com negócios",
+    "allContacts": "Todos os contatos"
   },
   "notFound": {
     "title": "404 - Página não encontrada",

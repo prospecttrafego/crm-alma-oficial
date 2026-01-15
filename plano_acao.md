@@ -343,57 +343,64 @@
 
 ## MILESTONE 7: Features Faltantes
 
-**Prioridade:** BAIXA-MEDIA | **Status:** Pendente
+**Prioridade:** BAIXA-MEDIA | **Status:** ✅ Concluido
 
-### 7.1 Command Palette Expandido
+### 7.1 Command Palette Expandido ✅
 
-- [ ] Criar endpoint `GET /api/search?q=termo`
-- [ ] Buscar contacts, deals, conversations
-- [ ] Adicionar acoes contextuais ("Criar deal para X")
-- [ ] Historico de comandos recentes
-- [ ] **Arquivos:**
+- [x] Criar endpoint `GET /api/search?q=termo`
+- [x] Buscar contacts, deals, conversations
+- [x] Adicionar acoes contextuais ("Criar deal para X")
+- [x] Historico de comandos recentes (localStorage)
+- [x] Debounced search (300ms)
+- [x] **Arquivos:**
   - `server/api/search.ts` (novo)
   - `client/src/lib/api/search.ts` (novo)
   - `client/src/components/command-palette.tsx`
 
-### 7.2 Saved Views UI Expandido
+### 7.2 Saved Views UI Expandido ✅
 
-- [ ] Adicionar Saved Views na pagina de Contacts
-- [ ] Adicionar Saved Views na pagina de Audit Log
-- [ ] Icones personalizados por view
-- [ ] Cores/badges visuais
-- [ ] **Arquivos:**
+- [x] Adicionar Saved Views na pagina de Contacts
+- [x] Adicionar Saved Views na pagina de Audit Log
+- [x] Icones personalizados por view
+- [x] Cores/badges visuais
+- [x] Contador de filtros ativos
+- [x] **Arquivos:**
   - `client/src/pages/contacts/index.tsx`
   - `client/src/pages/audit-log.tsx`
   - `client/src/components/filter-panel.tsx`
+  - `shared/schema.ts` (adicionado "auditLog" em savedViewTypes)
 
-### 7.3 Notifications Real-time
+### 7.3 Notifications Real-time ✅
 
-- [ ] Substituir polling por WebSocket real-time
-- [ ] Incrementar badge instantaneamente ao receber `notification:new`
-- [ ] Toast para notificacoes importantes (nova mensagem, deal ganho)
-- [ ] Web Notifications API (quando aba inativa)
-- [ ] **Arquivos:**
+- [x] Reduzir polling (WebSocket e a fonte primaria de atualizacoes)
+- [x] Incrementar badge instantaneamente ao receber `notification:new`
+- [x] Toast para notificacoes importantes (deal_won, deal_lost, mention, task_due)
+- [x] Web Notifications API (quando aba inativa)
+- [x] Animacao de sino (BellRing) quando ha notificacoes
+- [x] Solicitar permissao de notificacoes desktop no primeiro clique
+- [x] **Arquivos:**
   - `client/src/components/notification-bell.tsx`
-  - `client/src/hooks/useWebSocket.ts`
   - `client/src/hooks/useDesktopNotifications.ts` (novo)
 
-### 7.4 Audit Log Filtros
+### 7.4 Audit Log Filtros ✅
 
 #### Backend
-- [ ] Expandir query com filtros: action, entityType, userId, dateFrom, dateTo
-- [ ] Adicionar paginacao
+- [x] Expandir query com filtros: action, entityType, userId, dateFrom, dateTo
+- [x] Adicionar paginacao com metadados (page, limit, total, totalPages, hasMore)
 
 #### Frontend
-- [ ] Select para action (create/update/delete)
-- [ ] Select para entityType
-- [ ] Select para usuario
-- [ ] DatePicker para range de datas
-- [ ] Botao exportar CSV
+- [x] Select para action (create/update/delete/lgpd_export/lgpd_delete)
+- [x] Select para entityType (deal, contact, company, etc.)
+- [x] Select para usuario
+- [x] DatePicker para range de datas
+- [x] Botao exportar CSV
+- [x] Contador de resultados ("Mostrando X-Y de Z registros")
+- [x] Controles de paginacao
 
-- [ ] **Arquivos:**
-  - `server/storage/auditLogs.ts`
+- [x] **Arquivos:**
+  - `server/storage/auditLogs.ts` (getAuditLogsPaginated)
   - `server/api/auditLogs.ts`
+  - `client/src/lib/api/auditLogs.ts` (novo)
   - `client/src/pages/audit-log.tsx`
 
 ---

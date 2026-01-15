@@ -328,7 +328,7 @@ export const activityStatuses = ["pending", "completed", "cancelled"] as const;
 export type ActivityStatus = (typeof activityStatuses)[number];
 
 // Saved view types
-export const savedViewTypes = ["pipeline", "inbox", "contacts", "companies", "deals", "activities"] as const;
+export const savedViewTypes = ["pipeline", "inbox", "contacts", "companies", "deals", "activities", "auditLog"] as const;
 export type SavedViewType = (typeof savedViewTypes)[number];
 
 // Saved views table

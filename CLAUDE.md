@@ -182,8 +182,8 @@ CRM_Oficial/
 │       ├── components/          # Componentes (features) + UI (shadcn)
 │       │   └── ui/              # shadcn/ui (button, input, card, etc)
 │       ├── contexts/            # Contextos (ex.: idioma)
-│       ├── hooks/               # Hooks (auth, websocket, push, toast…)
-│       ├── lib/                 # Infra do frontend (query client, firebase, utils)
+│       ├── hooks/               # Hooks (auth, websocket, push, toast, desktop notifications…)
+│       ├── lib/                 # Infra do frontend (query client, firebase, utils, api clients)
 │       ├── locales/             # Traducoes (pt-BR/en)
 │       └── pages/               # Paginas (dashboard, pipeline, inbox, settings…)
 │           ├── inbox/           # UI/partes do Inbox (3 painéis)
@@ -207,6 +207,8 @@ CRM_Oficial/
 │   │   ├── pipelines.ts         # Pipelines/estágios
 │   │   ├── conversations.ts     # Inbox (conversas/mensagens)
 │   │   ├── files.ts             # Upload/download + transcrição
+│   │   ├── search.ts            # Busca global (contacts, deals, conversations)
+│   │   ├── auditLogs.ts         # Logs de auditoria (com filtros e paginação)
 │   │   ├── lgpd.ts              # LGPD compliance (export/delete)
 │   │   ├── jobs.ts              # Status de background jobs
 │   │   └── ...                  # Demais domínios (activities, notifications, etc.)
@@ -581,6 +583,18 @@ POST   /api/files/:id/transcribe        # Transcricao de arquivo de audio regist
 
 **Nota:** Prefer usar `GET /api/files/:id/signed-url` em vez de `GET /objects/:path` para melhor seguranca.
 
+### Busca Global
+
+```
+GET    /api/search?q=termo              # Busca global (contacts, deals, conversations)
+```
+
+Parametros de query:
+- `q` (obrigatorio): termo de busca (minimo 2 caracteres)
+- `limit` (opcional): limite de resultados por tipo (default: 5)
+
+Retorna resultados agrupados por tipo com score de relevancia.
+
 ### Notificacoes, Calendario, Auditoria e Relatorios
 
 ```
@@ -594,11 +608,22 @@ POST   /api/calendar-events             # Criar evento
 PATCH  /api/calendar-events/:id         # Atualizar evento
 DELETE /api/calendar-events/:id         # Excluir evento
 
-GET    /api/audit-logs                  # Logs de auditoria
+GET    /api/audit-logs                  # Logs de auditoria (com filtros e paginacao)
 GET    /api/audit-logs/entity/:entityType/:entityId # Auditoria por entidade
 
 GET    /api/reports                     # Relatorios
 ```
+
+**Parametros do `/api/audit-logs`:**
+- `page` (opcional): pagina atual (default: 1)
+- `limit` (opcional): registros por pagina (default: 50, max: 500)
+- `action` (opcional): filtrar por acao (create, update, delete, lgpd_export, lgpd_delete)
+- `entityType` (opcional): filtrar por tipo de entidade (contact, deal, user, pipeline, stage, etc.)
+- `userId` (opcional): filtrar por usuario que executou a acao
+- `dateFrom` (opcional): data inicial (ISO 8601)
+- `dateTo` (opcional): data final (ISO 8601)
+
+Retorna `{ data: AuditLog[], pagination: { page, limit, total, totalPages, hasMore } }`.
 
 ### Views salvas e Email templates
 

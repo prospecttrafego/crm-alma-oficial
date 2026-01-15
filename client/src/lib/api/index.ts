@@ -17,3 +17,4 @@ export { notificationsApi } from './notifications';
 export { pushTokensApi } from './pushTokens';
 export { usersApi } from './users';
 export { reportsApi } from './reports';
+export { auditLogsApi } from './auditLogs';

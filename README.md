@@ -30,8 +30,10 @@ Sistema de CRM (Customer Relationship Management) desenvolvido para a agencia di
 - Lead scoring com IA (OpenAI)
 - Calendario de eventos
 - Templates de email
-- Notificacoes em tempo real
-- Logs de auditoria (imutaveis via trigger PostgreSQL)
+- Notificacoes em tempo real (WebSocket + Web Notifications API)
+- Command Palette com busca global (contacts, deals, conversations)
+- Saved Views (Pipeline, Contacts, Audit Log)
+- Logs de auditoria com filtros avancados, paginacao e exportacao CSV
 - Multi-organizacao (parcial: schema suporta, execucao atual em modo single-tenant por instalacao)
 - Monitoramento de erros (Sentry)
 - Circuit breaker para integracoes externas
