@@ -14,6 +14,7 @@ type Props = {
   onToggleListPanel: () => void;
   contextPanelCollapsed: boolean;
   onToggleContextPanel: () => void;
+  onSearchClick?: () => void;
 };
 
 export function ThreadHeader({
@@ -23,6 +24,7 @@ export function ThreadHeader({
   onToggleListPanel,
   contextPanelCollapsed,
   onToggleContextPanel,
+  onSearchClick,
 }: Props) {
   const { t } = useTranslation();
 
@@ -96,8 +98,10 @@ export function ThreadHeader({
           type="button"
           variant="ghost"
           size="icon"
+          onClick={onSearchClick}
           className="h-10 w-10 text-muted-foreground hover:text-foreground"
           aria-label={t("common.search")}
+          title={`${t("inbox.searchMessages")} (⌘F)`}
           data-testid="button-search"
         >
           <Search className="h-5 w-5" />

@@ -3,7 +3,7 @@
  * Main inbox view with conversation list, message thread, and context panel
  */
 
-import { useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useInfiniteQuery, useMutation, useQuery } from "@tanstack/react-query";
 
 import { queryClient } from "@/lib/queryClient";
@@ -19,6 +19,7 @@ import {
   conversationsApi,
   type ConversationWithRelations,
   type MessagesResponse,
+  type MessageSearchResult,
 } from "@/lib/api/conversations";
 import { filesApi } from "@/lib/api/files";
 import { emailTemplatesApi } from "@/lib/api/emailTemplates";
@@ -28,6 +29,7 @@ import { ContextPanel } from "@/pages/inbox/components/ContextPanel";
 import { EmptyState } from "@/pages/inbox/components/EmptyState";
 import { MessageComposer } from "@/pages/inbox/components/MessageComposer";
 import { MessageList } from "@/pages/inbox/components/MessageList";
+import { MessageSearchModal } from "@/pages/inbox/components/MessageSearchModal";
 import { ThreadHeader } from "@/pages/inbox/components/ThreadHeader";
 import { TypingIndicator } from "@/pages/inbox/components/TypingIndicator";
 import type { PendingFile, TypingUser, InboxMessage } from "@/pages/inbox/types";
@@ -42,6 +44,9 @@ function InboxContent() {
   const { user } = useAuth();
   const { t } = useTranslation();
 
+  // Message search modal state
+  const [searchModalOpen, setSearchModalOpen] = useState(false);
+
   const {
     selectedConversation,
     setSelectedConversation,
@@ -53,6 +58,9 @@ function InboxContent() {
     setNewMessage,
     isInternalComment,
     setIsInternalComment,
+    replyingTo,
+    setReplyingTo,
+    cancelReply,
     pendingFiles,
     uploading,
     handleFileSelect,
@@ -197,6 +205,7 @@ function InboxContent() {
       content: string;
       isInternal: boolean;
       attachments?: PendingFile[];
+      replyToId?: number | null; // ID da mensagem sendo respondida
       _tempId: string; // ID temporario para tracking
     }) => {
       if (!selectedConversation) throw new Error("No conversation selected");
@@ -206,6 +215,8 @@ function InboxContent() {
         isInternal: data.isInternal,
         // Enviar _tempId como externalId para idempotencia em retries
         externalId: data._tempId,
+        // Reply/quote feature
+        replyToId: data.replyToId ?? undefined,
       });
 
       // Registrar arquivos se houver
@@ -253,7 +264,11 @@ function InboxContent() {
         mentions: null,
         readBy: [user.id], // Usuario ja "leu" sua propria mensagem
         externalId: null,
+        replyToId: newMessageData.replyToId ?? null,
         createdAt: new Date(), // Date object, nao string
+        editedAt: null,
+        deletedAt: null,
+        originalContent: null,
         // Campos de optimistic update
         _status: "sending",
         _tempId: newMessageData._tempId,
@@ -417,6 +432,133 @@ function InboxContent() {
     }
   }, [selectedConversation, sendMessageMutation]);
 
+  /**
+   * Edit message mutation
+   */
+  const editMessageMutation = useMutation({
+    mutationFn: async ({ messageId, content }: { messageId: number; content: string }) => {
+      return conversationsApi.editMessage(messageId, content);
+    },
+    onMutate: async ({ messageId, content }) => {
+      if (!selectedConversation) return;
+
+      const queryKey = ["/api/conversations", selectedConversation.id, "messages"];
+      await queryClient.cancelQueries({ queryKey });
+
+      const previousMessages = queryClient.getQueryData<{ pages: Array<{ messages: InboxMessage[] }> }>(queryKey);
+
+      // Optimistic update
+      queryClient.setQueryData<{ pages: Array<{ messages: InboxMessage[]; nextCursor: number | null; hasMore: boolean }>; pageParams: unknown[] }>(
+        queryKey,
+        (old) => {
+          if (!old) return old;
+          return {
+            ...old,
+            pages: old.pages.map((page) => ({
+              ...page,
+              messages: page.messages.map((msg) =>
+                msg.id === messageId
+                  ? { ...msg, content, editedAt: new Date() }
+                  : msg
+              ),
+            })),
+          };
+        }
+      );
+
+      return { previousMessages };
+    },
+    onError: (_error, _variables, context) => {
+      if (context?.previousMessages && selectedConversation) {
+        const queryKey = ["/api/conversations", selectedConversation.id, "messages"];
+        queryClient.setQueryData(queryKey, context.previousMessages);
+      }
+      toast({
+        title: t("toast.error"),
+        description: "Failed to edit message",
+        variant: "destructive",
+      });
+    },
+  });
+
+  /**
+   * Delete message mutation
+   */
+  const deleteMessageMutation = useMutation({
+    mutationFn: async (messageId: number) => {
+      return conversationsApi.deleteMessage(messageId);
+    },
+    onMutate: async (messageId) => {
+      if (!selectedConversation) return;
+
+      const queryKey = ["/api/conversations", selectedConversation.id, "messages"];
+      await queryClient.cancelQueries({ queryKey });
+
+      const previousMessages = queryClient.getQueryData<{ pages: Array<{ messages: InboxMessage[] }> }>(queryKey);
+
+      // Optimistic update - mark as deleted
+      queryClient.setQueryData<{ pages: Array<{ messages: InboxMessage[]; nextCursor: number | null; hasMore: boolean }>; pageParams: unknown[] }>(
+        queryKey,
+        (old) => {
+          if (!old) return old;
+          return {
+            ...old,
+            pages: old.pages.map((page) => ({
+              ...page,
+              messages: page.messages.map((msg) =>
+                msg.id === messageId
+                  ? { ...msg, deletedAt: new Date() }
+                  : msg
+              ),
+            })),
+          };
+        }
+      );
+
+      return { previousMessages };
+    },
+    onError: (_error, _variables, context) => {
+      if (context?.previousMessages && selectedConversation) {
+        const queryKey = ["/api/conversations", selectedConversation.id, "messages"];
+        queryClient.setQueryData(queryKey, context.previousMessages);
+      }
+      toast({
+        title: t("toast.error"),
+        description: "Failed to delete message",
+        variant: "destructive",
+      });
+    },
+  });
+
+  /**
+   * Handle edit message
+   */
+  const handleEditMessage = useCallback(async (messageId: number, content: string) => {
+    await editMessageMutation.mutateAsync({ messageId, content });
+  }, [editMessageMutation]);
+
+  /**
+   * Handle delete message
+   */
+  const handleDeleteMessage = useCallback(async (messageId: number) => {
+    await deleteMessageMutation.mutateAsync(messageId);
+  }, [deleteMessageMutation]);
+
+  /**
+   * Handle message selection from search results
+   * Navigate to the conversation containing the selected message
+   */
+  const handleSelectSearchResult = useCallback((result: MessageSearchResult) => {
+    if (!conversations) return;
+
+    // Find the conversation that contains this message
+    const conversation = conversations.find((c) => c.id === result.conversationId);
+    if (conversation) {
+      setSelectedConversation(conversation);
+      // TODO: In the future, we could scroll to the specific message
+    }
+  }, [conversations, setSelectedConversation]);
+
   // Memoized filtered conversations
   const filteredConversations = useMemo(() => {
     if (!conversations) return [];
@@ -454,6 +596,13 @@ function InboxContent() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const isTyping = document.activeElement?.tagName === "TEXTAREA" || document.activeElement?.tagName === "INPUT";
+
+      // Cmd/Ctrl+F to open search modal (override browser's default)
+      if ((e.metaKey || e.ctrlKey) && e.key === "f") {
+        e.preventDefault();
+        setSearchModalOpen(true);
+        return;
+      }
 
       if (e.key === "j" && !e.metaKey && !e.ctrlKey && !isTyping) {
         e.preventDefault();
@@ -505,9 +654,10 @@ function InboxContent() {
       content: newMessage || (pendingFiles.length > 0 ? "[Attachment]" : ""),
       isInternal: isInternalComment,
       attachments: pendingFiles.filter((f) => f.status === "uploaded"),
+      replyToId: replyingTo?.id ?? null,
       _tempId: crypto.randomUUID(), // ID temporario para tracking de optimistic update
     });
-  }, [newMessage, pendingFiles, isInternalComment, sendMessageMutation]);
+  }, [newMessage, pendingFiles, isInternalComment, replyingTo, sendMessageMutation]);
 
   const formatTime = useCallback((date: Date | string | null) => formatInboxTime(t, date), [t]);
   const channelLabel = useCallback((channel: string) => getChannelLabel(t, channel), [t]);
@@ -545,6 +695,7 @@ function InboxContent() {
               onToggleListPanel={() => setListPanelCollapsed((prev) => !prev)}
               contextPanelCollapsed={contextPanelCollapsed}
               onToggleContextPanel={() => setContextPanelCollapsed((prev) => !prev)}
+              onSearchClick={() => setSearchModalOpen(true)}
             />
 
             <div className="flex-1 overflow-hidden bg-muted/30 px-[5%] py-4">
@@ -558,6 +709,9 @@ function InboxContent() {
                 loadMoreMessages={loadMoreMessages}
                 formatTime={formatTime}
                 onRetryMessage={retryMessage}
+                onReplyMessage={setReplyingTo}
+                onEditMessage={handleEditMessage}
+                onDeleteMessage={handleDeleteMessage}
               />
             </div>
 
@@ -585,6 +739,8 @@ function InboxContent() {
               setNewMessage={setNewMessage}
               onTyping={handleTyping}
               onStartRecording={startRecording}
+              replyingTo={replyingTo}
+              onCancelReply={cancelReply}
             />
           </div>
 
@@ -604,6 +760,14 @@ function InboxContent() {
       ) : (
         <EmptyState />
       )}
+
+      {/* Message Search Modal */}
+      <MessageSearchModal
+        open={searchModalOpen}
+        onClose={() => setSearchModalOpen(false)}
+        conversationId={selectedConversation?.id}
+        onSelectMessage={handleSelectSearchResult}
+      />
     </div>
   );
 }

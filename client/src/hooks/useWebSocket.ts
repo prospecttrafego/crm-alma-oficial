@@ -19,6 +19,8 @@ export type WebSocketEventType =
   | "deal:deleted"
   | "conversation:created"
   | "message:created"
+  | "message:updated"
+  | "message:deleted"
   | "notification:new"
   | "calendar:event:created"
   | "calendar:event:updated"
@@ -278,6 +280,68 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
                       );
                   }
                 );
+              }
+            } else if (message.type === "message:updated" && message.data) {
+              // Handle edited message - update in cache
+              const updatedMessage = message.data as {
+                id: number;
+                conversationId: number;
+                content: string;
+                editedAt: string;
+                [key: string]: unknown;
+              };
+
+              if (updatedMessage.conversationId) {
+                const queryKey = ["/api/conversations", updatedMessage.conversationId, "messages"];
+
+                type MessageInCache = { id?: number; content?: string; editedAt?: string | null; [key: string]: unknown };
+                queryClient.setQueryData<{
+                  pages: Array<{ messages: MessageInCache[]; nextCursor: number | null; hasMore: boolean }>;
+                  pageParams: unknown[];
+                }>(queryKey, (old) => {
+                  if (!old || !old.pages) return old;
+
+                  const newPages = old.pages.map((page) => ({
+                    ...page,
+                    messages: page.messages.map((m) =>
+                      m.id === updatedMessage.id
+                        ? { ...m, content: updatedMessage.content, editedAt: updatedMessage.editedAt }
+                        : m
+                    ),
+                  }));
+
+                  return { ...old, pages: newPages };
+                });
+              }
+            } else if (message.type === "message:deleted" && message.data) {
+              // Handle deleted message - update in cache
+              const deletedPayload = message.data as {
+                id: number;
+                conversationId: number;
+                deletedAt: string;
+              };
+
+              if (deletedPayload.conversationId) {
+                const queryKey = ["/api/conversations", deletedPayload.conversationId, "messages"];
+
+                type MessageInCache = { id?: number; deletedAt?: string | null; [key: string]: unknown };
+                queryClient.setQueryData<{
+                  pages: Array<{ messages: MessageInCache[]; nextCursor: number | null; hasMore: boolean }>;
+                  pageParams: unknown[];
+                }>(queryKey, (old) => {
+                  if (!old || !old.pages) return old;
+
+                  const newPages = old.pages.map((page) => ({
+                    ...page,
+                    messages: page.messages.map((m) =>
+                      m.id === deletedPayload.id
+                        ? { ...m, deletedAt: deletedPayload.deletedAt }
+                        : m
+                    ),
+                  }));
+
+                  return { ...old, pages: newPages };
+                });
               }
             } else {
               // Para outros eventos, usar invalidacao normal

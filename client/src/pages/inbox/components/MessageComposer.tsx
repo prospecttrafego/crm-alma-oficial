@@ -29,7 +29,10 @@ import { AudioRecordingPreview } from "@/components/audio-waveform";
 import { useTheme } from "@/components/theme-provider";
 import { useTranslation } from "@/contexts/LanguageContext";
 import { formatRecordingTime } from "@/pages/inbox/utils";
-import type { PendingFile } from "@/pages/inbox/types";
+import { ReplyPreview } from "./ReplyPreview";
+import { MentionAutocomplete } from "./MentionAutocomplete";
+import { useMentionAutocomplete } from "@/hooks/useMentionAutocomplete";
+import type { PendingFile, InboxMessage } from "@/pages/inbox/types";
 import type { EmailTemplate } from "@shared/schema";
 
 /**
@@ -64,6 +67,9 @@ type Props = {
   setNewMessage: React.Dispatch<React.SetStateAction<string>>;
   onTyping: () => void;
   onStartRecording: () => void;
+  // Reply/quote feature
+  replyingTo: InboxMessage | null;
+  onCancelReply: () => void;
 };
 
 export function MessageComposer({
@@ -88,12 +94,27 @@ export function MessageComposer({
   setNewMessage,
   onTyping,
   onStartRecording,
+  replyingTo,
+  onCancelReply,
 }: Props) {
   const { t } = useTranslation();
   const { theme } = useTheme();
 
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // @mentions autocomplete
+  const {
+    isActive: mentionActive,
+    selectedIndex: mentionSelectedIndex,
+    filteredUsers: mentionUsers,
+    handleTextChange: handleMentionTextChange,
+    handleKeyDown: handleMentionKeyDown,
+    getSelectedUser,
+    selectUser: selectMentionUser,
+    close: closeMention,
+  } = useMentionAutocomplete();
 
   const resolvedEmojiTheme = useMemo(() => {
     if (theme === "dark") return EmojiTheme.DARK;
@@ -173,6 +194,11 @@ export function MessageComposer({
 
       {!isRecording && !audioBlob && (
         <>
+          {/* Reply preview */}
+          {replyingTo && (
+            <ReplyPreview message={replyingTo} onCancel={onCancelReply} />
+          )}
+
           <div className="mb-2 flex flex-wrap items-center gap-2">
             <div className="flex gap-1">
               <Button
@@ -307,6 +333,23 @@ export function MessageComposer({
                 </div>
               )}
 
+              {/* @mentions autocomplete */}
+              <MentionAutocomplete
+                users={mentionUsers}
+                selectedIndex={mentionSelectedIndex}
+                visible={mentionActive}
+                onSelect={(user) => {
+                  const cursorPosition = inputRef.current?.selectionStart ?? newMessage.length;
+                  const { text, newCursorPosition } = selectMentionUser(user, newMessage, cursorPosition);
+                  setNewMessage(text);
+                  // Set cursor position after React updates
+                  setTimeout(() => {
+                    inputRef.current?.setSelectionRange(newCursorPosition, newCursorPosition);
+                    inputRef.current?.focus();
+                  }, 0);
+                }}
+              />
+
               <Button
                 type="button"
                 variant="ghost"
@@ -319,6 +362,7 @@ export function MessageComposer({
               </Button>
 
               <input
+                ref={inputRef}
                 id="message-input"
                 type="text"
                 placeholder={isInternalComment ? t("common.notes") : t("inbox.typeMessage")}
@@ -326,6 +370,27 @@ export function MessageComposer({
                 onChange={(e) => {
                   setNewMessage(e.target.value);
                   onTyping();
+                  // Check for @mentions
+                  handleMentionTextChange(e.target.value, e.target.selectionStart ?? e.target.value.length);
+                }}
+                onKeyDown={(e) => {
+                  // Handle mention keyboard navigation
+                  if (mentionActive) {
+                    const handled = handleMentionKeyDown(e);
+                    if (handled && (e.key === "Enter" || e.key === "Tab")) {
+                      // Select the current user
+                      const selectedUser = getSelectedUser();
+                      if (selectedUser) {
+                        const cursorPosition = inputRef.current?.selectionStart ?? newMessage.length;
+                        const { text, newCursorPosition } = selectMentionUser(selectedUser, newMessage, cursorPosition);
+                        setNewMessage(text);
+                        setTimeout(() => {
+                          inputRef.current?.setSelectionRange(newCursorPosition, newCursorPosition);
+                          inputRef.current?.focus();
+                        }, 0);
+                      }
+                    }
+                  }
                 }}
                 className="ml-2 flex-1 border-0 bg-transparent text-[15px] text-foreground outline-none placeholder:text-muted-foreground focus:border-0 focus:outline-none focus:ring-0"
                 style={{ boxShadow: "none" }}

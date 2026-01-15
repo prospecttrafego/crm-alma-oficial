@@ -142,10 +142,17 @@ export const createMessageSchema = baseInsertMessageSchema
     readBy: true,
     createdAt: true,
   })
-  // externalId is optional for idempotency (client can send a UUID to prevent duplicates on retry)
   .extend({
+    // externalId is optional for idempotency (client can send a UUID to prevent duplicates on retry)
     externalId: baseInsertMessageSchema.shape.externalId.optional(),
+    // replyToId is optional for reply/quote feature
+    replyToId: baseInsertMessageSchema.shape.replyToId.optional(),
   });
+
+// Schema for editing a message (only content can be edited)
+export const updateMessageSchema = z.object({
+  content: z.string().min(1, "Content is required"),
+});
 
 // ===== ACTIVITIES =====
 
@@ -312,6 +319,7 @@ export type CreateConversationDTO = z.infer<typeof createConversationSchema>;
 export type UpdateConversationDTO = z.infer<typeof updateConversationSchema>;
 
 export type CreateMessageDTO = z.infer<typeof createMessageSchema>;
+export type UpdateMessageDTO = z.infer<typeof updateMessageSchema>;
 
 export type CreateActivityDTO = z.infer<typeof createActivitySchema>;
 export type UpdateActivityDTO = z.infer<typeof updateActivitySchema>;

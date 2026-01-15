@@ -77,4 +77,57 @@ export const conversationsApi = {
    */
   markAsRead: (conversationId: number) =>
     api.post<void>(`/api/conversations/${conversationId}/read`, {}),
+
+  /**
+   * Search messages by content
+   */
+  searchMessages: (params: {
+    q: string;
+    conversationId?: number;
+    limit?: number;
+    offset?: number;
+  }) => {
+    const searchParams = new URLSearchParams();
+    searchParams.set('q', params.q);
+    if (params.conversationId) searchParams.set('conversationId', String(params.conversationId));
+    if (params.limit) searchParams.set('limit', String(params.limit));
+    if (params.offset) searchParams.set('offset', String(params.offset));
+    return api.get<MessageSearchResponse>(`/api/messages/search?${searchParams.toString()}`, messageSearchResponseSchema);
+  },
+
+  /**
+   * Edit a message (within 15 minute window)
+   */
+  editMessage: (messageId: number, content: string) =>
+    api.patch<Message>(`/api/messages/${messageId}`, { content }, messageSchema),
+
+  /**
+   * Delete a message (soft delete)
+   */
+  deleteMessage: (messageId: number) =>
+    api.delete<{ id: number; deleted: boolean }>(`/api/messages/${messageId}`, z.object({
+      id: z.number().int(),
+      deleted: z.boolean(),
+    })),
 };
+
+// Message search response types
+export const messageSearchResultSchema = z.object({
+  id: z.number().int(),
+  conversationId: z.number().int(),
+  content: z.string(),
+  createdAt: z.coerce.date().nullable(),
+  senderId: z.string().nullable(),
+  senderType: z.string().nullable(),
+  senderName: z.string().nullable(),
+  conversationSubject: z.string().nullable(),
+  rank: z.number(),
+});
+
+export const messageSearchResponseSchema = z.object({
+  results: z.array(messageSearchResultSchema),
+  total: z.number().int(),
+});
+
+export type MessageSearchResult = z.infer<typeof messageSearchResultSchema>;
+export type MessageSearchResponse = z.infer<typeof messageSearchResponseSchema>;

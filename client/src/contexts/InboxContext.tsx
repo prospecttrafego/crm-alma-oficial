@@ -20,7 +20,7 @@ import { useNotificationSound } from "@/hooks/useNotificationSound";
 import { filesApi } from "@/lib/api/files";
 import { conversationsApi, type ConversationWithRelations } from "@/lib/api/conversations";
 import { queryClient } from "@/lib/queryClient";
-import type { PendingFile } from "@/pages/inbox/types";
+import type { PendingFile, InboxMessage } from "@/pages/inbox/types";
 import type { InboxFilters } from "@/components/filter-panel";
 
 // -----------------------------------------------------------------------------
@@ -43,6 +43,10 @@ interface InboxContextValue {
   setNewMessage: React.Dispatch<React.SetStateAction<string>>;
   isInternalComment: boolean;
   setIsInternalComment: React.Dispatch<React.SetStateAction<boolean>>;
+  // Reply/quote feature
+  replyingTo: InboxMessage | null;
+  setReplyingTo: React.Dispatch<React.SetStateAction<InboxMessage | null>>;
+  cancelReply: () => void;
 
   // File uploads
   pendingFiles: PendingFile[];
@@ -109,6 +113,8 @@ export function InboxProvider({ children }: InboxProviderProps) {
   // Message composition
   const [newMessage, setNewMessage] = useState("");
   const [isInternalComment, setIsInternalComment] = useState(false);
+  // Reply/quote feature
+  const [replyingTo, setReplyingTo] = useState<InboxMessage | null>(null);
 
   // File uploads
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
@@ -315,9 +321,14 @@ export function InboxProvider({ children }: InboxProviderProps) {
   // Utility functions
   // ---------------------------------------------------------------------------
 
+  const cancelReply = useCallback(() => {
+    setReplyingTo(null);
+  }, []);
+
   const clearMessageState = useCallback(() => {
     setNewMessage("");
     setPendingFiles([]);
+    setReplyingTo(null);
   }, []);
 
   // ---------------------------------------------------------------------------
@@ -340,6 +351,10 @@ export function InboxProvider({ children }: InboxProviderProps) {
     setNewMessage,
     isInternalComment,
     setIsInternalComment,
+    // Reply/quote
+    replyingTo,
+    setReplyingTo,
+    cancelReply,
 
     // File uploads
     pendingFiles,
@@ -404,8 +419,8 @@ export function useInboxFilters() {
 }
 
 export function useInboxComposition() {
-  const { newMessage, setNewMessage, isInternalComment, setIsInternalComment, clearMessageState } = useInbox();
-  return { newMessage, setNewMessage, isInternalComment, setIsInternalComment, clearMessageState };
+  const { newMessage, setNewMessage, isInternalComment, setIsInternalComment, replyingTo, setReplyingTo, cancelReply, clearMessageState } = useInbox();
+  return { newMessage, setNewMessage, isInternalComment, setIsInternalComment, replyingTo, setReplyingTo, cancelReply, clearMessageState };
 }
 
 export function useInboxFiles() {

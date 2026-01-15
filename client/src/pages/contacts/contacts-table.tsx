@@ -5,6 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Table,
   TableBody,
   TableCell,
@@ -16,7 +23,6 @@ import { cn } from "@/lib/utils";
 import {
   flexRender,
   getCoreRowModel,
-  getFilteredRowModel,
   getSortedRowModel,
   useReactTable,
   type ColumnOrderState,
@@ -24,8 +30,8 @@ import {
   type SortingState,
   type VisibilityState,
 } from "@tanstack/react-table";
-import { Columns, Search, User } from "lucide-react";
-import type { ContactWithStats } from "@/lib/api/contacts";
+import { ChevronLeft, ChevronRight, Columns, Loader2, Search, User } from "lucide-react";
+import type { ContactWithStats, PaginationMeta } from "@/lib/api/contacts";
 import {
   CONTACTS_DEFAULT_COLUMN_ORDER,
   createContactsColumns,
@@ -59,21 +65,45 @@ function normalizeColumnOrder(order: string[]): ColumnOrderState {
   return merged;
 }
 
+const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
+
 export function ContactsTable({
   contacts,
   isLoading,
+  isFetching,
+  pagination,
+  searchQuery,
   onSelectContact,
+  onPageChange,
+  onSearchChange,
+  onPageSizeChange,
 }: {
   contacts: ContactWithStats[];
   isLoading: boolean;
+  isFetching?: boolean;
+  pagination?: PaginationMeta;
+  searchQuery: string;
   onSelectContact: (contact: ContactWithStats) => void;
+  onPageChange: (page: number) => void;
+  onSearchChange: (search: string) => void;
+  onPageSizeChange: (limit: number) => void;
 }) {
   const { t, language } = useTranslation();
   const { deleteContact } = useContactMutations();
   const [columnsDialogOpen, setColumnsDialogOpen] = useState(false);
   const [newContactOpen, setNewContactOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [localSearch, setLocalSearch] = useState(searchQuery);
   const [sorting, setSorting] = useState<SortingState>([]);
+
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (localSearch !== searchQuery) {
+        onSearchChange(localSearch);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [localSearch, searchQuery, onSearchChange]);
 
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(() => {
     const saved = safeLoadJson<VisibilityState>(COLUMN_VISIBILITY_KEY);
@@ -142,21 +172,20 @@ export function ContactsTable({
     data: contacts,
     columns,
     enableColumnResizing: true,
+    manualPagination: true,
+    manualFiltering: true,
     state: {
       sorting,
       columnVisibility,
       columnOrder,
       columnSizing,
-      globalFilter: searchQuery,
     },
     onSortingChange: setSorting,
     onColumnVisibilityChange: setColumnVisibility,
     onColumnOrderChange: setColumnOrder,
     onColumnSizingChange: setColumnSizing,
-    onGlobalFilterChange: setSearchQuery,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
     columnResizeMode: "onChange",
   });
 
@@ -192,10 +221,13 @@ export function ContactsTable({
           <Input
             placeholder={t("common.search")}
             className="pl-9"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            value={localSearch}
+            onChange={(e) => setLocalSearch(e.target.value)}
             data-testid="input-search-contacts"
           />
+          {isFetching && (
+            <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-muted-foreground" />
+          )}
         </div>
 
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
@@ -285,6 +317,62 @@ export function ContactsTable({
           )}
         </TableBody>
       </Table>
+
+      {/* Pagination Controls */}
+      {pagination && (
+        <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <span>{t("contacts.pagination.showing")}</span>
+            <Select
+              value={String(pagination.limit)}
+              onValueChange={(value) => onPageSizeChange(Number(value))}
+            >
+              <SelectTrigger className="h-8 w-[70px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PAGE_SIZE_OPTIONS.map((size) => (
+                  <SelectItem key={size} value={String(size)}>
+                    {size}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <span>
+              {t("contacts.pagination.of", { total: pagination.total })}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">
+              {t("contacts.pagination.page", {
+                current: pagination.page,
+                total: pagination.totalPages,
+              })}
+            </span>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => onPageChange(pagination.page - 1)}
+                disabled={pagination.page <= 1 || isFetching}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => onPageChange(pagination.page + 1)}
+                disabled={!pagination.hasMore || isFetching}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <ContactsColumnsDialog
         open={columnsDialogOpen}

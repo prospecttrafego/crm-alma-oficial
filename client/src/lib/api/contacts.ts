@@ -37,6 +37,39 @@ export const contactWithStatsSchema = z.object({
 
 export type ContactWithStats = z.infer<typeof contactWithStatsSchema>;
 
+/**
+ * Pagination metadata schema
+ */
+export const paginationMetaSchema = z.object({
+  page: z.number(),
+  limit: z.number(),
+  total: z.number(),
+  totalPages: z.number(),
+  hasMore: z.boolean(),
+});
+
+export type PaginationMeta = z.infer<typeof paginationMetaSchema>;
+
+/**
+ * Paginated response schema for contacts with stats
+ */
+export const paginatedContactsWithStatsSchema = z.object({
+  data: z.array(contactWithStatsSchema),
+  pagination: paginationMetaSchema,
+});
+
+export type PaginatedContactsWithStats = z.infer<typeof paginatedContactsWithStatsSchema>;
+
+/**
+ * Pagination query parameters
+ */
+export interface ContactsPaginationParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+  sortOrder?: 'asc' | 'desc';
+}
+
 export const contactsApi = {
   /**
    * List all contacts
@@ -50,6 +83,22 @@ export const contactsApi = {
     '/api/contacts?withStats=true',
     z.array(contactWithStatsSchema)
   ),
+
+  /**
+   * List paginated contacts with aggregated statistics
+   */
+  listPaginatedWithStats: (params: ContactsPaginationParams = {}) => {
+    const searchParams = new URLSearchParams({ withStats: 'true' });
+    if (params.page !== undefined) searchParams.set('page', String(params.page));
+    if (params.limit !== undefined) searchParams.set('limit', String(params.limit));
+    if (params.search) searchParams.set('search', params.search);
+    if (params.sortOrder) searchParams.set('sortOrder', params.sortOrder);
+
+    return api.get<PaginatedContactsWithStats>(
+      `/api/contacts?${searchParams.toString()}`,
+      paginatedContactsWithStatsSchema
+    );
+  },
 
   /**
    * Create a new contact

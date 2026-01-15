@@ -16,6 +16,7 @@
     "loading": "Carregando...",
     "saving": "Salvando...",
     "noResults": "Nenhum resultado encontrado",
+    "loadMore": "Carregar mais",
     "confirm": "Confirmar",
     "yes": "Sim",
     "no": "Não",
@@ -604,6 +605,7 @@
     "lostReasonTitle": "Registrar Perda",
     "lostReasonDescription": "Por que este negócio foi perdido? Registrar o motivo ajuda a melhorar suas estratégias futuras.",
     "lostReasonPlaceholder": "Ex.: Preço alto, concorrente, falta de orçamento...",
+    "lostReasonRequired": "O motivo da perda é obrigatório para confirmar",
     "sourcePlaceholder": "Ex.: Indicação, Google Ads, Redes Sociais...",
     "noDeals": "Nenhum negócio neste estágio",
     "dragToMove": "Arraste para mover",
@@ -613,7 +615,9 @@
   "inbox": {
     "title": "Caixa de entrada",
     "reply": "Responder",
+    "replyTo": "Responder",
     "note": "Nota",
+    "internalNote": "Nota interna",
     "emojiSearch": "Pesquisar emoji...",
     "templates": "Modelos",
     "newConversation": "Nova Conversa",
@@ -639,7 +643,39 @@
       "open": "Aberto",
       "pending": "Pendente",
       "closed": "Fechado"
-    }
+    },
+    "contextPanel": {
+      "title": "Contexto",
+      "contact": "Contato",
+      "relatedDeal": "Negócio Relacionado",
+      "conversationInfo": "Info da Conversa",
+      "channel": "Canal",
+      "status": "Status"
+    },
+    "searchMessages": "Buscar mensagens",
+    "searchPlaceholder": "Digite para buscar mensagens...",
+    "searchMinChars": "Digite pelo menos 2 caracteres para buscar",
+    "searchResults": "{{count}} resultado(s) encontrado(s)",
+    "noSubject": "Sem assunto",
+    "messageActions": {
+      "edit": "Editar mensagem",
+      "delete": "Excluir mensagem",
+      "reply": "Responder",
+      "copy": "Copiar texto"
+    },
+    "editMessage": {
+      "title": "Editar mensagem",
+      "placeholder": "Digite o novo conteúdo...",
+      "save": "Salvar",
+      "cancel": "Cancelar",
+      "expired": "Não é possível editar esta mensagem. O prazo de 15 minutos expirou."
+    },
+    "deleteMessage": {
+      "title": "Excluir mensagem",
+      "confirm": "Tem certeza que deseja excluir esta mensagem?",
+      "deleted": "Esta mensagem foi excluída"
+    },
+    "edited": "editado"
   },
   "contacts": {
     "title": "Contatos",
@@ -675,7 +711,12 @@
     "toggleColumns": "Mostrar/ocultar colunas",
     "columnsHint": "Arraste para reordenar. Use a borda do cabeçalho para redimensionar.",
     "viewDetails": "Ver Detalhes",
-    "deleteConfirm": "Tem certeza que deseja excluir \"{{name}}\"?"
+    "deleteConfirm": "Tem certeza que deseja excluir \"{{name}}\"?",
+    "pagination": {
+      "showing": "Exibindo",
+      "of": "de {{total}} contatos",
+      "page": "Página {{current}} de {{total}}"
+    }
   },
   "activities": {
     "title": "Atividades",

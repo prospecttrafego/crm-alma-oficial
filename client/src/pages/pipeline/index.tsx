@@ -531,7 +531,9 @@ export default function PipelinePage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="py-4">
-            <Label htmlFor="lostReason">{t("pipeline.lostReason")}</Label>
+            <Label htmlFor="lostReason">
+              {t("pipeline.lostReason")} <span className="text-destructive">*</span>
+            </Label>
             <Textarea
               id="lostReason"
               value={lostReason}
@@ -539,14 +541,23 @@ export default function PipelinePage() {
               placeholder={t("pipeline.lostReasonPlaceholder")}
               className="mt-2"
               rows={3}
+              required
             />
+            {lostReason.trim() === "" && (
+              <p className="mt-1 text-xs text-muted-foreground">
+                {t("pipeline.lostReasonRequired")}
+              </p>
+            )}
           </div>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={handleCancelLostDeal}>
               {t("common.cancel")}
             </AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirmLostDeal}>
-              {t("common.confirm")}
+            <AlertDialogAction
+              onClick={handleConfirmLostDeal}
+              disabled={lostReason.trim() === "" || moveDeal.isPending}
+            >
+              {moveDeal.isPending ? t("common.saving") : t("common.confirm")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

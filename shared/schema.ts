@@ -298,6 +298,12 @@ export const messages = pgTable(
     readBy: text("read_by").array(),
     // External ID for idempotency (e.g., WhatsApp message ID)
     externalId: varchar("external_id", { length: 255 }),
+    // Reply/Quote: references the message being replied to
+    replyToId: integer("reply_to_id"),
+    // Edit/Delete fields
+    editedAt: timestamp("edited_at"),
+    deletedAt: timestamp("deleted_at"),
+    originalContent: text("original_content"),
     createdAt: timestamp("created_at").defaultNow(),
   },
   (table) => [
@@ -306,6 +312,10 @@ export const messages = pgTable(
     index("idx_messages_external_id").on(table.externalId),
     // Composite index for pagination queries
     index("idx_messages_conv_created").on(table.conversationId, table.createdAt),
+    // Index for reply lookups
+    index("idx_messages_reply_to").on(table.replyToId),
+    // Index for soft-delete filtering
+    index("idx_messages_deleted_at").on(table.deletedAt),
   ]
 );
 

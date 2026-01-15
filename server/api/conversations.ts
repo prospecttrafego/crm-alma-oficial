@@ -4,6 +4,7 @@ import {
   createConversationSchema,
   updateConversationSchema,
   createMessageSchema,
+  updateMessageSchema,
   idParamSchema,
   paginationQuerySchema,
 } from "../validation";
@@ -15,10 +16,26 @@ import {
   asyncHandler,
   getCurrentUser,
 } from "../middleware";
-import { sendSuccess, sendNotFound, toSafeUser } from "../response";
+import { sendSuccess, sendNotFound, sendForbidden, sendError, ErrorCodes, toSafeUser } from "../response";
 import { storage } from "../storage";
 import { broadcast, broadcastToConversation } from "../ws/index";
 import { logger } from "../logger";
+
+/**
+ * Extract mentioned user IDs from message content
+ * Format: @[Name](userId)
+ */
+function extractMentions(content: string | null): string[] {
+  if (!content) return [];
+  const regex = /@\[[^\]]+\]\(([^)]+)\)/g;
+  const mentions: string[] = [];
+  let match;
+  while ((match = regex.exec(content)) !== null) {
+    mentions.push(match[1]);
+  }
+  // Remove duplicates using filter
+  return mentions.filter((id, index) => mentions.indexOf(id) === index);
+}
 
 // Schema estendido para query de conversas
 const conversationsQuerySchema = paginationQuerySchema.extend({
@@ -33,7 +50,32 @@ const messagesQuerySchema = z.object({
   limit: z.coerce.number().int().positive().max(50).optional().default(30),
 });
 
+// Schema para busca de mensagens
+const messageSearchQuerySchema = z.object({
+  q: z.string().min(1).max(200),
+  conversationId: z.coerce.number().int().positive().optional(),
+  limit: z.coerce.number().int().positive().max(50).optional().default(20),
+  offset: z.coerce.number().int().nonnegative().optional().default(0),
+});
+
 export function registerConversationRoutes(app: Express) {
+  // GET /api/messages/search - Buscar mensagens por conteudo
+  app.get(
+    "/api/messages/search",
+    isAuthenticated,
+    validateQuery(messageSearchQuerySchema),
+    asyncHandler(async (req, res) => {
+      const { q, conversationId, limit, offset } = req.validatedQuery;
+
+      const result = await storage.searchMessages(q, {
+        conversationId,
+        limit,
+        offset,
+      });
+
+      sendSuccess(res, result);
+    }),
+  );
   // GET /api/conversations - Listar conversas (com paginacao e filtros opcionais)
   app.get(
     "/api/conversations",
@@ -198,18 +240,79 @@ export function registerConversationRoutes(app: Express) {
       const { id: conversationId } = req.validatedParams;
       const senderId = getCurrentUser(req)!.id;
 
+      // Extract mentioned users before creating message
+      const mentionedUserIds = extractMentions(req.validatedBody.content);
+
       const message = await storage.createMessage({
         ...req.validatedBody,
         conversationId,
         senderId,
         senderType: "user",
+        // Store mentions in the message for reference
+        mentions: mentionedUserIds.length > 0 ? mentionedUserIds : null,
       });
       // Broadcast direcionado para usuarios inscritos na conversa
       broadcastToConversation(conversationId, "message:created", message);
 
-      // Create notification for assigned user if not the sender
       const conversation = await storage.getConversation(conversationId);
-      if (conversation?.assignedToId && conversation.assignedToId !== senderId) {
+
+      // Create notifications for mentioned users
+      if (mentionedUserIds.length > 0) {
+        const sender = await storage.getUser(senderId);
+        const senderName = sender
+          ? [sender.firstName, sender.lastName].filter(Boolean).join(" ") || sender.email
+          : "User";
+
+        for (const mentionedUserId of mentionedUserIds) {
+          // Don't notify the sender
+          if (mentionedUserId === senderId) continue;
+
+          await storage.createNotification({
+            userId: mentionedUserId,
+            type: "mention",
+            title: "You were mentioned",
+            message: `${senderName} mentioned you in a message`,
+            entityType: "conversation",
+            entityId: conversationId,
+          });
+          broadcast("notification:new", { userId: mentionedUserId });
+
+          // Send push notification if user is offline
+          try {
+            const { isUserOnline } = await import("../redis");
+            const isOnline = await isUserOnline(mentionedUserId);
+
+            if (!isOnline) {
+              const { sendNotificationToUser, isFcmAvailable } = await import(
+                "../integrations/firebase/notifications"
+              );
+
+              if (isFcmAvailable()) {
+                const preview = message.content?.substring(0, 100) || "New mention";
+                await sendNotificationToUser(
+                  mentionedUserId,
+                  "mention",
+                  {
+                    senderName,
+                    preview,
+                    conversationId,
+                    senderAvatar: sender?.profileImageUrl,
+                  },
+                  {
+                    getPushTokens: storage.getPushTokensForUser.bind(storage),
+                    deletePushToken: storage.deletePushToken.bind(storage),
+                  }
+                );
+              }
+            }
+          } catch (pushError) {
+            logger.error("[FCM] Error sending mention push notification:", { error: pushError });
+          }
+        }
+      }
+
+      // Create notification for assigned user if not the sender (and not already notified via mention)
+      if (conversation?.assignedToId && conversation.assignedToId !== senderId && !mentionedUserIds.includes(conversation.assignedToId)) {
         await storage.createNotification({
           userId: conversation.assignedToId,
           type: "new_message",
@@ -276,6 +379,76 @@ export function registerConversationRoutes(app: Express) {
       broadcastToConversation(conversationId, "message:read", { conversationId, userId, count });
 
       sendSuccess(res, { success: true, count });
+    }),
+  );
+
+  // PATCH /api/messages/:id - Editar mensagem
+  app.patch(
+    "/api/messages/:id",
+    isAuthenticated,
+    validateParams(idParamSchema),
+    validateBody(updateMessageSchema),
+    asyncHandler(async (req, res) => {
+      const { id: messageId } = req.validatedParams;
+      const userId = getCurrentUser(req)!.id;
+      const { content } = req.validatedBody;
+
+      // Get message to find conversationId for broadcast
+      const existingMessage = await storage.getMessage(messageId);
+      if (!existingMessage) {
+        return sendNotFound(res, "Message not found");
+      }
+
+      // Check if user is the sender
+      if (existingMessage.senderId !== userId) {
+        return sendForbidden(res, "You can only edit your own messages");
+      }
+
+      const updatedMessage = await storage.updateMessage(messageId, userId, content);
+      if (!updatedMessage) {
+        return sendError(res, ErrorCodes.INVALID_INPUT, "Cannot edit message. Edit window may have expired (15 minutes).", 400);
+      }
+
+      // Broadcast message:updated to conversation room
+      broadcastToConversation(existingMessage.conversationId, "message:updated", updatedMessage);
+
+      sendSuccess(res, updatedMessage);
+    }),
+  );
+
+  // DELETE /api/messages/:id - Soft delete mensagem
+  app.delete(
+    "/api/messages/:id",
+    isAuthenticated,
+    validateParams(idParamSchema),
+    asyncHandler(async (req, res) => {
+      const { id: messageId } = req.validatedParams;
+      const userId = getCurrentUser(req)!.id;
+
+      // Get message to find conversationId for broadcast
+      const existingMessage = await storage.getMessage(messageId);
+      if (!existingMessage) {
+        return sendNotFound(res, "Message not found");
+      }
+
+      // Check if user is the sender
+      if (existingMessage.senderId !== userId) {
+        return sendForbidden(res, "You can only delete your own messages");
+      }
+
+      const deletedMessage = await storage.softDeleteMessage(messageId, userId);
+      if (!deletedMessage) {
+        return sendNotFound(res, "Message not found");
+      }
+
+      // Broadcast message:deleted to conversation room
+      broadcastToConversation(existingMessage.conversationId, "message:deleted", {
+        id: messageId,
+        conversationId: existingMessage.conversationId,
+        deletedAt: deletedMessage.deletedAt,
+      });
+
+      sendSuccess(res, { id: messageId, deleted: true });
     }),
   );
 }
