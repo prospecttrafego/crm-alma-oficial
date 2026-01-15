@@ -2,7 +2,7 @@
  * Saved Views API - CRUD operations for saved views
  */
 
-import { api } from './index';
+import { api } from "./client";
 import { savedViewSchema } from "@shared/apiSchemas";
 import type { SavedView } from '@shared/schema';
 import type { CreateSavedViewDTO } from '@shared/types';

@@ -22,7 +22,7 @@ export function registerAuditLogRoutes(app: Express) {
     "/api/audit-logs",
     isAuthenticated,
     validateQuery(auditLogsQuerySchema),
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const org = await storage.getDefaultOrganization();
       if (!org) return sendSuccess(res, []);
 
@@ -54,7 +54,7 @@ export function registerAuditLogRoutes(app: Express) {
     "/api/audit-logs/entity/:entityType/:entityId",
     isAuthenticated,
     validateParams(entityAuditLogsParamsSchema),
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const currentUser = getCurrentUser(req);
       const user = await storage.getUser(currentUser!.id);
       if (!user || user.role !== "admin") {

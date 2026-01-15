@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { Switch, Route } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -18,18 +19,21 @@ import {
   SidebarInset,
 } from "@/components/ui/sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
+// Eager imports for landing/auth pages (needed immediately)
 import Landing from "@/pages/landing";
 import LoginPage from "@/pages/login";
-import Dashboard from "@/pages/dashboard";
-import PipelinePage from "@/pages/pipeline";
-import InboxPage from "@/pages/inbox";
-import ContactsPage from "@/pages/contacts";
-import ActivitiesPage from "@/pages/activities";
-import ReportsPage from "@/pages/reports";
-import SettingsPage from "@/pages/settings";
-import AuditLogPage from "@/pages/audit-log";
-import CalendarPage from "@/pages/calendar";
 import NotFound from "@/pages/not-found";
+
+// Lazy loaded pages for code splitting
+const Dashboard = lazy(() => import("@/pages/dashboard"));
+const PipelinePage = lazy(() => import("@/pages/pipeline"));
+const InboxPage = lazy(() => import("@/pages/inbox"));
+const ContactsPage = lazy(() => import("@/pages/contacts"));
+const ActivitiesPage = lazy(() => import("@/pages/activities"));
+const ReportsPage = lazy(() => import("@/pages/reports"));
+const SettingsPage = lazy(() => import("@/pages/settings"));
+const AuditLogPage = lazy(() => import("@/pages/audit-log"));
+const CalendarPage = lazy(() => import("@/pages/calendar"));
 
 function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
@@ -81,6 +85,17 @@ function LoadingScreen() {
   );
 }
 
+function PageLoadingFallback() {
+  return (
+    <div className="flex h-full w-full items-center justify-center">
+      <div className="text-center">
+        <Skeleton className="mx-auto mb-4 h-8 w-8 rounded-full" />
+        <Skeleton className="mx-auto h-4 w-32" />
+      </div>
+    </div>
+  );
+}
+
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
 
@@ -100,19 +115,21 @@ function Router() {
 
   return (
     <AuthenticatedLayout>
-      <Switch>
-        <Route path="/" component={Dashboard} />
-        <Route path="/pipeline" component={PipelinePage} />
-        <Route path="/pipeline/:pipelineId" component={PipelinePage} />
-        <Route path="/inbox" component={InboxPage} />
-        <Route path="/contacts" component={ContactsPage} />
-        <Route path="/activities" component={ActivitiesPage} />
-        <Route path="/calendar" component={CalendarPage} />
-        <Route path="/reports" component={ReportsPage} />
-        <Route path="/settings" component={SettingsPage} />
-        <Route path="/audit-log" component={AuditLogPage} />
-        <Route component={NotFound} />
-      </Switch>
+      <Suspense fallback={<PageLoadingFallback />}>
+        <Switch>
+          <Route path="/" component={Dashboard} />
+          <Route path="/pipeline" component={PipelinePage} />
+          <Route path="/pipeline/:pipelineId" component={PipelinePage} />
+          <Route path="/inbox" component={InboxPage} />
+          <Route path="/contacts" component={ContactsPage} />
+          <Route path="/activities" component={ActivitiesPage} />
+          <Route path="/calendar" component={CalendarPage} />
+          <Route path="/reports" component={ReportsPage} />
+          <Route path="/settings/*?" component={SettingsPage} />
+          <Route path="/audit-log" component={AuditLogPage} />
+          <Route component={NotFound} />
+        </Switch>
+      </Suspense>
     </AuthenticatedLayout>
   );
 }

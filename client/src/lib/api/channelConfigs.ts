@@ -2,7 +2,7 @@
  * Channel Configs API - CRUD operations for channel configurations
  */
 
-import { api } from './index';
+import { api } from "./client";
 import {
   channelConfigPublicSchema,
   whatsAppConnectResponseSchema,

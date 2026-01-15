@@ -13,10 +13,12 @@ import {
   validateParams,
   validateQuery,
   asyncHandler,
+  getCurrentUser,
 } from "../middleware";
 import { sendSuccess, sendNotFound, toSafeUser } from "../response";
 import { storage } from "../storage";
 import { broadcast } from "../ws/index";
+import { logger } from "../logger";
 
 // Schema estendido para query de conversas
 const conversationsQuerySchema = paginationQuerySchema.extend({
@@ -37,7 +39,7 @@ export function registerConversationRoutes(app: Express) {
     "/api/conversations",
     isAuthenticated,
     validateQuery(conversationsQuerySchema),
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const paginationOrFilterRequested =
         req.query?.page !== undefined ||
         req.query?.limit !== undefined ||
@@ -123,7 +125,7 @@ export function registerConversationRoutes(app: Express) {
     "/api/conversations/:id",
     isAuthenticated,
     validateParams(idParamSchema),
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const { id } = req.validatedParams;
       const conversation = await storage.getConversation(id);
       if (!conversation) {
@@ -139,7 +141,7 @@ export function registerConversationRoutes(app: Express) {
     "/api/conversations",
     isAuthenticated,
     validateBody(createConversationSchema),
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const org = await storage.getDefaultOrganization();
       if (!org) {
         return sendNotFound(res, "No organization");
@@ -160,7 +162,7 @@ export function registerConversationRoutes(app: Express) {
     isAuthenticated,
     validateParams(idParamSchema),
     validateBody(updateConversationSchema),
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const { id } = req.validatedParams;
 
       const conversation = await storage.updateConversation(id, req.validatedBody);
@@ -177,7 +179,7 @@ export function registerConversationRoutes(app: Express) {
     isAuthenticated,
     validateParams(idParamSchema),
     validateQuery(messagesQuerySchema),
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const { id: conversationId } = req.validatedParams;
       const { cursor, limit } = req.validatedQuery;
 
@@ -192,9 +194,9 @@ export function registerConversationRoutes(app: Express) {
     isAuthenticated,
     validateParams(idParamSchema),
     validateBody(createMessageSchema),
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const { id: conversationId } = req.validatedParams;
-      const senderId = (req.user as any).id;
+      const senderId = getCurrentUser(req)!.id;
 
       const message = await storage.createMessage({
         ...req.validatedBody,
@@ -250,7 +252,7 @@ export function registerConversationRoutes(app: Express) {
             }
           }
         } catch (pushError) {
-          console.error("[FCM] Error sending push notification:", pushError);
+          logger.error("[FCM] Error sending push notification:", { error: pushError });
         }
       }
 
@@ -263,9 +265,9 @@ export function registerConversationRoutes(app: Express) {
     "/api/conversations/:id/read",
     isAuthenticated,
     validateParams(idParamSchema),
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const { id: conversationId } = req.validatedParams;
-      const userId = (req.user as any).id;
+      const userId = getCurrentUser(req)!.id;
 
       const count = await storage.markMessagesAsRead(conversationId, userId);
 

@@ -11,7 +11,7 @@ import crypto from "crypto";
 import type { Express, RequestHandler, Request } from "express";
 import { storage } from "./storage";
 import { db, pool } from "./db";
-import { users, pipelines, pipelineStages } from "@shared/schema";
+import { users, pipelines, pipelineStages, passwordResetTokens } from "@shared/schema";
 import { and, count, eq } from "drizzle-orm";
 import { getSingleTenantOrganizationId } from "./tenant";
 import {
@@ -21,12 +21,16 @@ import {
 } from "./redis";
 import { logger } from "./logger";
 import { sendSuccess, sendError, sendForbidden, sendUnauthorized, ErrorCodes } from "./response";
+import {
+  PASSWORD_RESET_TOKEN_BYTES,
+  PASSWORD_RESET_TOKEN_EXPIRY_MINUTES,
+  LOGIN_MAX_ATTEMPTS,
+  LOGIN_WINDOW_MS,
+  MAX_LOGIN_ATTEMPTS_ENTRIES,
+  SESSION_TTL_MS,
+} from "./constants";
 
 const BCRYPT_ROUNDS = 12;
-
-// Password reset token configuration
-const PASSWORD_RESET_TOKEN_BYTES = 32; // 32 bytes = 64 hex characters
-const PASSWORD_RESET_TOKEN_EXPIRY_HOURS = 1; // Token expires in 1 hour
 
 /**
  * Generate a secure random token for password reset
@@ -42,8 +46,6 @@ function generateSecureToken(): string {
  * Mais restritivo que o rate limit geral para proteger contra brute force
  */
 const loginAttempts = new Map<string, { count: number; resetAt: number }>();
-const LOGIN_MAX_ATTEMPTS = 5;
-const LOGIN_WINDOW_MS = 60 * 1000; // 1 minuto
 
 function getClientIp(req: Request): string {
   const forwarded = req.headers["x-forwarded-for"];
@@ -58,6 +60,31 @@ function checkLoginRateLimitLocal(ip: string): { allowed: boolean; retryAfter?: 
   const record = loginAttempts.get(ip);
 
   if (!record || now > record.resetAt) {
+    // Before adding new entry, check Map size to prevent memory exhaustion
+    if (!record && loginAttempts.size >= MAX_LOGIN_ATTEMPTS_ENTRIES) {
+      // First, try to clean up expired entries
+      const entries = Array.from(loginAttempts.entries());
+      for (const [key, val] of entries) {
+        if (now > val.resetAt) {
+          loginAttempts.delete(key);
+        }
+        // Stop early if we've freed enough space
+        if (loginAttempts.size < MAX_LOGIN_ATTEMPTS_ENTRIES * 0.9) {
+          break;
+        }
+      }
+
+      // If still at capacity after cleanup, fail closed for safety
+      if (loginAttempts.size >= MAX_LOGIN_ATTEMPTS_ENTRIES) {
+        logger.warn("[Auth] Login attempts Map at capacity, failing closed", {
+          mapSize: loginAttempts.size,
+          maxSize: MAX_LOGIN_ATTEMPTS_ENTRIES,
+          ip: ip.substring(0, 8) + "...", // Log partial IP for debugging
+        });
+        return { allowed: false, retryAfter: 60 };
+      }
+    }
+
     loginAttempts.set(ip, { count: 1, resetAt: now + LOGIN_WINDOW_MS });
     return { allowed: true };
   }
@@ -169,8 +196,7 @@ export const rateLimitMiddleware: RequestHandler = async (req, res, next) => {
  * Configura middleware de sessao com PostgreSQL
  */
 export function getSession() {
-  const sessionTtlMs = 7 * 24 * 60 * 60 * 1000; // 1 semana
-  const sessionTtlSec = Math.ceil(sessionTtlMs / 1000);
+  const sessionTtlSec = Math.ceil(SESSION_TTL_MS / 1000);
   const pgStore = connectPg(session);
   const sessionStore = new pgStore({
     pool,
@@ -188,7 +214,7 @@ export function getSession() {
     cookie: {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      maxAge: sessionTtlMs,
+      maxAge: SESSION_TTL_MS,
       sameSite: "lax",
     },
   });
@@ -434,7 +460,7 @@ export async function setupAuth(app: Express) {
         return sendSuccess(res, safeUser, 201);
       });
     } catch (error) {
-      console.error("Erro no registro:", error);
+      logger.error("Erro no registro:", { error: error instanceof Error ? error.message : String(error) });
       return sendError(res, ErrorCodes.INTERNAL_ERROR, "Erro ao criar conta", 500);
     }
   });
@@ -481,7 +507,7 @@ export async function setupAuth(app: Express) {
 
       // Generate token and expiry
       const token = generateSecureToken();
-      const expiresAt = new Date(Date.now() + PASSWORD_RESET_TOKEN_EXPIRY_HOURS * 60 * 60 * 1000);
+      const expiresAt = new Date(Date.now() + PASSWORD_RESET_TOKEN_EXPIRY_MINUTES * 60 * 1000);
 
       // Store token
       await storage.createPasswordResetToken({
@@ -556,17 +582,38 @@ export async function setupAuth(app: Express) {
         return sendError(res, ErrorCodes.INVALID_INPUT, "Token invalido ou expirado", 400);
       }
 
-      // Hash new password
+      // Hash new password (outside transaction to avoid holding DB lock during CPU-intensive operation)
       const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
 
-      // Update user password
-      await db
-        .update(users)
-        .set({ passwordHash, updatedAt: new Date() })
-        .where(eq(users.id, resetToken.userId));
+      // Use transaction to ensure atomicity:
+      // 1. Invalidate token FIRST (prevents reuse even if password update fails)
+      // 2. Then update password
+      // If anything fails, both operations roll back
+      await db.transaction(async (tx) => {
+        // Mark token as used FIRST (invalidate before processing)
+        // This prevents token reuse if the password update fails
+        // Check rowCount to detect TOCTOU race conditions (another request used the token)
+        const tokenResult = await tx
+          .update(passwordResetTokens)
+          .set({ usedAt: new Date() })
+          .where(eq(passwordResetTokens.token, token));
 
-      // Mark token as used
-      await storage.markPasswordResetTokenUsed(token);
+        if ((tokenResult.rowCount ?? 0) === 0) {
+          // Token was already used by another concurrent request
+          throw new Error("Token já foi utilizado ou expirou");
+        }
+
+        // Update user password
+        // Check rowCount to ensure user still exists
+        const userResult = await tx
+          .update(users)
+          .set({ passwordHash, updatedAt: new Date() })
+          .where(eq(users.id, resetToken.userId));
+
+        if ((userResult.rowCount ?? 0) === 0) {
+          throw new Error("Usuário não encontrado");
+        }
+      });
 
       logger.info(`Password reset completed for user: ${resetToken.userId}`);
 

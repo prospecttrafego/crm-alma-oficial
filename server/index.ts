@@ -1,4 +1,13 @@
 import "./env";
+
+// Initialize Sentry as early as possible
+import { initSentry, sentryRequestHandler, sentryErrorHandler } from "./lib/sentry";
+initSentry();
+
+// Validate constants at startup - fail fast with clear error if misconfigured
+import { validateConstants } from "./constants";
+validateConstants();
+
 import express from "express";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
@@ -9,6 +18,9 @@ const app = express();
 app.disable("x-powered-by");
 
 app.use(securityHeaders);
+
+// Sentry request handler (should be early in middleware chain)
+app.use(sentryRequestHandler);
 
 declare module "http" {
   interface IncomingMessage {
@@ -54,6 +66,9 @@ export function log(message: string, source = "express") {
     const { setupVite } = await import("./vite");
     await setupVite(httpServer, app);
   }
+
+  // Sentry error handler (captures errors for Sentry, then passes to global handler)
+  app.use(sentryErrorHandler);
 
   // Global error handler (must be last middleware)
   app.use(globalErrorHandler);

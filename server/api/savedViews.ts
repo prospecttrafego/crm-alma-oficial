@@ -12,6 +12,7 @@ import {
   validateParams,
   validateQuery,
   asyncHandler,
+  getCurrentUser,
 } from "../middleware";
 import { sendSuccess, sendNotFound } from "../response";
 import { storage } from "../storage";
@@ -27,8 +28,8 @@ export function registerSavedViewRoutes(app: Express) {
     "/api/saved-views",
     isAuthenticated,
     validateQuery(savedViewsQuerySchema),
-    asyncHandler(async (req: any, res) => {
-      const userId = (req.user as any).id;
+    asyncHandler(async (req, res) => {
+      const userId = getCurrentUser(req)!.id;
       const { type } = req.validatedQuery;
       const views = await storage.getSavedViews(userId, type);
       sendSuccess(res, views);
@@ -40,8 +41,8 @@ export function registerSavedViewRoutes(app: Express) {
     "/api/saved-views",
     isAuthenticated,
     validateBody(createSavedViewSchema),
-    asyncHandler(async (req: any, res) => {
-      const userId = (req.user as any).id;
+    asyncHandler(async (req, res) => {
+      const userId = getCurrentUser(req)!.id;
       const org = await storage.getDefaultOrganization();
       if (!org) {
         return sendNotFound(res, "No organization");
@@ -62,9 +63,9 @@ export function registerSavedViewRoutes(app: Express) {
     isAuthenticated,
     validateParams(idParamSchema),
     validateBody(updateSavedViewSchema),
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const { id } = req.validatedParams;
-      const userId = (req.user as any).id;
+      const userId = getCurrentUser(req)!.id;
 
       const view = await storage.updateSavedView(id, userId, req.validatedBody);
       if (!view) {
@@ -79,9 +80,9 @@ export function registerSavedViewRoutes(app: Express) {
     "/api/saved-views/:id",
     isAuthenticated,
     validateParams(idParamSchema),
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const { id } = req.validatedParams;
-      const userId = (req.user as any).id;
+      const userId = getCurrentUser(req)!.id;
       await storage.deleteSavedView(id, userId);
       res.status(204).send();
     }),

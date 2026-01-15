@@ -1,6 +1,7 @@
 import { google, calendar_v3 } from 'googleapis';
 import crypto from 'crypto';
 import type { CalendarEvent } from '@shared/schema';
+import { logger } from '../../logger';
 
 // OAuth2 scopes for Google Calendar
 const SCOPES = [
@@ -111,16 +112,25 @@ export class GoogleCalendarService {
 
   /**
    * Refresh access token using refresh token
+   * Note: Google may provide a new refresh token - caller should save it!
    */
   async refreshAccessToken(refreshToken: string): Promise<{
     accessToken: string;
+    refreshToken: string | null;
     expiresAt: Date;
   }> {
     this.oauth2Client.setCredentials({ refresh_token: refreshToken });
     const { credentials } = await this.oauth2Client.refreshAccessToken();
 
+    // Google may return a new refresh token - IMPORTANT to save it!
+    const newRefreshToken = credentials.refresh_token || null;
+    if (newRefreshToken && newRefreshToken !== refreshToken) {
+      logger.info("[Google Calendar] New refresh token received during refresh");
+    }
+
     return {
       accessToken: credentials.access_token!,
+      refreshToken: newRefreshToken,
       expiresAt: new Date(credentials.expiry_date || Date.now() + 3600000),
     };
   }
@@ -133,7 +143,9 @@ export class GoogleCalendarService {
       await this.oauth2Client.revokeToken(accessToken);
     } catch (error) {
       // Token might already be revoked, that's okay
-      console.log('Token revocation failed (may already be revoked):', error);
+      logger.info("[Google Calendar] Token revocation failed (may already be revoked)", {
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   }
 

@@ -48,6 +48,7 @@ import type {
 } from "@shared/schema";
 import type { PaginationParams, PaginatedResult } from "./storage/helpers";
 import type { UpdateUserProfileInput } from "./storage/users";
+import type { ContactWithStats } from "./storage/contacts";
 
 import * as usersStorage from "./storage/users";
 import * as organizationsStorage from "./storage/organizations";
@@ -96,6 +97,7 @@ export interface IStorage {
 
   // Contacts
   getContacts(organizationId: number): Promise<Contact[]>;
+  getContactsWithStats(organizationId: number): Promise<ContactWithStats[]>;
   getContactsPaginated(
     organizationId: number,
     params: PaginationParams,
@@ -134,7 +136,7 @@ export interface IStorage {
   createDeal(deal: InsertDeal): Promise<Deal>;
   updateDeal(id: number, deal: Partial<InsertDeal>): Promise<Deal | undefined>;
   deleteDeal(id: number): Promise<void>;
-  moveDealToStage(dealId: number, stageId: number): Promise<Deal | undefined>;
+  moveDealToStage(dealId: number, stageId: number, options?: { status?: "open" | "won" | "lost"; lostReason?: string }): Promise<Deal | undefined>;
   getDealsByContact(contactId: number): Promise<Deal[]>;
   unlinkDealsFromContact(contactId: number): Promise<number>;
 

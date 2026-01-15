@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useRoute, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -22,12 +22,15 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Select,
   SelectContent,
@@ -37,10 +40,9 @@ import {
 } from "@/components/ui/select";
 import { Plus, DollarSign, User, Building2, GripVertical } from "lucide-react";
 import { FilterPanel, type PipelineFilters } from "@/components/filter-panel";
-import { EntityHistory } from "@/components/entity-history";
-import { LeadScorePanel } from "@/components/LeadScorePanel";
 import type { Deal, PipelineStage, Contact, Company } from "@shared/schema";
 import type { PipelineWithStages } from "@shared/types";
+import { DealEditorDialog } from "./deal-editor-dialog";
 
 interface DealWithRelations extends Deal {
   contact?: Contact;
@@ -60,6 +62,12 @@ export default function PipelinePage() {
   const [dragOverStage, setDragOverStage] = useState<number | null>(null);
   const [filters, setFilters] = useState<PipelineFilters>({});
   const [selectedPipelineId, setSelectedPipelineId] = useState<number | null>(urlPipelineId);
+  // Lost reason modal state
+  const [lostReasonModalOpen, setLostReasonModalOpen] = useState(false);
+  const [pendingLostDrop, setPendingLostDrop] = useState<{ deal: DealWithRelations; stageId: number } | null>(null);
+  const [lostReason, setLostReason] = useState("");
+  // Form state for dynamic probability display
+  const [probabilityValue, setProbabilityValue] = useState(10);
 
   // Sync URL parameter with state
   useEffect(() => {
@@ -102,76 +110,144 @@ export default function PipelinePage() {
 
   const { moveDeal, createDeal } = useDealMutations();
 
-  const handleDragStart = (e: React.DragEvent, deal: DealWithRelations) => {
+  // Memoized drag handlers
+  const handleDragStart = useCallback((e: React.DragEvent, deal: DealWithRelations) => {
     setDraggedDeal(deal);
     e.dataTransfer.effectAllowed = "move";
-  };
+  }, []);
 
-  const handleDragOver = (e: React.DragEvent, stageId: number) => {
+  const handleDragOver = useCallback((e: React.DragEvent, stageId: number) => {
     e.preventDefault();
     setDragOverStage(stageId);
-  };
+  }, []);
 
-  const handleDragLeave = () => {
+  const handleDragLeave = useCallback(() => {
     setDragOverStage(null);
-  };
+  }, []);
 
-  const handleDrop = (e: React.DragEvent, stageId: number) => {
+  const handleDrop = useCallback((e: React.DragEvent, stageId: number) => {
     e.preventDefault();
     setDragOverStage(null);
     if (draggedDeal && draggedDeal.stageId !== stageId) {
-      moveDeal.mutate({ id: draggedDeal.id, data: { stageId } });
+      // Check if target stage is a "lost" stage
+      const targetStage = pipeline?.stages?.find(s => s.id === stageId);
+      if (targetStage?.isLost) {
+        // Show lost reason modal
+        setPendingLostDrop({ deal: draggedDeal, stageId });
+        setLostReason("");
+        setLostReasonModalOpen(true);
+      } else {
+        moveDeal.mutate({ id: draggedDeal.id, data: { stageId } });
+      }
     }
     setDraggedDeal(null);
-  };
+  }, [draggedDeal, moveDeal, pipeline?.stages]);
 
-  const handleCreateDeal = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleConfirmLostDeal = useCallback(() => {
+    if (pendingLostDrop) {
+      moveDeal.mutate({
+        id: pendingLostDrop.deal.id,
+        data: {
+          stageId: pendingLostDrop.stageId,
+          status: "lost",
+          lostReason: lostReason || undefined,
+        },
+      }, {
+        onSuccess: () => {
+          setLostReasonModalOpen(false);
+          setPendingLostDrop(null);
+          setLostReason("");
+        },
+      });
+    }
+  }, [pendingLostDrop, lostReason, moveDeal]);
+
+  const handleCancelLostDeal = useCallback(() => {
+    setLostReasonModalOpen(false);
+    setPendingLostDrop(null);
+    setLostReason("");
+  }, []);
+
+  const handleCreateDeal = useCallback((e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     const firstStage = pipeline?.stages?.[0];
     if (!firstStage || !pipeline) return;
 
+    const expectedCloseDateValue = formData.get("expectedCloseDate") as string;
     createDeal.mutate({
       title: formData.get("title") as string,
       value: formData.get("value") as string,
       pipelineId: pipeline.id,
       stageId: firstStage.id,
       contactId: formData.get("contactId") ? Number(formData.get("contactId")) : undefined,
+      probability: Number(formData.get("probability")) || 10,
+      expectedCloseDate: expectedCloseDateValue?.trim() ? new Date(expectedCloseDateValue) : null,
+      source: (formData.get("source") as string) || undefined,
       notes: formData.get("notes") as string,
+    }, {
+      onSuccess: () => {
+        setNewDealOpen(false);
+        setProbabilityValue(10);
+      },
     });
-  };
+  }, [pipeline, createDeal]);
 
-  const getDealsByStage = (stageId: number) => {
-    return deals?.filter((deal) => {
-      if (deal.stageId !== stageId) return false;
-      
-      if (filters.stageId && deal.stageId !== filters.stageId) return false;
-      if (filters.ownerId && deal.ownerId !== filters.ownerId) return false;
-      if (filters.status && deal.status !== filters.status) return false;
-      if (filters.minValue && Number(deal.value || 0) < filters.minValue) return false;
-      if (filters.maxValue && Number(deal.value || 0) > filters.maxValue) return false;
-      
-      if (filters.dateFrom || filters.dateTo) {
-        if (!deal.expectedCloseDate) return false;
-        const dealDate = new Date(deal.expectedCloseDate);
-        if (filters.dateFrom) {
-          const fromDate = new Date(filters.dateFrom);
-          if (dealDate < fromDate) return false;
-        }
-        if (filters.dateTo) {
-          const toDate = new Date(filters.dateTo);
-          if (dealDate > toDate) return false;
-        }
-      }
-      
-      return true;
-    }) || [];
-  };
+  // Memoized filtered deals by stage - prevents recalculation on every render
+  const dealsByStage = useMemo(() => {
+    if (!deals || !pipeline?.stages) return new Map<number, DealWithRelations[]>();
 
-  const getStageValue = (stageId: number) => {
-    const stageDeals = getDealsByStage(stageId);
-    return stageDeals.reduce((sum, deal) => sum + Number(deal.value || 0), 0);
-  };
+    const stageDealsMap = new Map<number, DealWithRelations[]>();
+
+    for (const stage of pipeline.stages) {
+      const filteredDeals = deals.filter((deal) => {
+        if (deal.stageId !== stage.id) return false;
+
+        if (filters.stageId && deal.stageId !== filters.stageId) return false;
+        if (filters.ownerId && deal.ownerId !== filters.ownerId) return false;
+        if (filters.status && deal.status !== filters.status) return false;
+        if (filters.minValue && Number(deal.value || 0) < filters.minValue) return false;
+        if (filters.maxValue && Number(deal.value || 0) > filters.maxValue) return false;
+
+        if (filters.dateFrom || filters.dateTo) {
+          if (!deal.expectedCloseDate) return false;
+          const dealDate = new Date(deal.expectedCloseDate);
+          if (filters.dateFrom) {
+            const fromDate = new Date(filters.dateFrom);
+            if (dealDate < fromDate) return false;
+          }
+          if (filters.dateTo) {
+            const toDate = new Date(filters.dateTo);
+            if (dealDate > toDate) return false;
+          }
+        }
+
+        return true;
+      });
+      stageDealsMap.set(stage.id, filteredDeals);
+    }
+
+    return stageDealsMap;
+  }, [deals, pipeline?.stages, filters]);
+
+  // Memoized stage values
+  const stageValues = useMemo(() => {
+    const valuesMap = new Map<number, number>();
+    dealsByStage.forEach((stageDeals, stageId) => {
+      const total = stageDeals.reduce((sum, deal) => sum + Number(deal.value || 0), 0);
+      valuesMap.set(stageId, total);
+    });
+    return valuesMap;
+  }, [dealsByStage]);
+
+  // Helper functions that use memoized data
+  const getDealsByStage = useCallback((stageId: number) => {
+    return dealsByStage.get(stageId) || [];
+  }, [dealsByStage]);
+
+  const getStageValue = useCallback((stageId: number) => {
+    return stageValues.get(stageId) || 0;
+  }, [stageValues]);
 
   if (pipelineLoading) {
     return (
@@ -235,7 +311,10 @@ export default function PipelinePage() {
             onFiltersChange={(f) => setFilters(f as PipelineFilters)}
             stages={pipeline?.stages}
           />
-          <Dialog open={newDealOpen} onOpenChange={setNewDealOpen}>
+          <Dialog open={newDealOpen} onOpenChange={(open) => {
+            setNewDealOpen(open);
+            if (!open) setProbabilityValue(10); // Reset on close
+          }}>
           <DialogTrigger asChild>
             <Button className="w-full sm:w-auto" data-testid="button-new-deal">
               <Plus className="mr-2 h-4 w-4" />
@@ -286,6 +365,43 @@ export default function PipelinePage() {
                       </option>
                     ))}
                   </select>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="probability">{t("pipeline.probability")}</Label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        id="probability"
+                        name="probability"
+                        type="range"
+                        min="0"
+                        max="100"
+                        value={probabilityValue}
+                        onChange={(e) => setProbabilityValue(Number(e.target.value))}
+                        className="h-2"
+                        data-testid="input-deal-probability"
+                      />
+                      <span className="text-sm text-muted-foreground w-10 text-right">{probabilityValue}%</span>
+                    </div>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="expectedCloseDate">{t("pipeline.expectedCloseDate")}</Label>
+                    <Input
+                      id="expectedCloseDate"
+                      name="expectedCloseDate"
+                      type="date"
+                      data-testid="input-deal-expectedCloseDate"
+                    />
+                  </div>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="source">{t("contacts.source")}</Label>
+                  <Input
+                    id="source"
+                    name="source"
+                    placeholder={t("pipeline.sourcePlaceholder")}
+                    data-testid="input-deal-source"
+                  />
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="notes">{t("common.notes")}</Label>
@@ -396,74 +512,45 @@ export default function PipelinePage() {
         ))}
       </div>
 
-      <Sheet open={!!selectedDeal} onOpenChange={() => setSelectedDeal(null)}>
-        <SheetContent className="w-[400px] sm:w-[540px]">
-          <SheetHeader>
-            <div className="flex items-center justify-between">
-              <SheetTitle>{selectedDeal?.title}</SheetTitle>
-            </div>
-            <SheetDescription>{t("common.details")}</SheetDescription>
-          </SheetHeader>
+      <DealEditorDialog
+        deal={selectedDeal}
+        open={!!selectedDeal}
+        onOpenChange={(open) => {
+          if (!open) setSelectedDeal(null);
+        }}
+        contacts={contacts || []}
+      />
 
-          {selectedDeal && (
-            <div className="mt-6 space-y-6">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="rounded-md border p-3">
-                  <p className="text-xs text-muted-foreground">{t("pipeline.dealValue")}</p>
-                  <p className="text-lg font-semibold">
-                    R$ {Number(selectedDeal.value || 0).toLocaleString("pt-BR")}
-                  </p>
-                </div>
-                <div className="rounded-md border p-3">
-                  <p className="text-xs text-muted-foreground">{t("pipeline.probability")}</p>
-                  <p className="text-lg font-semibold">
-                    {selectedDeal.probability || 0}%
-                  </p>
-                </div>
-              </div>
-
-              {selectedDeal.contact && (
-                <div className="rounded-md border p-4">
-                  <h4 className="mb-2 text-sm font-medium">{t("pipeline.contact")}</h4>
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
-                      <User className="h-5 w-5 text-primary" />
-                    </div>
-                    <div>
-                      <p className="font-medium">
-                        {selectedDeal.contact.firstName} {selectedDeal.contact.lastName}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {selectedDeal.contact.email}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {selectedDeal.notes && (
-                <div className="rounded-md border p-4">
-                  <h4 className="mb-2 text-sm font-medium">{t("common.notes")}</h4>
-                  <p className="text-sm text-muted-foreground">
-                    {selectedDeal.notes}
-                  </p>
-                </div>
-              )}
-
-              <div className="rounded-md border p-4">
-                <h4 className="mb-2 text-sm font-medium">{t("common.status")}</h4>
-                <Badge>{t(`pipeline.status.${selectedDeal.status}`)}</Badge>
-              </div>
-
-              <LeadScorePanel entityType="deal" entityId={selectedDeal.id} />
-
-              <div className="rounded-md border">
-                <EntityHistory entityType="deal" entityId={selectedDeal.id} />
-              </div>
-            </div>
-          )}
-        </SheetContent>
-      </Sheet>
+      {/* Lost Reason Modal */}
+      <AlertDialog open={lostReasonModalOpen} onOpenChange={setLostReasonModalOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("pipeline.lostReasonTitle")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("pipeline.lostReasonDescription")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="py-4">
+            <Label htmlFor="lostReason">{t("pipeline.lostReason")}</Label>
+            <Textarea
+              id="lostReason"
+              value={lostReason}
+              onChange={(e) => setLostReason(e.target.value)}
+              placeholder={t("pipeline.lostReasonPlaceholder")}
+              className="mt-2"
+              rows={3}
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={handleCancelLostDeal}>
+              {t("common.cancel")}
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmLostDeal}>
+              {t("common.confirm")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

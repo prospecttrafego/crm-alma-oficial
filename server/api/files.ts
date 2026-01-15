@@ -10,6 +10,7 @@ import { asyncHandler, validateBody, validateParams, validateQuery, getCurrentUs
 import { createFileSchema } from "../validation";
 import { sendSuccess, sendNotFound, sendValidationError, sendServiceUnavailable } from "../response";
 import { logger } from "../logger";
+import { MAX_FILE_SIZE_BYTES, MAX_FILE_SIZE_MB } from "../constants";
 
 const fileEntityParamsSchema = z.object({
   entityType: z.string(),
@@ -29,15 +30,39 @@ const asyncQuerySchema = z.object({
   async: z.string().optional(),
 });
 
+const uploadUrlBodySchema = z.object({
+  size: z.number().int().positive().optional(),
+});
+
 export function registerFileRoutes(app: Express) {
-  // File upload - get presigned URL
+  // File upload - get presigned URL (with optional pre-validation of size)
   app.post(
     "/api/files/upload-url",
     isAuthenticated,
-    asyncHandler(async (_req, res) => {
+    validateBody(uploadUrlBodySchema),
+    asyncHandler(async (req, res) => {
+      const { size } = req.validatedBody || {};
+
+      // Pre-validate file size BEFORE generating upload URL
+      // This prevents wasted bandwidth and orphan files from rejected uploads
+      if (size && size > MAX_FILE_SIZE_BYTES) {
+        return sendValidationError(
+          res,
+          `Arquivo muito grande. O tamanho máximo permitido é ${MAX_FILE_SIZE_MB}MB.`,
+          [{ path: "size", message: `O arquivo excede o limite de ${MAX_FILE_SIZE_MB}MB` }]
+        );
+      }
+
       const objectStorageService = new ObjectStorageService();
       const { uploadURL, objectPath } = await objectStorageService.getObjectEntityUploadURL();
-      sendSuccess(res, { uploadURL, objectPath });
+
+      // Include size limits in response for client awareness
+      sendSuccess(res, {
+        uploadURL,
+        objectPath,
+        maxSizeBytes: MAX_FILE_SIZE_BYTES,
+        maxSizeMB: MAX_FILE_SIZE_MB,
+      });
     })
   );
 
@@ -46,7 +71,7 @@ export function registerFileRoutes(app: Express) {
     "/api/files",
     isAuthenticated,
     validateBody(createFileSchema),
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const org = await storage.getDefaultOrganization();
       if (!org) {
         return sendValidationError(res, "No organization found");
@@ -58,6 +83,15 @@ export function registerFileRoutes(app: Express) {
 
       if (!uploadURL && !objectPath) {
         return sendValidationError(res, "Either uploadURL or objectPath is required");
+      }
+
+      // Validate file size (50MB limit)
+      if (size && size > MAX_FILE_SIZE_BYTES) {
+        return sendValidationError(
+          res,
+          `Arquivo muito grande. O tamanho máximo permitido é ${MAX_FILE_SIZE_MB}MB.`,
+          [{ path: "size", message: `O arquivo excede o limite de ${MAX_FILE_SIZE_MB}MB` }]
+        );
       }
 
       if (!fileEntityTypes.includes(entityType as FileEntityType)) {
@@ -113,7 +147,7 @@ export function registerFileRoutes(app: Express) {
     "/api/files/:entityType/:entityId",
     isAuthenticated,
     validateParams(fileEntityParamsSchema),
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const { entityType, entityId } = req.validatedParams;
 
       if (!fileEntityTypes.includes(entityType as FileEntityType)) {
@@ -130,7 +164,7 @@ export function registerFileRoutes(app: Express) {
     "/api/files/:id",
     isAuthenticated,
     validateParams(fileIdParamsSchema),
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const { id } = req.validatedParams;
       const currentUser = getCurrentUser(req);
       const userId = currentUser!.id;
@@ -180,7 +214,7 @@ export function registerFileRoutes(app: Express) {
     isAuthenticated,
     validateBody(transcribeBodySchema),
     validateQuery(asyncQuerySchema),
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const { audioUrl, language } = req.validatedBody;
       const isAsync = req.validatedQuery?.async === "true";
 
@@ -235,7 +269,7 @@ export function registerFileRoutes(app: Express) {
     validateParams(fileIdParamsSchema),
     validateBody(transcribeBodySchema),
     validateQuery(asyncQuerySchema),
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const { id } = req.validatedParams;
       const isAsync = req.validatedQuery?.async === "true";
 

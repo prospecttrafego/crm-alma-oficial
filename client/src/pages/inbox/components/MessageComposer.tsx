@@ -32,6 +32,16 @@ import { formatRecordingTime } from "@/pages/inbox/utils";
 import type { PendingFile } from "@/pages/inbox/types";
 import type { EmailTemplate } from "@shared/schema";
 
+/**
+ * Returns appropriate icon based on file MIME type.
+ * Defined outside component to avoid recreation on each render.
+ */
+function getFileIcon(mimeType: string) {
+  if (mimeType.startsWith("image/")) return <Image className="h-3 w-3" />;
+  if (mimeType.includes("pdf") || mimeType.includes("document")) return <FileText className="h-3 w-3" />;
+  return <FileIcon className="h-3 w-3" />;
+}
+
 type Props = {
   onSubmit: (e: React.FormEvent) => void;
   isRecording: boolean;
@@ -109,12 +119,6 @@ export function MessageComposer({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const getFileIcon = (mimeType: string) => {
-    if (mimeType.startsWith("image/")) return <Image className="h-3 w-3" />;
-    if (mimeType.includes("pdf") || mimeType.includes("document")) return <FileText className="h-3 w-3" />;
-    return <FileIcon className="h-3 w-3" />;
-  };
-
   return (
     <form onSubmit={onSubmit} className="border-t border-border bg-muted/50 px-4 py-3">
       {isRecording && (
@@ -183,7 +187,7 @@ export function MessageComposer({
                 }`}
                 data-testid="button-reply-mode"
               >
-                Responder
+                {t("inbox.reply")}
               </Button>
               <Button
                 type="button"
@@ -198,7 +202,7 @@ export function MessageComposer({
                 data-testid="button-internal-mode"
               >
                 <AtSign className="mr-1 h-3 w-3" />
-                Nota
+                {t("inbox.note")}
               </Button>
             </div>
 
@@ -297,7 +301,7 @@ export function MessageComposer({
                     theme={resolvedEmojiTheme}
                     width={320}
                     height={400}
-                    searchPlaceHolder="Pesquisar emoji..."
+                    searchPlaceHolder={t("inbox.emojiSearch")}
                     previewConfig={{ showPreview: false }}
                   />
                 </div>
@@ -329,27 +333,26 @@ export function MessageComposer({
               />
             </div>
 
-            {newMessage.trim() || pendingFiles.length > 0 ? (
-              <Button
-                type="submit"
-                size="icon"
-                disabled={isSending || uploading}
-                className="h-10 w-10 flex-shrink-0 rounded-full bg-primary text-primary-foreground hover:bg-primary/90"
-                data-testid="button-send-message"
-              >
-                <Send className="h-5 w-5" />
-              </Button>
-            ) : (
+            <div className="flex gap-1">
               <Button
                 type="button"
                 size="icon"
                 onClick={onStartRecording}
-                className="h-10 w-10 flex-shrink-0 rounded-full bg-primary text-primary-foreground hover:bg-primary/90"
+                className="h-10 w-10 flex-shrink-0 rounded-full bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
                 data-testid="button-mic"
               >
                 <Mic className="h-5 w-5" />
               </Button>
-            )}
+              <Button
+                type="submit"
+                size="icon"
+                disabled={isSending || uploading || (!newMessage.trim() && pendingFiles.length === 0)}
+                className="h-10 w-10 flex-shrink-0 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                data-testid="button-send-message"
+              >
+                <Send className="h-5 w-5" />
+              </Button>
+            </div>
           </div>
         </>
       )}

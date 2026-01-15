@@ -47,7 +47,8 @@
     "toggleSidebar": "Alternar barra lateral",
     "toggleTheme": "Alternar tema",
     "user": "Usuário",
-    "clear": "Limpar"
+    "clear": "Limpar",
+    "reset": "Resetar"
   },
   "nav": {
     "dashboard": "Painel",
@@ -201,6 +202,14 @@
   },
   "settings": {
     "title": "Configurações",
+    "subtitle": "Gerencie suas preferências e integrações",
+    "nav": {
+      "profile": "Perfil",
+      "notifications": "Notificações",
+      "pipelines": "Funis",
+      "templates": "Modelos",
+      "integrations": "Integrações"
+    },
     "profile": {
       "title": "Perfil",
       "subtitle": "Suas informações pessoais",
@@ -248,7 +257,13 @@
       "subtitle": "Conecte serviços externos para sincronizar dados automaticamente",
       "connected": "Conectado",
       "notConnected": "Não conectado",
-      "connect": "Conectar"
+      "partiallyConnected": "Parcialmente conectado",
+      "notConfigured": "Não configurado",
+      "inactive": "Inativo",
+      "connect": "Conectar",
+      "whatsappDescription": "Envie e receba mensagens do WhatsApp via Evolution API",
+      "emailDescription": "Configure contas de e-mail IMAP/SMTP para sincronizar mensagens",
+      "calendarDescription": "Sincronize eventos com o Google Calendar"
     },
     "channels": {
       "title": "Integrações de Canais",
@@ -270,6 +285,8 @@
         "emailDescription": "Configure IMAP/SMTP para sincronizar e-mails com sua caixa de entrada.",
         "whatsappDescription": "Conecte sua conta do WhatsApp Business API."
       },
+      "testConnection": "Testar conexão",
+      "sync": "Sincronizar",
       "toast": {
         "created": "Configuração de canal criada com sucesso",
         "createError": "Falha ao criar configuração de canal",
@@ -278,11 +295,17 @@
         "deleted": "Configuração de canal excluída com sucesso",
         "deleteError": "Falha ao excluir configuração de canal",
         "testSuccess": "Teste de conexão realizado com sucesso",
-        "testError": "Falha no teste de conexão"
+        "testError": "Falha no teste de conexão",
+        "disconnectError": "Falha ao desconectar",
+        "syncSuccess": "Sincronização concluída ({{count}} itens importados)",
+        "syncError": "Falha na sincronização"
       },
       "email": {
         "title": "Configuração de E-mail",
         "subtitle": "Configure o acesso IMAP/SMTP para sincronizar e-mails",
+        "noConfigs": "Nenhuma conta de e-mail configurada",
+        "noConfigsDescription": "Adicione uma conta de e-mail para sincronizar mensagens com sua caixa de entrada.",
+        "noEmailSet": "E-mail não configurado",
         "imapHost": "Servidor IMAP",
         "imapPort": "Porta IMAP",
         "imapSecure": "IMAP Seguro (SSL/TLS)",
@@ -316,7 +339,16 @@
         "viaEvolution": "WhatsApp via Evolution API",
         "configNamePlaceholder": "Ex: WhatsApp Principal, Suporte",
         "disconnectSuccess": "WhatsApp desconectado com sucesso",
-        "disconnectError": "Falha ao desconectar WhatsApp"
+        "disconnectError": "Falha ao desconectar WhatsApp",
+        "noConfigs": "Nenhuma conta WhatsApp configurada",
+        "noConfigsDescription": "Adicione uma conta WhatsApp para enviar e receber mensagens.",
+        "scanQr": "Escanear QR",
+        "reconnect": "Reconectar",
+        "lastConnected": "Última conexão",
+        "disconnectConfirm": {
+          "title": "Desconectar WhatsApp?",
+          "description": "A sessão do WhatsApp será encerrada. Você precisará escanear o QR Code novamente para reconectar."
+        }
       }
     },
     "googleCalendar": {
@@ -333,11 +365,15 @@
       "syncNow": "Sincronizar agora",
       "connected": "Conectado",
       "connectedAs": "Conectado como {{email}}",
-      "lastSync": "Última sincronização: {{date}}",
+      "lastSync": "Última sincronização",
       "neverSynced": "Nunca sincronizado",
       "never": "Nunca",
       "notConnected": "Google Calendar não conectado",
       "connectDescription": "Conecte sua conta Google para sincronizar eventos automaticamente",
+      "syncStatus": "Status da sincronização",
+      "syncSuccess": "Sincronizado com sucesso",
+      "syncFailed": "Falha na sincronização",
+      "eventsImported": "Eventos importados",
       "disconnectConfirm": {
         "title": "Desconectar Google Calendar?",
         "description": "Isso irá remover a conexão com sua conta Google. Os eventos já sincronizados permanecerão no sistema."
@@ -553,12 +589,22 @@
     "contact": "Contato",
     "company": "Empresa",
     "source": "Origem",
+    "tagsPlaceholder": "Digite e pressione Enter...",
+    "customFields": "Campos personalizados",
+    "customFieldsDescription": "Adicione campos extras para este negócio.",
+    "addCustomField": "Adicionar campo",
+    "customFieldKey": "Nome do campo",
+    "customFieldValue": "Valor",
     "status": {
       "open": "Aberto",
       "won": "Ganho",
       "lost": "Perdido"
     },
     "lostReason": "Motivo da Perda",
+    "lostReasonTitle": "Registrar Perda",
+    "lostReasonDescription": "Por que este negócio foi perdido? Registrar o motivo ajuda a melhorar suas estratégias futuras.",
+    "lostReasonPlaceholder": "Ex.: Preço alto, concorrente, falta de orçamento...",
+    "sourcePlaceholder": "Ex.: Indicação, Google Ads, Redes Sociais...",
     "noDeals": "Nenhum negócio neste estágio",
     "dragToMove": "Arraste para mover",
     "totalValue": "Valor Total",
@@ -566,6 +612,9 @@
   },
   "inbox": {
     "title": "Caixa de entrada",
+    "reply": "Responder",
+    "note": "Nota",
+    "emojiSearch": "Pesquisar emoji...",
     "templates": "Modelos",
     "newConversation": "Nova Conversa",
     "noConversations": "Nenhuma conversa",
@@ -617,7 +666,16 @@
     "exportContacts": "Exportar Contatos",
     "detailsAndActivity": "Detalhes e atividade do contato",
     "activityTimeline": "Linha do Tempo de Atividades",
-    "noActivities": "Nenhuma atividade ainda"
+    "noActivities": "Nenhuma atividade ainda",
+    "dealsValue": "Valor em Deals",
+    "openDeals": "Deals Abertos",
+    "lastActivity": "Última Atividade",
+    "createdAt": "Criado em",
+    "columns": "Colunas",
+    "toggleColumns": "Mostrar/ocultar colunas",
+    "columnsHint": "Arraste para reordenar. Use a borda do cabeçalho para redimensionar.",
+    "viewDetails": "Ver Detalhes",
+    "deleteConfirm": "Tem certeza que deseja excluir \"{{name}}\"?"
   },
   "activities": {
     "title": "Atividades",

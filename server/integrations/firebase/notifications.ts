@@ -3,6 +3,9 @@
  * Sends push notifications to users when WebSocket is not available
  */
 import admin from "firebase-admin";
+import { createServiceLogger } from "../../logger";
+
+const fcmLogger = createServiceLogger("fcm");
 
 // Initialize Firebase Admin SDK
 let firebaseInitialized = false;
@@ -15,7 +18,7 @@ function initializeFirebase() {
   const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n");
 
   if (!projectId || !clientEmail || !privateKey) {
-    console.log("[FCM] Firebase not configured - push notifications disabled");
+    fcmLogger.info("[FCM] Firebase not configured - push notifications disabled");
     return false;
   }
 
@@ -28,10 +31,10 @@ function initializeFirebase() {
       }),
     });
     firebaseInitialized = true;
-    console.log("[FCM] Firebase Admin SDK initialized");
+    fcmLogger.info("[FCM] Firebase Admin SDK initialized");
     return true;
   } catch (error) {
-    console.error("[FCM] Failed to initialize Firebase:", error);
+    fcmLogger.error("[FCM] Failed to initialize Firebase", { error });
     return false;
   }
 }
@@ -58,7 +61,7 @@ export async function sendPushNotification(
   payload: PushNotificationPayload
 ): Promise<boolean> {
   if (!firebaseInitialized) {
-    console.log("[FCM] Firebase not initialized, skipping push notification");
+    fcmLogger.info("[FCM] Firebase not initialized, skipping push notification");
     return false;
   }
 
@@ -85,10 +88,10 @@ export async function sendPushNotification(
     };
 
     const response = await admin.messaging().send(message);
-    console.log("[FCM] Successfully sent message:", response);
+    fcmLogger.info("[FCM] Successfully sent message", { response });
     return true;
   } catch (error) {
-    console.error("[FCM] Error sending message:", error);
+    fcmLogger.error("[FCM] Error sending message", { error });
     return false;
   }
 }
@@ -155,7 +158,7 @@ export async function sendPushNotificationBatch(
       }
     });
 
-    console.log(
+    fcmLogger.info(
       `[FCM] Batch sent: ${response.successCount} success, ${response.failureCount} failures, ${invalidTokens.length} invalid tokens`
     );
 
@@ -165,7 +168,7 @@ export async function sendPushNotificationBatch(
       invalidTokens,
     };
   } catch (error) {
-    console.error("[FCM] Error sending batch message:", error);
+    fcmLogger.error("[FCM] Error sending batch message", { error });
     return { successCount: 0, failureCount: tokens.length, invalidTokens: [] };
   }
 }
@@ -317,10 +320,10 @@ export async function sendNotificationToUser(
           await options.deletePushToken(invalidToken);
           tokensRemoved++;
         } catch (err) {
-          console.error("[FCM] Error removing invalid token:", err);
+          fcmLogger.error("[FCM] Error removing invalid token", { error: err });
         }
       }
-      console.log(`[FCM] Removed ${tokensRemoved} invalid tokens for user ${userId}`);
+      fcmLogger.info(`[FCM] Removed ${tokensRemoved} invalid tokens for user ${userId}`);
     }
 
     return {
@@ -330,7 +333,7 @@ export async function sendNotificationToUser(
       tokensRemoved,
     };
   } catch (error) {
-    console.error("[FCM] Error sending notification to user:", error);
+    fcmLogger.error("[FCM] Error sending notification to user", { error });
     return { sent: false, successCount: 0, failureCount: 0, tokensRemoved: 0 };
   }
 }

@@ -23,7 +23,10 @@ Estrutura atual (nível alto):
     validation/     # Schemas Zod centralizados (shared/contracts)
     storage/        # DAL por domínio (contacts, deals, etc.)
     integrations/   # Integrações externas
+    services/       # Lógica de negócio reutilizável
     jobs/           # Background jobs
+    lib/            # Bibliotecas internas (sentry, circuit-breaker)
+    constants.ts    # Constantes centralizadas
     middleware.ts   # Middlewares padronizados
     response.ts     # Helpers de resposta API
   shared/
@@ -32,6 +35,7 @@ Estrutura atual (nível alto):
     apiSchemas.ts   # Schemas Zod das respostas da API (runtime contract)
     apiSchemas.integrations.ts # Schemas de integrações (payloads/redactions)
     types/          # Tipos compartilhados
+  migrations/       # Migrações do banco (Drizzle)
   scripts/
   script/
   dist/
@@ -119,8 +123,12 @@ server/
   validation/         # Schemas Zod centralizados (a partir de shared/contracts)
   storage/            # DAL por domínio (contacts, deals, etc.)
   integrations/       # Integrações externas
-  jobs/               # Background jobs
-  middleware.ts       # Middlewares (asyncHandler, validateBody/Params/Query)
+  services/           # Serviços de negócio (deal-auto-creator, whatsapp-config, email-ingest)
+  jobs/               # Background jobs (queue, handlers, DLQ, storage)
+  lib/                # Bibliotecas internas (sentry, circuit-breaker)
+  types/              # Type augmentations (Express, etc.)
+  constants.ts        # Constantes centralizadas (limites, TTLs, timeouts)
+  middleware.ts       # Middlewares (asyncHandler, validate*, getCurrentUser)
   response.ts         # Helpers de resposta (sendSuccess, sendError, toSafeUser)
 ```
 
@@ -128,10 +136,11 @@ E também existem arquivos importantes "soltos" dentro de `server/` (por exemplo
 
 ### Arquivos de infraestrutura importantes
 
-- `server/middleware.ts`: Middlewares padronizados como `asyncHandler` (captura erros automaticamente), `validateBody`, `validateParams`, `validateQuery` (validação Zod).
+- `server/middleware.ts`: Middlewares padronizados como `asyncHandler` (captura erros automaticamente), `validateBody`, `validateParams`, `validateQuery` (validação Zod), e `getCurrentUser` (helper type-safe para acessar usuário autenticado).
 - `server/response.ts`: Funções helper para respostas HTTP padronizadas (`sendSuccess`, `sendError`, `sendNotFound`, `sendValidationError`, `toSafeUser`, etc.).
 - `server/validation/`: Pasta com schemas Zod centralizados para validação de entrada (importa de `shared/contracts`).
 - `server/storage.ts`: Facade que re-exporta os módulos do `server/storage/` (DAL por domínio).
+- `server/types/`: Type augmentations para Express (Request interface com validatedBody/Query/Params e User).
 
 ### `server/api/` — Rotas HTTP do sistema (endpoints `/api/...`)
 - O que é: aqui estão as “portas de entrada” do backend (as URLs que o frontend chama).
@@ -200,6 +209,29 @@ O que pode ser mudado/alterado:
 O que evitar:
 - Misturar “regra de negócio” com código de integração: o ideal é a integração só se preocupar em “conectar e trazer dados”.
 
+### `server/services/` — Lógica de negócio reutilizável
+- O que é: serviços que encapsulam regras de negócio reutilizáveis por múltiplos handlers.
+- Por que existe: evita duplicação de código e mantém handlers/rotas mais enxutos.
+
+Estrutura atual:
+
+```
+server/services/
+  index.ts              # Re-exports
+  deal-auto-creator.ts  # Auto-criação de deal (WhatsApp/email)
+  whatsapp-config.ts    # Configuração WhatsApp (connect/disconnect/send)
+  email-ingest.ts       # Processamento de emails recebidos
+```
+
+O que pode ser mudado/alterado:
+- Criar novos serviços para lógica de negócio complexa.
+- Mover lógica repetida de handlers para cá.
+
+O que evitar:
+- Colocar lógica de integração pura aqui (isso vai em `integrations/`).
+
+---
+
 ### `server/jobs/` — Tarefas em background (para coisas pesadas)
 - O que é: um lugar para tarefas que não deveriam travar uma requisição (ex.: transcrever áudio, calcular score, sincronizar calendário).
 - Por que existe: melhora a experiência do usuário e reduz risco de timeouts.
@@ -209,9 +241,13 @@ Estrutura atual:
 
 ```
 server/jobs/
-  index.ts
-  queue.ts
-  handlers.ts
+  index.ts        # Re-exports
+  types.ts        # Tipos e interfaces (Job, JobStatus, JobHandler, etc.)
+  storage.ts      # Persistência Redis/in-memory (saveJob, loadJob, etc.)
+  queue.ts        # Processamento da fila (enqueueJob, processQueue, etc.)
+  handlers.ts     # Handlers específicos (transcrição, scoring, sync)
+  dead-letter.ts  # Dead Letter Queue para jobs falhos
+  file-cleanup.ts # Cleanup de arquivos órfãos
 ```
 
 O que pode ser mudado/alterado:
@@ -220,6 +256,73 @@ O que pode ser mudado/alterado:
 
 O que evitar:
 - Rodar sem Redis em produção quando precisar de jobs duráveis (o fallback em memória é para dev/ambientes simples).
+
+---
+
+### `server/lib/` — Bibliotecas internas reutilizáveis
+- O que é: módulos internos que encapsulam funcionalidades transversais (cross-cutting concerns).
+- Por que existe: centraliza código de infraestrutura que pode ser usado em múltiplos lugares.
+
+Estrutura atual:
+
+```
+server/lib/
+  sentry.ts         # Integração Sentry (error tracking, middleware, helpers)
+  circuit-breaker.ts # Circuit breaker pattern para integrações externas
+```
+
+O que você encontra:
+- `sentry.ts`: inicialização do Sentry, middleware de request/error, helpers para captura manual de erros
+- `circuit-breaker.ts`: implementação do padrão circuit breaker para proteger contra falhas em cascata
+
+O que pode ser mudado/alterado:
+- Adicionar novas bibliotecas internas (ex.: retry, cache, rate-limiter).
+- Configurar thresholds dos circuit breakers por integração.
+
+O que evitar:
+- Colocar lógica de negócio aqui (isso vai em `services/`).
+- Duplicar funcionalidades já existentes em outras libs.
+
+---
+
+### `server/constants.ts` — Constantes centralizadas
+- O que é: arquivo único com todas as "magic numbers" e configurações do backend.
+- Por que existe: facilita manutenção e evita valores hardcoded espalhados pelo código.
+
+Categorias de constantes:
+- Autenticação (TTLs, limites de tentativas)
+- Database pool (min/max conexões, timeouts)
+- Cache/Redis (TTLs, limites)
+- Background jobs (limites, intervalos)
+- API/Paginação (defaults, limites)
+- Serviços externos (timeouts, thresholds)
+- Upload de arquivos (tamanho máximo: 50MB)
+
+O que pode ser mudado/alterado:
+- Ajustar valores conforme necessidade de performance/segurança.
+- Adicionar novas constantes para features.
+
+O que evitar:
+- Colocar secrets/credenciais aqui (use variáveis de ambiente).
+
+---
+
+### `server/types/` — Type augmentations e definições
+- O que é: arquivos de definição de tipos que estendem bibliotecas externas.
+- Por que existe: permite que o TypeScript entenda extensões customizadas (ex.: propriedades adicionais no Request do Express).
+
+Estrutura atual:
+
+```
+server/types/
+  express.d.ts    # Augmenta Express.Request com validatedBody/Query/Params e User
+```
+
+O que pode ser mudado/alterado:
+- Adicionar novas augmentações para outras bibliotecas quando necessário.
+
+O que evitar:
+- Colocar tipos de negócio aqui (esses vão em `shared/`).
 
 ---
 
@@ -261,6 +364,34 @@ O que evitar: mudanças sem atualizar o banco (migração/push), porque o backen
 
 ---
 
+## `/migrations/` — Migrações do banco de dados (Drizzle)
+
+```
+migrations/
+  0000_great_hammerhead.sql   # Migração inicial
+  0001_mute_cargill.sql       # ...
+  0004_audit_logs_immutable.sql  # Trigger para logs imutáveis
+  0005_special_joseph.sql     # CHECK constraints e indexes
+  meta/
+    _journal.json             # Histórico de migrações aplicadas
+    0000_snapshot.json        # Snapshots de schema
+```
+
+- O que é: arquivos SQL gerados pelo Drizzle (ou manuais) para alterar o schema do banco.
+- Como funciona: `npm run db:migrate` aplica as migrações pendentes.
+- Migrações especiais:
+  - `0004_audit_logs_immutable.sql`: trigger PostgreSQL que impede UPDATE/DELETE na tabela audit_logs
+  - `0005_special_joseph.sql`: adiciona CHECK constraints e indexes LOWER(email)
+
+O que pode ser mudado/alterado:
+- Criar migrações manuais para triggers, functions, ou alterações que o Drizzle não gera automaticamente.
+
+O que evitar:
+- Editar migrações já aplicadas em produção (crie uma nova migração para corrigir).
+- Deletar migrações sem atualizar o journal.
+
+---
+
 ## `/scripts/` — Scripts utilitários (tarefas manuais)
 
 ```
@@ -269,8 +400,8 @@ scripts/
 ```
 
 - O que é: scripts para migrações, correções pontuais, importação/exportação de dados.
-- Quando mexer: quando você precisa rodar uma tarefa “de manutenção” (ex.: migrar dados antigos).
-- O que evitar: usar scripts como “solução permanente” para lógica do sistema (o lugar disso é o backend).
+- Quando mexer: quando você precisa rodar uma tarefa "de manutenção" (ex.: migrar dados antigos).
+- O que evitar: usar scripts como "solução permanente" para lógica do sistema (o lugar disso é o backend).
 
 ---
 

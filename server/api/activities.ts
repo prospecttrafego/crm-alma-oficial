@@ -29,7 +29,7 @@ export function registerActivityRoutes(app: Express) {
     "/api/activities",
     isAuthenticated,
     validateQuery(activitiesQuerySchema),
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const paginationOrFilterRequested =
         req.query?.page !== undefined ||
         req.query?.limit !== undefined ||
@@ -77,7 +77,7 @@ export function registerActivityRoutes(app: Express) {
     "/api/activities/:id",
     isAuthenticated,
     validateParams(idParamSchema),
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const { id } = req.validatedParams;
       const activity = await storage.getActivity(id);
       if (!activity) {
@@ -92,7 +92,7 @@ export function registerActivityRoutes(app: Express) {
     "/api/contacts/:id/activities",
     isAuthenticated,
     validateParams(idParamSchema),
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const { id } = req.validatedParams;
       const activities = await storage.getActivitiesByContact(id);
       sendSuccess(res, activities);
@@ -104,7 +104,7 @@ export function registerActivityRoutes(app: Express) {
     "/api/activities",
     isAuthenticated,
     validateBody(createActivitySchema),
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const org = await storage.getDefaultOrganization();
       if (!org) {
         return sendNotFound(res, "No organization");
@@ -124,7 +124,7 @@ export function registerActivityRoutes(app: Express) {
     isAuthenticated,
     validateParams(idParamSchema),
     validateBody(updateActivitySchema),
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const { id } = req.validatedParams;
 
       const activity = await storage.updateActivity(id, req.validatedBody);
@@ -140,7 +140,7 @@ export function registerActivityRoutes(app: Express) {
     "/api/activities/:id",
     isAuthenticated,
     validateParams(idParamSchema),
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const { id } = req.validatedParams;
       await storage.deleteActivity(id);
       res.status(204).send();

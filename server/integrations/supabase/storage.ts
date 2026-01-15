@@ -9,6 +9,9 @@ import { and, eq } from "drizzle-orm";
 import { files, users } from "@shared/schema";
 import { db } from "../../db";
 import { getSingleTenantOrganizationId } from "../../tenant";
+import { createServiceLogger } from "../../logger";
+
+const storageLogger = createServiceLogger("supabase-storage");
 
 // Cliente Supabase com service_role key para acesso administrativo
 let supabaseClient: SupabaseClient | null = null;
@@ -189,7 +192,7 @@ export class ObjectStorageService {
 
       res.send(buffer);
     } catch (error) {
-      console.error("Erro ao baixar arquivo:", error);
+      storageLogger.error("Erro ao baixar arquivo", { error });
       if (error instanceof ObjectNotFoundError) {
         throw error;
       }
@@ -323,7 +326,7 @@ export class ObjectStorageService {
 
       return { objectPath, publicUrl };
     } catch (error) {
-      console.error("Error downloading/uploading media:", error);
+      storageLogger.error("Error downloading/uploading media", { error });
       throw error;
     }
   }

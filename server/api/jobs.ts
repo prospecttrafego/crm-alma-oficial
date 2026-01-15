@@ -36,7 +36,7 @@ export function registerJobRoutes(app: Express) {
     "/api/jobs/:id",
     isAuthenticated,
     validateParams(jobIdParamsSchema),
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const { id } = req.validatedParams;
       const job = await getJob(id);
 
@@ -64,7 +64,7 @@ export function registerJobRoutes(app: Express) {
     "/api/jobs/:id/status",
     isAuthenticated,
     validateParams(jobIdParamsSchema),
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const { id } = req.validatedParams;
       const status = await getJobStatus(id);
 
@@ -82,7 +82,7 @@ export function registerJobRoutes(app: Express) {
     isAuthenticated,
     requireRole("admin"),
     validateBody(cleanupBodySchema),
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const maxAgeMs = req.validatedBody?.maxAgeMs || 24 * 60 * 60 * 1000; // Default 24 hours
       const removed = await cleanupJobs(maxAgeMs);
       sendSuccess(res, { removed });

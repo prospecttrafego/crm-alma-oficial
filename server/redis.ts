@@ -3,7 +3,21 @@
  */
 import { Redis } from "@upstash/redis";
 import { Ratelimit } from "@upstash/ratelimit";
+import { z } from "zod";
 import type { Message } from "@shared/schema";
+import { createServiceLogger } from "./logger";
+import {
+  LOGIN_RATE_LIMIT_MAX,
+  MESSAGES_CACHE_TTL_SECONDS,
+  MAX_CACHED_MESSAGES,
+  PRESENCE_TTL_SECONDS,
+  DEFAULT_CACHE_TTL_SECONDS,
+} from "./constants";
+
+// Cache version - increment when Message schema changes to auto-invalidate old cache
+const CACHE_VERSION = "v1";
+
+const redisLogger = createServiceLogger("redis");
 
 // Inicializar cliente Redis apenas se as variaveis de ambiente estiverem configuradas
 const redisUrl = process.env.UPSTASH_REDIS_REST_URL;
@@ -13,7 +27,6 @@ let redis: Redis | null = null;
 let ratelimit: Ratelimit | null = null;
 let loginRatelimit: Ratelimit | null = null;
 
-const LOGIN_RATE_LIMIT_MAX = 5;
 const LOGIN_RATE_LIMIT_WINDOW = "1 m";
 
 if (redisUrl && redisToken) {
@@ -37,28 +50,52 @@ if (redisUrl && redisToken) {
     prefix: "alma:ratelimit:login",
   });
 
-  console.log("[Redis] Conectado ao Upstash");
+  redisLogger.info("[Redis] Conectado ao Upstash");
 } else {
-  console.log("[Redis] Variaveis de ambiente nao configuradas, funcionando sem cache");
+  redisLogger.info("[Redis] Variaveis de ambiente nao configuradas, funcionando sem cache");
 }
 
 // ========== CACHE DE MENSAGENS ==========
 
-const MESSAGES_CACHE_KEY = (conversationId: number) => `alma:messages:${conversationId}`;
-const MESSAGES_CACHE_TTL = 300; // 5 minutos
-const MAX_CACHED_MESSAGES = 20;
+// Versioned cache key to auto-invalidate on schema changes
+const MESSAGES_CACHE_KEY = (conversationId: number) => `alma:messages:${CACHE_VERSION}:${conversationId}`;
+
+// Zod schema for validating cached messages (minimal validation for performance)
+const cachedMessageSchema = z.object({
+  id: z.number(),
+  conversationId: z.number(),
+  content: z.string(),
+  createdAt: z.string().or(z.date()).nullable(),
+}).passthrough();
+
+const cachedMessagesArraySchema = z.array(cachedMessageSchema);
 
 /**
- * Obter mensagens do cache
+ * Obter mensagens do cache with schema validation
+ * Returns null if cache is invalid or schema mismatch (auto-heals on next write)
  */
 export async function getCachedMessages(conversationId: number): Promise<Message[] | null> {
   if (!redis) return null;
 
   try {
-    const cached = await redis.get<Message[]>(MESSAGES_CACHE_KEY(conversationId));
-    return cached;
+    const cached = await redis.get<unknown>(MESSAGES_CACHE_KEY(conversationId));
+    if (!cached) return null;
+
+    // Validate cached data against schema
+    const result = cachedMessagesArraySchema.safeParse(cached);
+    if (!result.success) {
+      redisLogger.warn("[Redis] Cache schema mismatch, invalidating", {
+        conversationId,
+        error: result.error.message,
+      });
+      // Invalidate stale cache
+      await redis.del(MESSAGES_CACHE_KEY(conversationId));
+      return null;
+    }
+
+    return cached as Message[];
   } catch (error) {
-    console.error("[Redis] Erro ao obter cache de mensagens:", error);
+    redisLogger.error("[Redis] Erro ao obter cache de mensagens", { error });
     return null;
   }
 }
@@ -72,9 +109,9 @@ export async function setCachedMessages(conversationId: number, messages: Messag
   try {
     // Cachear apenas as ultimas 20 mensagens
     const toCache = messages.slice(-MAX_CACHED_MESSAGES);
-    await redis.setex(MESSAGES_CACHE_KEY(conversationId), MESSAGES_CACHE_TTL, toCache);
+    await redis.setex(MESSAGES_CACHE_KEY(conversationId), MESSAGES_CACHE_TTL_SECONDS, toCache);
   } catch (error) {
-    console.error("[Redis] Erro ao salvar cache de mensagens:", error);
+    redisLogger.error("[Redis] Erro ao salvar cache de mensagens", { error });
   }
 }
 
@@ -91,7 +128,7 @@ export async function addMessageToCache(conversationId: number, message: Message
       await setCachedMessages(conversationId, updated);
     }
   } catch (error) {
-    console.error("[Redis] Erro ao adicionar mensagem ao cache:", error);
+    redisLogger.error("[Redis] Erro ao adicionar mensagem ao cache", { error });
   }
 }
 
@@ -104,7 +141,7 @@ export async function invalidateMessagesCache(conversationId: number): Promise<v
   try {
     await redis.del(MESSAGES_CACHE_KEY(conversationId));
   } catch (error) {
-    console.error("[Redis] Erro ao invalidar cache de mensagens:", error);
+    redisLogger.error("[Redis] Erro ao invalidar cache de mensagens", { error });
   }
 }
 
@@ -123,7 +160,7 @@ export async function getUnreadCount(conversationId: number): Promise<number | n
     const count = await redis.get<number>(UNREAD_COUNT_KEY(conversationId));
     return count;
   } catch (error) {
-    console.error("[Redis] Erro ao obter contador de nao lidas:", error);
+    redisLogger.error("[Redis] Erro ao obter contador de nao lidas", { error });
     return null;
   }
 }
@@ -137,7 +174,7 @@ export async function setUnreadCount(conversationId: number, count: number): Pro
   try {
     await redis.setex(UNREAD_COUNT_KEY(conversationId), UNREAD_COUNT_TTL, count);
   } catch (error) {
-    console.error("[Redis] Erro ao definir contador de nao lidas:", error);
+    redisLogger.error("[Redis] Erro ao definir contador de nao lidas", { error });
   }
 }
 
@@ -153,7 +190,7 @@ export async function incrementUnreadCount(conversationId: number): Promise<numb
     await redis.expire(key, UNREAD_COUNT_TTL);
     return newCount;
   } catch (error) {
-    console.error("[Redis] Erro ao incrementar contador de nao lidas:", error);
+    redisLogger.error("[Redis] Erro ao incrementar contador de nao lidas", { error });
     return 0;
   }
 }
@@ -167,7 +204,7 @@ export async function resetUnreadCount(conversationId: number): Promise<void> {
   try {
     await redis.del(UNREAD_COUNT_KEY(conversationId));
   } catch (error) {
-    console.error("[Redis] Erro ao resetar contador de nao lidas:", error);
+    redisLogger.error("[Redis] Erro ao resetar contador de nao lidas", { error });
   }
 }
 
@@ -197,7 +234,7 @@ export async function checkRateLimit(userId: string): Promise<RateLimitResult> {
       reset: result.reset,
     };
   } catch (error) {
-    console.error("[Redis] Erro ao verificar rate limit:", error);
+    redisLogger.error("[Redis] Erro ao verificar rate limit", { error });
     // Em caso de erro, permitir a requisicao
     return { success: true, limit: 100, remaining: 100, reset: 0 };
   }
@@ -222,7 +259,7 @@ export async function checkLoginRateLimit(identifier: string): Promise<LoginRate
     const retryAfter = Math.ceil((result.reset - Date.now()) / 1000);
     return { allowed: false, retryAfter };
   } catch (error) {
-    console.error("[Redis] Erro ao verificar rate limit de login:", error);
+    redisLogger.error("[Redis] Erro ao verificar rate limit de login", { error });
     return null;
   }
 }
@@ -236,14 +273,13 @@ export async function resetLoginRateLimit(identifier: string): Promise<void> {
   try {
     await loginRatelimit.resetUsedTokens(identifier);
   } catch (error) {
-    console.error("[Redis] Erro ao resetar rate limit de login:", error);
+    redisLogger.error("[Redis] Erro ao resetar rate limit de login", { error });
   }
 }
 
 // ========== PRESENCE (USUARIOS ONLINE) ==========
 
 const PRESENCE_KEY = "alma:presence";
-const PRESENCE_TTL = 60; // 1 minuto
 
 /**
  * Marcar usuario como online
@@ -254,7 +290,7 @@ export async function setUserOnline(userId: string): Promise<void> {
   try {
     await redis.hset(PRESENCE_KEY, { [userId]: Date.now().toString() });
   } catch (error) {
-    console.error("[Redis] Erro ao marcar usuario online:", error);
+    redisLogger.error("[Redis] Erro ao marcar usuario online", { error });
   }
 }
 
@@ -267,7 +303,7 @@ export async function setUserOffline(userId: string): Promise<void> {
   try {
     await redis.hdel(PRESENCE_KEY, userId);
   } catch (error) {
-    console.error("[Redis] Erro ao marcar usuario offline:", error);
+    redisLogger.error("[Redis] Erro ao marcar usuario offline", { error });
   }
 }
 
@@ -287,14 +323,14 @@ export async function getOnlineUsers(): Promise<string[]> {
     // Filtrar usuarios que estao online (dentro do TTL)
     for (const [userId, timestamp] of Object.entries(presence)) {
       const lastSeen = parseInt(timestamp, 10);
-      if (now - lastSeen < PRESENCE_TTL * 1000) {
+      if (now - lastSeen < PRESENCE_TTL_SECONDS * 1000) {
         onlineUsers.push(userId);
       }
     }
 
     return onlineUsers;
   } catch (error) {
-    console.error("[Redis] Erro ao obter usuarios online:", error);
+    redisLogger.error("[Redis] Erro ao obter usuarios online", { error });
     return [];
   }
 }
@@ -310,9 +346,9 @@ export async function isUserOnline(userId: string): Promise<boolean> {
     if (!timestamp) return false;
 
     const lastSeen = parseInt(timestamp, 10);
-    return Date.now() - lastSeen < PRESENCE_TTL * 1000;
+    return Date.now() - lastSeen < PRESENCE_TTL_SECONDS * 1000;
   } catch (error) {
-    console.error("[Redis] Erro ao verificar se usuario esta online:", error);
+    redisLogger.error("[Redis] Erro ao verificar se usuario esta online", { error });
     return false;
   }
 }
@@ -328,7 +364,7 @@ export async function getCache<T>(key: string): Promise<T | null> {
   try {
     return await redis.get<T>(`alma:cache:${key}`);
   } catch (error) {
-    console.error("[Redis] Erro ao obter cache:", error);
+    redisLogger.error("[Redis] Erro ao obter cache", { error });
     return null;
   }
 }
@@ -336,13 +372,13 @@ export async function getCache<T>(key: string): Promise<T | null> {
 /**
  * Cache generico - definir valor
  */
-export async function setCache<T>(key: string, value: T, ttlSeconds = 300): Promise<void> {
+export async function setCache<T>(key: string, value: T, ttlSeconds = DEFAULT_CACHE_TTL_SECONDS): Promise<void> {
   if (!redis) return;
 
   try {
     await redis.setex(`alma:cache:${key}`, ttlSeconds, value);
   } catch (error) {
-    console.error("[Redis] Erro ao definir cache:", error);
+    redisLogger.error("[Redis] Erro ao definir cache", { error });
   }
 }
 
@@ -355,7 +391,7 @@ export async function deleteCache(key: string): Promise<void> {
   try {
     await redis.del(`alma:cache:${key}`);
   } catch (error) {
-    console.error("[Redis] Erro ao deletar cache:", error);
+    redisLogger.error("[Redis] Erro ao deletar cache", { error });
   }
 }
 

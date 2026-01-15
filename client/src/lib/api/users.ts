@@ -2,7 +2,7 @@
  * Users API
  */
 
-import { api } from "./index";
+import { api } from "./client";
 import { safeUserSchema } from "@shared/apiSchemas";
 import type { SafeUser } from "@shared/types";
 import type { UpdateUserProfileDTO } from "@shared/types";

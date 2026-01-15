@@ -2,7 +2,7 @@
  * Activities API - CRUD operations for activities
  */
 
-import { api } from './index';
+import { api } from "./client";
 import { activitySchema } from "@shared/apiSchemas";
 import type { Activity } from '@shared/schema';
 import type { CreateActivityDTO, UpdateActivityDTO } from '@shared/types';
