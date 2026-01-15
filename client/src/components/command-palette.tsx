@@ -59,8 +59,9 @@ export function CommandPalette() {
         onClick={() => setOpen(true)}
         className="inline-flex items-center gap-2 rounded-md border border-input bg-background px-3 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
         data-testid="button-command-palette"
+        aria-label={t("a11y.openCommandPalette")}
       >
-        <Search className="h-4 w-4" />
+        <Search className="h-4 w-4" aria-hidden="true" />
         <span className="hidden sm:inline">{searchLabel}</span>
         <kbd className="pointer-events-none hidden h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-xs font-medium text-muted-foreground sm:flex">
           <span className="text-xs">⌘</span>K

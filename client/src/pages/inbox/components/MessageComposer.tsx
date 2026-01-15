@@ -166,8 +166,9 @@ export function MessageComposer({
             onClick={onCancelRecording}
             className="h-10 w-10 rounded-full bg-red-500/20 text-red-400 hover:bg-red-500/30"
             data-testid="button-cancel-recording"
+            aria-label={t("a11y.cancelRecording")}
           >
-            <Trash2 className="h-5 w-5" />
+            <Trash2 className="h-5 w-5" aria-hidden="true" />
           </Button>
           <Button
             type="button"
@@ -175,8 +176,9 @@ export function MessageComposer({
             onClick={onStopRecording}
             className="h-10 w-10 rounded-full bg-primary text-primary-foreground hover:bg-primary/90"
             data-testid="button-stop-recording"
+            aria-label={t("a11y.stopRecording")}
           >
-            <Square className="h-5 w-5 fill-current" />
+            <Square className="h-5 w-5 fill-current" aria-hidden="true" />
           </Button>
         </div>
       )}
@@ -307,11 +309,12 @@ export function MessageComposer({
               disabled={uploading}
               className="h-10 w-10 flex-shrink-0 text-muted-foreground hover:bg-transparent hover:text-foreground"
               data-testid="button-attach-file"
+              aria-label={t("a11y.attachFile")}
             >
               {uploading ? (
-                <Loader2 className="h-6 w-6 animate-spin" />
+                <Loader2 className="h-6 w-6 animate-spin" aria-hidden="true" />
               ) : (
-                <Plus className="h-6 w-6" />
+                <Plus className="h-6 w-6" aria-hidden="true" />
               )}
             </Button>
 
@@ -357,8 +360,10 @@ export function MessageComposer({
                 onClick={() => setShowEmojiPicker((prev) => !prev)}
                 className="h-6 w-6 flex-shrink-0 p-0 text-muted-foreground hover:bg-transparent hover:text-foreground"
                 data-testid="button-emoji"
+                aria-label={t("a11y.openEmojiPicker")}
+                aria-expanded={showEmojiPicker}
               >
-                <Smile className="h-[26px] w-[26px]" />
+                <Smile className="h-[26px] w-[26px]" aria-hidden="true" />
               </Button>
 
               <input
@@ -405,8 +410,9 @@ export function MessageComposer({
                 onClick={onStartRecording}
                 className="h-10 w-10 flex-shrink-0 rounded-full bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
                 data-testid="button-mic"
+                aria-label={t("a11y.startRecording")}
               >
-                <Mic className="h-5 w-5" />
+                <Mic className="h-5 w-5" aria-hidden="true" />
               </Button>
               <Button
                 type="submit"
@@ -414,8 +420,9 @@ export function MessageComposer({
                 disabled={isSending || uploading || (!newMessage.trim() && pendingFiles.length === 0)}
                 className="h-10 w-10 flex-shrink-0 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
                 data-testid="button-send-message"
+                aria-label={t("a11y.sendMessage")}
               >
-                <Send className="h-5 w-5" />
+                <Send className="h-5 w-5" aria-hidden="true" />
               </Button>
             </div>
           </div>

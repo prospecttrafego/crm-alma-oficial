@@ -653,6 +653,13 @@ function InboxContent() {
         }
       }
 
+      // Escape to deselect conversation (go back to list)
+      if (e.key === "Escape" && !isTyping && selectedConversationRef.current) {
+        e.preventDefault();
+        setSelectedConversation(null);
+        return;
+      }
+
       if (!selectedConversationRef.current) return;
       if (e.key === "r" && !e.metaKey && !e.ctrlKey && !isTyping) {
         e.preventDefault();

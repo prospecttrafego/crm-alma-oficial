@@ -37,8 +37,9 @@ export function ThreadHeader({
           onClick={onBack}
           className="h-10 w-10 text-muted-foreground hover:text-foreground md:hidden"
           data-testid="button-back"
+          aria-label={t("common.back")}
         >
-          <ArrowLeft className="h-5 w-5" />
+          <ArrowLeft className="h-5 w-5" aria-hidden="true" />
         </Button>
 
         <Button
@@ -47,13 +48,15 @@ export function ThreadHeader({
           size="icon"
           onClick={onToggleListPanel}
           className="hidden h-10 w-10 text-muted-foreground hover:text-foreground lg:inline-flex"
-          title={listPanelCollapsed ? "Expandir painel" : "Recolher painel"}
+          title={listPanelCollapsed ? t("a11y.expandPanel") : t("a11y.collapsePanel")}
+          aria-label={listPanelCollapsed ? t("a11y.expandPanel") : t("a11y.collapsePanel")}
+          aria-expanded={!listPanelCollapsed}
           data-testid="button-toggle-inbox-list-panel"
         >
           {listPanelCollapsed ? (
-            <PanelLeftOpen className="h-5 w-5" />
+            <PanelLeftOpen className="h-5 w-5" aria-hidden="true" />
           ) : (
-            <PanelLeftClose className="h-5 w-5" />
+            <PanelLeftClose className="h-5 w-5" aria-hidden="true" />
           )}
         </Button>
 
@@ -84,13 +87,15 @@ export function ThreadHeader({
           size="icon"
           onClick={onToggleContextPanel}
           className="hidden h-10 w-10 text-muted-foreground hover:text-foreground lg:inline-flex"
-          title={contextPanelCollapsed ? "Expandir painel" : "Recolher painel"}
+          title={contextPanelCollapsed ? t("a11y.expandPanel") : t("a11y.collapsePanel")}
+          aria-label={contextPanelCollapsed ? t("a11y.expandPanel") : t("a11y.collapsePanel")}
+          aria-expanded={!contextPanelCollapsed}
           data-testid="button-toggle-inbox-context-panel"
         >
           {contextPanelCollapsed ? (
-            <PanelRightOpen className="h-5 w-5" />
+            <PanelRightOpen className="h-5 w-5" aria-hidden="true" />
           ) : (
-            <PanelRightClose className="h-5 w-5" />
+            <PanelRightClose className="h-5 w-5" aria-hidden="true" />
           )}
         </Button>
 
@@ -100,11 +105,11 @@ export function ThreadHeader({
           size="icon"
           onClick={onSearchClick}
           className="h-10 w-10 text-muted-foreground hover:text-foreground"
-          aria-label={t("common.search")}
+          aria-label={t("a11y.searchMessages")}
           title={`${t("inbox.searchMessages")} (⌘F)`}
           data-testid="button-search"
         >
-          <Search className="h-5 w-5" />
+          <Search className="h-5 w-5" aria-hidden="true" />
         </Button>
       </div>
     </div>
