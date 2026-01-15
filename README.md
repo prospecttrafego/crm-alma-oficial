@@ -195,6 +195,7 @@ Notas importantes:
 | `EVOLUTION_API_KEY` | Nao | API key da Evolution API |
 | `EVOLUTION_INSTANCE_PREFIX` | Nao | Prefixo unico por deploy para evitar colisao de instancias (quando varios CRMs compartilham a mesma Evolution API) |
 | `EVOLUTION_WEBHOOK_SECRET` | Nao | Segredo para validar webhooks da Evolution API |
+| `MEDIA_DOWNLOAD_ALLOWED_HOSTS` | Nao | Hosts extras permitidos para download de midia (SSRF hardening; CSV de hostnames) |
 | `SENTRY_DSN` | Nao | DSN do Sentry para rastreamento de erros |
 | `APP_VERSION` | Nao | Versao da aplicacao (usado pelo Sentry para release tracking) |
 

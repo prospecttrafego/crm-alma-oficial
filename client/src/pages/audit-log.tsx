@@ -109,7 +109,7 @@ export default function AuditLogPage() {
     queryFn: () => auditLogsApi.list(filters),
   });
 
-  const logs = result?.data || [];
+  const logs = useMemo(() => result?.data ?? [], [result?.data]);
   const pagination = result?.pagination;
 
   // Check if any filters are active
@@ -131,9 +131,37 @@ export default function AuditLogPage() {
     setFilters({ page: 1, limit: ITEMS_PER_PAGE });
   }, []);
 
+  const formatUserName = useCallback((user: EnrichedAuditLog["user"]) => {
+    if (!user) return t("auditLog.system");
+    if (user.firstName && user.lastName) {
+      return `${user.firstName} ${user.lastName}`;
+    }
+    return user.firstName || t("auditLog.unknownUser");
+  }, [t]);
+
+  const getActionLabel = useCallback((action: AuditLogAction) => {
+    const key = `auditLog.actions.${action}`;
+    const label = t(key);
+    return label === key ? action : label;
+  }, [t]);
+
+  const getEntityLabel = useCallback((entityType: AuditLogEntityType) => {
+    const key = `auditLog.entities.${entityType}`;
+    const label = t(key);
+    return label === key ? entityType.replace("_", " ") : label;
+  }, [t]);
+
   // Export to CSV
   const exportToCsv = useCallback(() => {
     if (!logs.length) return;
+
+    const escapeCsvCell = (value: unknown) => {
+      const raw = String(value ?? "");
+      // Mitigate CSV injection (Excel/Sheets formula execution)
+      const trimmed = raw.trimStart();
+      const safe = /^[=+@-]/.test(trimmed) ? `'${raw}` : raw;
+      return `"${safe.replace(/"/g, '""')}"`;
+    };
 
     const headers = [
       t("auditLog.table.timestamp"),
@@ -152,8 +180,8 @@ export default function AuditLogPage() {
     ]);
 
     const csvContent = [
-      headers.join(","),
-      ...rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")),
+      headers.map(escapeCsvCell).join(","),
+      ...rows.map((row) => row.map(escapeCsvCell).join(",")),
     ].join("\n");
 
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
@@ -162,27 +190,7 @@ export default function AuditLogPage() {
     link.download = `audit-log-${format(new Date(), "yyyy-MM-dd")}.csv`;
     link.click();
     URL.revokeObjectURL(link.href);
-  }, [logs, t, locale]);
-
-  const formatUserName = (user: EnrichedAuditLog["user"]) => {
-    if (!user) return t("auditLog.system");
-    if (user.firstName && user.lastName) {
-      return `${user.firstName} ${user.lastName}`;
-    }
-    return user.firstName || t("auditLog.unknownUser");
-  };
-
-  const getActionLabel = (action: AuditLogAction) => {
-    const key = `auditLog.actions.${action}`;
-    const label = t(key);
-    return label === key ? action : label;
-  };
-
-  const getEntityLabel = (entityType: AuditLogEntityType) => {
-    const key = `auditLog.entities.${entityType}`;
-    const label = t(key);
-    return label === key ? entityType.replace("_", " ") : label;
-  };
+  }, [logs, t, locale, formatUserName, getActionLabel, getEntityLabel]);
 
   const ActionIcon = ({ action }: { action: AuditLogAction }) => {
     const Icon = actionIcons[action];

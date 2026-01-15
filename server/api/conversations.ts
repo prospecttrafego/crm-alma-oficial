@@ -18,7 +18,7 @@ import {
 } from "../middleware";
 import { sendSuccess, sendNotFound, sendForbidden, sendError, ErrorCodes, toSafeUser } from "../response";
 import { storage } from "../storage";
-import { broadcast, broadcastToConversation } from "../ws/index";
+import { broadcast, broadcastToConversation, broadcastToUser } from "../ws/index";
 import { logger } from "../logger";
 
 /**
@@ -240,8 +240,16 @@ export function registerConversationRoutes(app: Express) {
       const { id: conversationId } = req.validatedParams;
       const senderId = getCurrentUser(req)!.id;
 
-      // Extract mentioned users before creating message
-      const mentionedUserIds = extractMentions(req.validatedBody.content);
+      // Extract mentioned users before creating message (validate UUID + existence)
+      const uuidSchema = z.string().uuid();
+      const mentionedUserIds: string[] = [];
+      for (const rawId of extractMentions(req.validatedBody.content)) {
+        if (!uuidSchema.safeParse(rawId).success) continue;
+        if (rawId === senderId) continue;
+        const mentionedUser = await storage.getUser(rawId);
+        if (!mentionedUser) continue;
+        mentionedUserIds.push(rawId);
+      }
 
       const message = await storage.createMessage({
         ...req.validatedBody,
@@ -255,6 +263,13 @@ export function registerConversationRoutes(app: Express) {
       broadcastToConversation(conversationId, "message:created", message);
 
       const conversation = await storage.getConversation(conversationId);
+      if (conversation) {
+        broadcast("conversation:updated", {
+          conversationId: conversation.id,
+          lastMessageAt: conversation.lastMessageAt,
+          unreadCount: conversation.unreadCount,
+        });
+      }
 
       // Create notifications for mentioned users
       if (mentionedUserIds.length > 0) {
@@ -264,9 +279,6 @@ export function registerConversationRoutes(app: Express) {
           : "User";
 
         for (const mentionedUserId of mentionedUserIds) {
-          // Don't notify the sender
-          if (mentionedUserId === senderId) continue;
-
           await storage.createNotification({
             userId: mentionedUserId,
             type: "mention",
@@ -275,7 +287,7 @@ export function registerConversationRoutes(app: Express) {
             entityType: "conversation",
             entityId: conversationId,
           });
-          broadcast("notification:new", { userId: mentionedUserId });
+          broadcastToUser(mentionedUserId, "notification:new", {});
 
           // Send push notification if user is offline
           try {
@@ -321,7 +333,7 @@ export function registerConversationRoutes(app: Express) {
           entityType: "conversation",
           entityId: conversationId,
         });
-        broadcast("notification:new", { userId: conversation.assignedToId });
+        broadcastToUser(conversation.assignedToId, "notification:new", {});
 
         // Send push notification if user is offline
         try {
@@ -377,6 +389,14 @@ export function registerConversationRoutes(app: Express) {
 
       // Broadcast read event para usuarios inscritos na conversa
       broadcastToConversation(conversationId, "message:read", { conversationId, userId, count });
+      const conversation = await storage.getConversation(conversationId);
+      if (conversation) {
+        broadcast("conversation:updated", {
+          conversationId: conversation.id,
+          lastMessageAt: conversation.lastMessageAt,
+          unreadCount: conversation.unreadCount,
+        });
+      }
 
       sendSuccess(res, { success: true, count });
     }),

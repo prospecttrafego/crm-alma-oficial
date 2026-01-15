@@ -786,6 +786,10 @@ VITE_FIREBASE_VAPID_KEY=sua-vapid-key-aqui
 
 EVOLUTION_API_URL=https://seu-evolution-api.com
 EVOLUTION_API_KEY=sua-api-key-aqui
+# Hosts extras permitidos para download de midia (SSRF hardening; CSV de hostnames)
+# Por padrao, o download de midia e permitido apenas do host de EVOLUTION_API_URL.
+# Ex.: evolution.seudominio.com,cdn.seudominio.com
+MEDIA_DOWNLOAD_ALLOWED_HOSTS=
 # Prefixo opcional (unico por deploy) para evitar colisao de instanceName quando multiplos CRMs usam a mesma Evolution API
 # Ex.: alma-crm-a, alma-crm-b
 EVOLUTION_INSTANCE_PREFIX=alma-crm-a

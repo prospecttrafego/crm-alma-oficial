@@ -1,11 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { MoreVertical } from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
-import { useTranslation } from "@/contexts/LanguageContext";
 import { MessageBubble } from "./MessageBubble";
 import { MessageActions } from "./MessageActions";
 import { EditMessageModal } from "./EditMessageModal";
@@ -38,7 +35,6 @@ export function MessageGroup({
   onEditMessage,
   onDeleteMessage,
 }: MessageGroupProps) {
-  const { t } = useTranslation();
   const [editingMessage, setEditingMessage] = useState<InboxMessage | null>(null);
 
   const { messages, isUserMessage } = group;

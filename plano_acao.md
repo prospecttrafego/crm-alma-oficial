@@ -126,7 +126,7 @@
 
 #### Database Migration
 - [x] Full-text search usando `to_tsvector` on-the-fly (sem necessidade de coluna tsvector)
-- **Nota:** Implementacao usa busca dinamica com `to_tsvector('portuguese', content)` ao inves de coluna gerada, simplificando deploy sem necessidade de migration.
+- **Nota:** Nao precisa de coluna `tsvector` STORED, mas e recomendado criar um indice GIN na expressao (ja incluido em `migrations/0007_neat_freak.sql`).
 
 #### Backend
 - [x] Implementar `searchMessages()` no storage com PostgreSQL full-text search
@@ -523,20 +523,19 @@
 ## MIGRATIONS NECESSARIAS
 
 ```sql
--- Milestone 2.1: Reply/Quote
-ALTER TABLE messages ADD COLUMN reply_to_id INTEGER REFERENCES messages(id) ON DELETE SET NULL;
-CREATE INDEX idx_messages_reply_to ON messages(reply_to_id);
-
--- Milestone 2.3: Busca
-ALTER TABLE messages ADD COLUMN content_search tsvector
-  GENERATED ALWAYS AS (to_tsvector('portuguese', coalesce(content, ''))) STORED;
-CREATE INDEX idx_messages_content_search ON messages USING GIN(content_search);
-
--- Milestone 3.3: Edit/Delete
+-- Milestones 2.1 / 2.3 / 3.3 (Reply/Quote + Busca + Edit/Delete)
+-- Ja incluido em `migrations/0007_neat_freak.sql` (recomendado: `npm run db:migrate`)
+ALTER TABLE messages ADD COLUMN reply_to_id INTEGER;
 ALTER TABLE messages ADD COLUMN edited_at TIMESTAMP;
 ALTER TABLE messages ADD COLUMN deleted_at TIMESTAMP;
 ALTER TABLE messages ADD COLUMN original_content TEXT;
+ALTER TABLE messages ADD CONSTRAINT messages_reply_to_id_messages_id_fk
+  FOREIGN KEY (reply_to_id) REFERENCES messages(id) ON DELETE SET NULL;
+CREATE INDEX idx_messages_reply_to ON messages(reply_to_id);
 CREATE INDEX idx_messages_deleted_at ON messages(deleted_at);
+CREATE INDEX idx_messages_content_search ON messages USING GIN (
+  to_tsvector('portuguese', coalesce(content, ''))
+);
 
 -- Milestone 4.2: Calendar Bidi
 ALTER TABLE calendar_events ADD COLUMN sync_direction VARCHAR(20) DEFAULT 'google';

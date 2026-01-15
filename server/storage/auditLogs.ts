@@ -6,7 +6,7 @@ import {
   type AuditLogAction,
 } from "@shared/schema";
 import { db } from "../db";
-import { and, desc, eq, gte, lte, sql, count } from "drizzle-orm";
+import { and, desc, eq, gte, lte, count } from "drizzle-orm";
 import { getTenantOrganizationId } from "./helpers";
 
 export interface AuditLogsFilters {

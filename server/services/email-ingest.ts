@@ -4,7 +4,7 @@
  */
 
 import { storage } from "../storage";
-import { broadcast } from "../ws/index";
+import { broadcast, broadcastToConversation, broadcastToUser } from "../ws/index";
 import { logger } from "../logger";
 import type { ParsedEmail } from "../integrations/email";
 
@@ -113,14 +113,62 @@ export async function processIncomingEmail(
     } as Record<string, unknown>,
   });
 
-  // Update conversation with last message timestamp
-  await storage.updateConversation(conversation.id, {
-    lastMessageAt: new Date(),
-    unreadCount: (conversation.unreadCount || 0) + 1,
-    status: "open",
-  });
+  // Ensure the conversation is open when a new email arrives
+  await storage.updateConversation(conversation.id, { status: "open" });
 
-  broadcast("message:created", { ...message, conversation });
+  // Real-time: only subscribers of this conversation should receive message payloads
+  broadcastToConversation(conversation.id, "message:created", message);
+
+  const updatedConversation = await storage.getConversation(conversation.id);
+  if (updatedConversation) {
+    broadcast("conversation:updated", {
+      conversationId: updatedConversation.id,
+      lastMessageAt: updatedConversation.lastMessageAt,
+      unreadCount: updatedConversation.unreadCount,
+    });
+
+    // Notify assigned user (if any)
+    if (updatedConversation.assignedToId) {
+      await storage.createNotification({
+        userId: updatedConversation.assignedToId,
+        type: "new_message",
+        title: "New Email",
+        message: `New email in conversation: ${updatedConversation.subject || "No subject"}`,
+        entityType: "conversation",
+        entityId: updatedConversation.id,
+      });
+      broadcastToUser(updatedConversation.assignedToId, "notification:new", {});
+
+      // Send push notification if user is offline
+      try {
+        const { isUserOnline } = await import("../redis");
+        const isOnline = await isUserOnline(updatedConversation.assignedToId);
+
+        if (!isOnline) {
+          const { sendNotificationToUser, isFcmAvailable } = await import("../integrations/firebase/notifications");
+
+          if (isFcmAvailable()) {
+            const preview = message.content?.substring(0, 100) || "New email";
+            await sendNotificationToUser(
+              updatedConversation.assignedToId,
+              "message:new",
+              {
+                senderName: contact.firstName || senderEmail,
+                preview,
+                conversationId: updatedConversation.id,
+              },
+              {
+                getPushTokens: storage.getPushTokensForUser.bind(storage),
+                deletePushToken: storage.deletePushToken.bind(storage),
+              },
+            );
+          }
+        }
+      } catch (pushError) {
+        logger.error("[FCM] Error sending email push notification:", { error: pushError });
+      }
+    }
+  }
 
   logger.info("[Email] Processed incoming email", {
     messageId: email.messageId,

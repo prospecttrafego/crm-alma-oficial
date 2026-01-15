@@ -12,7 +12,7 @@ import { CommandPalette } from "@/components/command-palette";
 import { NotificationBell } from "@/components/notification-bell";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { useAuth } from "@/hooks/useAuth";
-import { useWebSocket } from "@/hooks/useWebSocket";
+import { WebSocketProvider } from "@/contexts/WebSocketContext";
 import {
   SidebarProvider,
   SidebarTrigger,
@@ -39,36 +39,32 @@ function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const { t } = useTranslation();
 
-  // Inicializar WebSocket para usuarios autenticados com info de presenca
-  useWebSocket({
-    userId: user?.id,
-    userName: user ? `${user.firstName} ${user.lastName}` : undefined,
-  });
-
   const sidebarStyle = {
     "--sidebar-width": "16rem",
     "--sidebar-width-icon": "3rem",
   } as React.CSSProperties;
 
   return (
-    <SidebarProvider style={sidebarStyle}>
-      <div className="flex h-screen w-full">
-        <AppSidebar />
-        <SidebarInset className="flex flex-col">
-          <header className="flex h-14 items-center justify-between gap-4 border-b px-4">
-            <div className="flex items-center gap-2">
-              <SidebarTrigger label={t("common.toggleSidebar")} data-testid="button-sidebar-toggle" />
-            </div>
-            <div className="flex items-center gap-2">
-              <CommandPalette />
-              <NotificationBell />
-              <ThemeToggle />
-            </div>
-          </header>
-          <main className="flex-1 overflow-hidden">{children}</main>
-        </SidebarInset>
-      </div>
-    </SidebarProvider>
+    <WebSocketProvider userId={user?.id} userName={user ? `${user.firstName} ${user.lastName}` : undefined}>
+      <SidebarProvider style={sidebarStyle}>
+        <div className="flex h-screen w-full">
+          <AppSidebar />
+          <SidebarInset className="flex flex-col">
+            <header className="flex h-14 items-center justify-between gap-4 border-b px-4">
+              <div className="flex items-center gap-2">
+                <SidebarTrigger label={t("common.toggleSidebar")} data-testid="button-sidebar-toggle" />
+              </div>
+              <div className="flex items-center gap-2">
+                <CommandPalette />
+                <NotificationBell />
+                <ThemeToggle />
+              </div>
+            </header>
+            <main className="flex-1 overflow-hidden">{children}</main>
+          </SidebarInset>
+        </div>
+      </SidebarProvider>
+    </WebSocketProvider>
   );
 }
 

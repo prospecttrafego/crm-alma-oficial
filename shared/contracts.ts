@@ -61,6 +61,16 @@ export const createDealSchema = baseInsertDealSchema
     organizationId: true,
     createdAt: true,
     updatedAt: true,
+  })
+  .superRefine((data, ctx) => {
+    if (data.status !== "lost") return;
+    if (typeof data.lostReason !== "string" || data.lostReason.trim().length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["lostReason"],
+        message: "lostReason is required when status is 'lost'",
+      });
+    }
   });
 
 export const updateDealSchema = baseUpdateDealSchema
@@ -68,12 +78,31 @@ export const updateDealSchema = baseUpdateDealSchema
     organizationId: true,
     createdAt: true,
     updatedAt: true,
+  })
+  .superRefine((data, ctx) => {
+    if (data.status !== "lost") return;
+    if (typeof data.lostReason !== "string" || data.lostReason.trim().length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["lostReason"],
+        message: "lostReason is required when status is 'lost'",
+      });
+    }
   });
 
 export const moveDealSchema = z.object({
   stageId: z.number().int().positive(),
   status: z.enum(["open", "won", "lost"]).optional(),
   lostReason: z.string().optional(),
+}).superRefine((data, ctx) => {
+  if (data.status !== "lost") return;
+  if (typeof data.lostReason !== "string" || data.lostReason.trim().length === 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["lostReason"],
+      message: "lostReason is required when status is 'lost'",
+    });
+  }
 });
 
 // ===== PIPELINES =====

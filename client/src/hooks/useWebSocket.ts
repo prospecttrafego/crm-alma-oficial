@@ -19,6 +19,7 @@ export type WebSocketEventType =
   | "deal:moved"
   | "deal:deleted"
   | "conversation:created"
+  | "conversation:updated"
   | "message:created"
   | "message:updated"
   | "message:deleted"
@@ -72,6 +73,7 @@ const eventToQueryMap: Record<string, string[]> = {
   "deal:moved": ["/api/deals"],
   "deal:deleted": ["/api/deals"],
   "conversation:created": ["/api/conversations"],
+  "conversation:updated": ["/api/conversations"],
   "message:created": ["/api/conversations"],
   "notification:new": ["/api/notifications", "/api/notifications/unread-count"],
   "calendar:event:created": ["/api/calendar-events"],
@@ -81,6 +83,16 @@ const eventToQueryMap: Record<string, string[]> = {
   "channel:config:updated": ["/api/channel-configs"],
   "channel:config:deleted": ["/api/channel-configs"],
 };
+
+function toTimestamp(value: unknown): number {
+  if (!value) return 0;
+  if (value instanceof Date) return value.getTime();
+  if (typeof value === "string" || typeof value === "number") {
+    const time = new Date(value).getTime();
+    return Number.isNaN(time) ? 0 : time;
+  }
+  return 0;
+}
 
 export function useWebSocket(options: UseWebSocketOptions = {}) {
   const { userId, userName, onMessage, onTyping, onPresence, autoInvalidate = true } = options;
@@ -227,6 +239,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
                 isInternal?: boolean;
                 createdAt: string;
                 readBy?: string[];
+                externalId?: string | null;
                 [key: string]: unknown;
               };
 
@@ -234,26 +247,44 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
                 const queryKey = ["/api/conversations", newMessage.conversationId, "messages"];
 
                 // Append direto no cache
-                type MessageInCache = { id?: number; _tempId?: string };
+                type MessageInCache = { id?: number; _tempId?: string; externalId?: string | null; replyTo?: unknown };
                 queryClient.setQueryData<{
                   pages: Array<{ messages: MessageInCache[]; nextCursor: number | null; hasMore: boolean }>;
                   pageParams: unknown[];
                 }>(queryKey, (old) => {
                   if (!old || !old.pages || old.pages.length === 0) return old;
 
-                  // Verificar se mensagem ja existe (evitar duplicata de msg otimista)
-                  const lastPage = old.pages[old.pages.length - 1];
-                  const exists = lastPage.messages.some(
-                    (m) =>
-                      m.id === newMessage.id ||
-                      // Verificar se e a mesma mensagem otimista pelo conteudo e tempo
-                      (m._tempId && Math.abs(new Date(newMessage.createdAt).getTime() - Date.now()) < 5000)
-                  );
+                  const externalId = newMessage.externalId ?? null;
+                  let found = false;
 
-                  if (exists) return old;
+                  // Replace optimistic message (matched by externalId == _tempId) or skip duplicates by id.
+                  const newPages = old.pages.map((page) => ({
+                    ...page,
+                    messages: page.messages.map((m) => {
+                      if (m.id === newMessage.id) {
+                        found = true;
+                        return m;
+                      }
 
-                  // Append na ultima pagina
-                  const newPages = [...old.pages];
+                      if (
+                        !found &&
+                        externalId &&
+                        (m._tempId === externalId || (m.externalId && m.externalId === externalId))
+                      ) {
+                        found = true;
+                        // Preserve quoted payload if we had it locally
+                        return { ...(newMessage as MessageInCache), replyTo: m.replyTo };
+                      }
+
+                      return m;
+                    }),
+                  }));
+
+                  if (found) {
+                    return { ...old, pages: newPages };
+                  }
+
+                  // Append to the last page (newest chunk) when this is truly a new message.
                   const lastPageIndex = newPages.length - 1;
                   newPages[lastPageIndex] = {
                     ...newPages[lastPageIndex],
@@ -264,7 +295,9 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
                 });
 
                 // Atualizar lista de conversas (lastMessageAt, unreadCount)
-                queryClient.setQueryData<Array<{ id: number; lastMessageAt?: string; unreadCount?: number; [key: string]: unknown }>>(
+                queryClient.setQueryData<
+                  Array<{ id: number; lastMessageAt?: Date | string | null; unreadCount?: number; [key: string]: unknown }>
+                >(
                   ["/api/conversations"],
                   (old) => {
                     if (!old) return old;
@@ -273,7 +306,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
                         conv.id === newMessage.conversationId
                           ? {
                               ...conv,
-                              lastMessageAt: newMessage.createdAt,
+                              lastMessageAt: new Date(newMessage.createdAt),
                               // Incrementar unreadCount se msg nao e do usuario atual
                               unreadCount:
                                 newMessage.senderType === "contact"
@@ -284,12 +317,41 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
                       )
                       .sort(
                         (a, b) =>
-                          new Date(b.lastMessageAt || 0).getTime() -
-                          new Date(a.lastMessageAt || 0).getTime()
+                          toTimestamp(b.lastMessageAt) - toTimestamp(a.lastMessageAt)
                       );
                   }
                 );
               }
+            } else if (message.type === "conversation:updated" && message.data) {
+              const payload = message.data as {
+                conversationId: number;
+                lastMessageAt?: string | null;
+                unreadCount?: number | null;
+              };
+
+              if (!payload.conversationId) return;
+
+              queryClient.setQueryData<Array<{ id: number; lastMessageAt?: unknown; unreadCount?: number; [key: string]: unknown }>>(
+                ["/api/conversations"],
+                (old) => {
+                  if (!old) return old;
+
+                  const updatedLastMessageAt = payload.lastMessageAt ? new Date(payload.lastMessageAt) : undefined;
+                  const updatedUnreadCount = typeof payload.unreadCount === "number" ? payload.unreadCount : undefined;
+
+                  return old
+                    .map((conv) =>
+                      conv.id === payload.conversationId
+                        ? {
+                            ...conv,
+                            ...(updatedLastMessageAt ? { lastMessageAt: updatedLastMessageAt } : {}),
+                            ...(updatedUnreadCount !== undefined ? { unreadCount: updatedUnreadCount } : {}),
+                          }
+                        : conv,
+                    )
+                    .sort((a, b) => toTimestamp(b.lastMessageAt) - toTimestamp(a.lastMessageAt));
+                },
+              );
             } else if (message.type === "message:updated" && message.data) {
               // Handle edited message - update in cache
               const updatedMessage = message.data as {
@@ -442,64 +504,4 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     onlineUsers,
     isUserOnline,
   };
-}
-
-// Hook singleton para uso global
-let globalWsInstance: ReturnType<typeof useWebSocket> | null = null;
-
-export function useGlobalWebSocket() {
-  const ws = useWebSocket();
-
-  useEffect(() => {
-    globalWsInstance = ws;
-    return () => {
-      globalWsInstance = null;
-    };
-  }, [ws]);
-
-  return ws;
-}
-
-export function getGlobalWebSocket() {
-  return globalWsInstance;
-}
-
-/**
- * Hook para inscrever automaticamente em uma room de conversa.
- * Quando o usuario abre uma conversa, ele se inscreve para receber
- * apenas eventos daquela conversa especifica (mensagens, typing, etc.)
- *
- * Ao sair da conversa (ou desmontar o componente), a inscricao e cancelada.
- *
- * IMPORTANTE: Este hook deve ser usado em conjunto com useGlobalWebSocket
- * no componente pai (ex.: App.tsx). Ele depende do singleton global.
- */
-export function useConversationRoom(conversationId: number | null) {
-  const previousConversationIdRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    const ws = getGlobalWebSocket();
-    if (!ws) return;
-
-    const { send, isConnected } = ws;
-    if (!isConnected) return;
-
-    // Sair da room anterior se mudou de conversa
-    if (previousConversationIdRef.current && previousConversationIdRef.current !== conversationId) {
-      send("room:leave", { conversationId: previousConversationIdRef.current });
-    }
-
-    // Entrar na nova room
-    if (conversationId) {
-      send("room:join", { conversationId });
-      previousConversationIdRef.current = conversationId;
-    }
-
-    return () => {
-      // Sair da room ao desmontar
-      if (conversationId && ws.isConnected) {
-        ws.send("room:leave", { conversationId });
-      }
-    };
-  }, [conversationId]);
 }

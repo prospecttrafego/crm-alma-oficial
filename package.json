@@ -130,5 +130,10 @@
   },
   "optionalDependencies": {
     "bufferutil": "^4.0.8"
+  },
+  "overrides": {
+    "utf7": {
+      "semver": "5.7.2"
+    }
   }
 }

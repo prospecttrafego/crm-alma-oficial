@@ -9,7 +9,8 @@ import { useInfiniteQuery, useMutation, useQuery } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
-import { useWebSocket, useConversationRoom } from "@/hooks/useWebSocket";
+import { useWebSocketContext } from "@/contexts/WebSocketContext";
+import { useConversationRoom } from "@/hooks/useConversationRoom";
 import { useOfflineQueue } from "@/hooks/useOfflineQueue";
 import { useTranslation } from "@/contexts/LanguageContext";
 import {
@@ -86,20 +87,21 @@ function InboxContent() {
     clearMessageState,
   } = useInbox();
 
-  // WebSocket for real-time features
-  const { sendTyping, getTypingUsers, isConnected: wsConnected } = useWebSocket({
-    onMessage: (message) => {
-      if (message.type === "message:created" && message.data) {
-        const messageData = message.data as { senderId?: string; senderType?: string };
-        if (messageData.senderType !== "user" || messageData.senderId !== user?.id) {
-          playMessageReceived();
-        }
+  // WebSocket for real-time features (shared connection)
+  const { sendTyping, getTypingUsers, isConnected: wsConnected, subscribe } = useWebSocketContext();
+
+  useEffect(() => {
+    return subscribe((message) => {
+      if (message.type !== "message:created" || !message.data) return;
+      const messageData = message.data as { senderId?: string; senderType?: string };
+      if (messageData.senderType !== "user" || messageData.senderId !== user?.id) {
+        playMessageReceived();
       }
-    },
-  });
+    });
+  }, [subscribe, user?.id, playMessageReceived]);
 
   // Offline queue for message resilience
-  const { isOnline, queueMessage, queueCount, isSyncing } = useOfflineQueue({
+  const { isOnline, queueMessage } = useOfflineQueue({
     onSyncComplete: (successCount, failedCount) => {
       if (successCount > 0) {
         toast({ title: t("inbox.offlineSync.synced", { count: successCount }) });
@@ -145,9 +147,9 @@ function InboxContent() {
   const {
     data: messagesData,
     isLoading: messagesLoading,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
+    fetchPreviousPage,
+    hasPreviousPage,
+    isFetchingPreviousPage,
   } = useInfiniteQuery<MessagesResponse>({
     queryKey: ["/api/conversations", selectedConversation?.id, "messages"],
     enabled: !!selectedConversation,
@@ -158,28 +160,31 @@ function InboxContent() {
       }
       return conversationsApi.listMessages(selectedConversation.id, pageParam as number | undefined, 30);
     },
-    getNextPageParam: (lastPage) =>
-      lastPage.hasMore ? lastPage.nextCursor : undefined,
+    getPreviousPageParam: (firstPage) =>
+      firstPage.hasMore ? firstPage.nextCursor : undefined,
+    // This list only supports loading older messages (previous pages).
+    getNextPageParam: () => undefined,
   });
 
   const messages = messagesData?.pages
     ? messagesData.pages.flatMap((page) => page.messages)
     : [];
 
-  const loadMoreMessages = useCallback(() => {
-    if (hasNextPage && !isFetchingNextPage) {
+  const loadMoreMessages = useCallback(async () => {
+    if (!hasPreviousPage || isFetchingPreviousPage) return;
+
+    try {
       const currentLength = messages.length;
-      fetchNextPage().then(() => {
-        const newLength = messagesData?.pages
-          ? messagesData.pages.flatMap((p) => p.messages).length
-          : 0;
-        const diff = newLength - currentLength;
-        if (diff > 0) {
-          setFirstItemIndex((prev) => prev - diff);
-        }
-      });
+      const result = await fetchPreviousPage();
+      const newLength = result.data ? result.data.pages.flatMap((p) => p.messages).length : currentLength;
+      const diff = newLength - currentLength;
+      if (diff > 0) {
+        setFirstItemIndex((prev) => prev - diff);
+      }
+    } catch (error) {
+      console.error("[Inbox] Error loading more messages:", error);
     }
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage, messages.length, messagesData, setFirstItemIndex]);
+  }, [fetchPreviousPage, hasPreviousPage, isFetchingPreviousPage, messages.length, setFirstItemIndex]);
 
   // Reset firstItemIndex when conversation changes
   useEffect(() => {
@@ -273,6 +278,27 @@ function InboxContent() {
       // 2. Snapshot do estado atual (para rollback em caso de erro)
       const previousMessages = queryClient.getQueryData<{ pages: MessagesResponse[] }>(queryKey);
 
+      // If this is a reply, create a quotedMessage payload so the UI can render immediately
+      const replyTo =
+        newMessageData.replyToId && replyingTo?.id === newMessageData.replyToId
+          ? {
+              id: replyingTo.id,
+              content: replyingTo.content,
+              contentType: replyingTo.contentType ?? undefined,
+              senderType: replyingTo.senderType ?? undefined,
+              senderId: replyingTo.senderId ?? undefined,
+              senderName:
+                replyingTo.senderType === "user"
+                  ? ([replyingTo.sender?.firstName, replyingTo.sender?.lastName].filter(Boolean).join(" ") ||
+                      replyingTo.sender?.email ||
+                      null)
+                  : replyingTo.senderType === "system"
+                    ? "System"
+                    : t("inbox.contextPanel.contact"),
+              createdAt: replyingTo.createdAt ?? undefined,
+            }
+          : null;
+
       // 3. Criar mensagem otimista
       const optimisticMessage: InboxMessage = {
         id: -Date.now(), // ID negativo temporario
@@ -288,6 +314,7 @@ function InboxContent() {
         readBy: [user.id], // Usuario ja "leu" sua propria mensagem
         externalId: null,
         replyToId: newMessageData.replyToId ?? null,
+        replyTo,
         createdAt: new Date(), // Date object, nao string
         editedAt: null,
         deletedAt: null,
@@ -361,7 +388,13 @@ function InboxContent() {
               ...page,
               messages: page.messages.map((msg) =>
                 msg._tempId === context.tempId
-                  ? { ...serverMessage, _status: "sent" as const, _tempId: undefined } as InboxMessage
+                  ? {
+                      ...serverMessage,
+                      // Preserve quoted payload when the server response doesn't include it
+                      replyTo: msg.replyTo ?? null,
+                      _status: "sent" as const,
+                      _tempId: undefined,
+                    } as InboxMessage
                   : msg
               ),
             })),
@@ -710,6 +743,24 @@ function InboxContent() {
         readBy: [user.id],
         externalId: null,
         replyToId: replyingTo?.id ?? null,
+        replyTo: replyingTo
+          ? {
+              id: replyingTo.id,
+              content: replyingTo.content,
+              contentType: replyingTo.contentType ?? undefined,
+              senderType: replyingTo.senderType ?? undefined,
+              senderId: replyingTo.senderId ?? undefined,
+              senderName:
+                replyingTo.senderType === "user"
+                  ? ([replyingTo.sender?.firstName, replyingTo.sender?.lastName].filter(Boolean).join(" ") ||
+                      replyingTo.sender?.email ||
+                      null)
+                  : replyingTo.senderType === "system"
+                    ? "System"
+                    : t("inbox.contextPanel.contact"),
+              createdAt: replyingTo.createdAt ?? undefined,
+            }
+          : null,
         createdAt: new Date(),
         editedAt: null,
         deletedAt: null,
@@ -801,8 +852,8 @@ function InboxContent() {
                 messages={messages}
                 isLoading={messagesLoading}
                 firstItemIndex={firstItemIndex}
-                hasNextPage={!!hasNextPage}
-                isFetchingNextPage={!!isFetchingNextPage}
+                hasNextPage={!!hasPreviousPage}
+                isFetchingNextPage={!!isFetchingPreviousPage}
                 loadMoreMessages={loadMoreMessages}
                 formatTime={formatTime}
                 onRetryMessage={retryMessage}

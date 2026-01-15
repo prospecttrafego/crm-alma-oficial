@@ -113,7 +113,6 @@ export function MessageComposer({
     handleKeyDown: handleMentionKeyDown,
     getSelectedUser,
     selectUser: selectMentionUser,
-    close: closeMention,
   } = useMentionAutocomplete();
 
   const resolvedEmojiTheme = useMemo(() => {

@@ -8,6 +8,7 @@ import {
   boolean,
   jsonb,
   index,
+  foreignKey,
   decimal,
   check,
 } from "drizzle-orm/pg-core";
@@ -307,6 +308,11 @@ export const messages = pgTable(
     createdAt: timestamp("created_at").defaultNow(),
   },
   (table) => [
+    // Self-referencing FK: reply_to_id -> messages.id (nullable, ON DELETE SET NULL)
+    foreignKey({
+      columns: [table.replyToId],
+      foreignColumns: [table.id],
+    }).onDelete("set null"),
     index("idx_messages_conversation").on(table.conversationId),
     index("idx_messages_created_at").on(table.createdAt),
     index("idx_messages_external_id").on(table.externalId),
@@ -316,6 +322,11 @@ export const messages = pgTable(
     index("idx_messages_reply_to").on(table.replyToId),
     // Index for soft-delete filtering
     index("idx_messages_deleted_at").on(table.deletedAt),
+    // Full-text search index (expression-based, no generated column required)
+    index("idx_messages_content_search").using(
+      "gin",
+      sql`to_tsvector('portuguese', coalesce(${table.content}, ''))`,
+    ),
   ]
 );
 

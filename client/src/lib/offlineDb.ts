@@ -132,10 +132,15 @@ export async function updateOfflineMessageStatus(
 
   if (!message) return undefined;
 
+  // Increment retry count only when we are re-queuing after a failed sync attempt.
+  // Marking as "failed" is terminal and should not bump the counter again.
+  const shouldIncrementRetryCount =
+    status === "queued" && typeof lastError === "string" && lastError.trim().length > 0;
+
   const updated: OfflineMessage = {
     ...message,
     status,
-    retryCount: status === "failed" ? message.retryCount + 1 : message.retryCount,
+    retryCount: shouldIncrementRetryCount ? message.retryCount + 1 : message.retryCount,
     lastError: lastError ?? message.lastError,
   };
 

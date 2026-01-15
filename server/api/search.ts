@@ -1,8 +1,11 @@
 import type { Express } from "express";
 import { z } from "zod";
+import { and, eq, ilike, or, sql, desc } from "drizzle-orm";
 import { isAuthenticated, validateQuery, asyncHandler } from "../middleware";
 import { sendSuccess } from "../response";
 import { storage } from "../storage";
+import { db } from "../db";
+import { contacts, deals, conversations } from "@shared/schema";
 
 /**
  * Search query validation schema
@@ -71,78 +74,86 @@ export function registerSearchRoutes(app: Express) {
       }
 
       const { q, limit } = req.validatedQuery;
-      const searchTerm = q.toLowerCase().trim();
+      const searchTerm = q.trim();
 
-      // Search contacts
-      const allContacts = await storage.getContacts(org.id);
-      const contactResults: SearchResultContact[] = allContacts
-        .filter((contact) => {
-          const fullName = `${contact.firstName} ${contact.lastName || ""}`.toLowerCase();
-          const email = (contact.email || "").toLowerCase();
-          const phone = (contact.phone || "").toLowerCase();
-          return (
-            fullName.includes(searchTerm) ||
-            email.includes(searchTerm) ||
-            phone.includes(searchTerm)
-          );
+      const contactFullName = sql<string>`concat(${contacts.firstName}, ' ', coalesce(${contacts.lastName}, ''))`;
+
+      const contactRows = await db
+        .select({
+          id: contacts.id,
+          firstName: contacts.firstName,
+          lastName: contacts.lastName,
+          email: contacts.email,
+          phone: contacts.phone,
         })
-        .slice(0, limit)
-        .map((contact) => ({
+        .from(contacts)
+        .where(
+          and(
+            eq(contacts.organizationId, org.id),
+            or(
+              ilike(contactFullName, `%${searchTerm}%`),
+              ilike(contacts.email, `%${searchTerm}%`),
+              ilike(contacts.phone, `%${searchTerm}%`),
+            ),
+          ),
+        )
+        .orderBy(desc(contacts.updatedAt))
+        .limit(limit);
+
+      const contactResults: SearchResultContact[] = contactRows.map((contact) => ({
           type: "contact" as const,
           id: contact.id,
           title: `${contact.firstName} ${contact.lastName || ""}`.trim(),
           subtitle: contact.email || contact.phone || null,
           href: `/contacts?selected=${contact.id}`,
-        }));
+      }));
 
-      // Search deals
-      const allDeals = await storage.getDeals(org.id);
-      const dealResults: SearchResultDeal[] = allDeals
-        .filter((deal) => {
-          const title = deal.title.toLowerCase();
-          return title.includes(searchTerm);
-        })
-        .slice(0, limit)
-        .map((deal) => ({
+      const dealRows = await db
+        .select({ id: deals.id, title: deals.title, value: deals.value })
+        .from(deals)
+        .where(and(eq(deals.organizationId, org.id), ilike(deals.title, `%${searchTerm}%`)))
+        .orderBy(desc(deals.updatedAt))
+        .limit(limit);
+
+      const dealResults: SearchResultDeal[] = dealRows.map((deal) => ({
           type: "deal" as const,
           id: deal.id,
           title: deal.title,
           subtitle: deal.value ? `R$ ${Number(deal.value).toLocaleString("pt-BR")}` : null,
           href: `/pipeline?deal=${deal.id}`,
-        }));
+      }));
 
-      // Search conversations (by contact name or subject)
-      const allConversations = await storage.getConversations(org.id);
-
-      // Enrich conversations with contact info for search
-      const enrichedConversations = await Promise.all(
-        allConversations.map(async (conv) => {
-          let contact = null;
-          if (conv.contactId) {
-            contact = await storage.getContact(conv.contactId);
-          }
-          return { ...conv, contact };
+      const conversationRows = await db
+        .select({
+          id: conversations.id,
+          subject: conversations.subject,
+          channel: conversations.channel,
+          contactFirstName: contacts.firstName,
+          contactLastName: contacts.lastName,
         })
-      );
+        .from(conversations)
+        .leftJoin(contacts, eq(conversations.contactId, contacts.id))
+        .where(
+          and(
+            eq(conversations.organizationId, org.id),
+            or(
+              ilike(conversations.subject, `%${searchTerm}%`),
+              ilike(contactFullName, `%${searchTerm}%`),
+            ),
+          ),
+        )
+        .orderBy(desc(conversations.lastMessageAt))
+        .limit(limit);
 
-      const conversationResults: SearchResultConversation[] = enrichedConversations
-        .filter((conv) => {
-          const subject = (conv.subject || "").toLowerCase();
-          const contactName = conv.contact
-            ? `${conv.contact.firstName} ${conv.contact.lastName || ""}`.toLowerCase()
-            : "";
-          return subject.includes(searchTerm) || contactName.includes(searchTerm);
-        })
-        .slice(0, limit)
-        .map((conv) => ({
+      const conversationResults: SearchResultConversation[] = conversationRows.map((conv) => ({
           type: "conversation" as const,
           id: conv.id,
-          title: conv.contact
-            ? `${conv.contact.firstName} ${conv.contact.lastName || ""}`.trim()
+          title: conv.contactFirstName
+            ? `${conv.contactFirstName} ${conv.contactLastName || ""}`.trim()
             : conv.subject || `Conversa #${conv.id}`,
           subtitle: conv.subject || conv.channel,
           href: `/inbox?conversation=${conv.id}`,
-        }));
+      }));
 
       const response: GlobalSearchResponse = {
         contacts: contactResults,

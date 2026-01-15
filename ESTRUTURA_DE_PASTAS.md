@@ -383,11 +383,16 @@ O que evitar: mudanças sem atualizar o banco (migração/push), porque o backen
 migrations/
   0000_great_hammerhead.sql   # Migração inicial
   0001_mute_cargill.sql       # ...
+  0002_colorful_la_nuit.sql   # ...
+  0003_adorable_forgotten_one.sql # ...
   0004_audit_logs_immutable.sql  # Trigger para logs imutáveis
   0005_special_joseph.sql     # CHECK constraints e indexes
+  0006_woozy_devos.sql        # Deals: adiciona tags (text[])
+  0007_neat_freak.sql         # Messages: reply/edit/delete + indice de busca
   meta/
     _journal.json             # Histórico de migrações aplicadas
     0000_snapshot.json        # Snapshots de schema
+    0007_snapshot.json        # Snapshot mais recente (exemplo)
 ```
 
 - O que é: arquivos SQL gerados pelo Drizzle (ou manuais) para alterar o schema do banco.
@@ -395,6 +400,8 @@ migrations/
 - Migrações especiais:
   - `0004_audit_logs_immutable.sql`: trigger PostgreSQL que impede UPDATE/DELETE na tabela audit_logs
   - `0005_special_joseph.sql`: adiciona CHECK constraints e indexes LOWER(email)
+  - `0006_woozy_devos.sql`: adiciona `deals.tags`
+  - `0007_neat_freak.sql`: adiciona campos de reply/edit/delete em `messages` e indice GIN para busca
 
 O que pode ser mudado/alterado:
 - Criar migrações manuais para triggers, functions, ou alterações que o Drizzle não gera automaticamente.

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
@@ -28,7 +28,6 @@ import { useTranslation } from "@/contexts/LanguageContext";
 import { notificationsApi } from "@/lib/api/notifications";
 import { useToast } from "@/hooks/use-toast";
 import { useDesktopNotifications } from "@/hooks/useDesktopNotifications";
-import { getGlobalWebSocket, type WebSocketMessage } from "@/hooks/useWebSocket";
 
 const notificationIcons: Record<string, typeof Bell> = {
   new_message: MessageSquare,
@@ -150,53 +149,34 @@ export function NotificationBell() {
     [toast, desktopNotificationsSupported, desktopPermission, showDesktopNotification]
   );
 
-  // Listen for WebSocket notification events
+  const hasInitializedRef = useRef(false);
+  const seenNotificationIdsRef = useRef<Set<number>>(new Set());
+
+  // Show toast/desktop notifications when new notifications arrive.
+  // The WebSocket connection invalidates the query; we detect new rows on refetch.
   useEffect(() => {
-    const checkWebSocket = () => {
-      const ws = getGlobalWebSocket();
-      if (!ws) return;
+    if (!notifications) return;
 
-      // We can't directly add event listeners to WebSocket,
-      // but we can use the cache update that happens in useWebSocket
-      // The notification:new event already invalidates the queries
-      // This effect is for showing toasts/desktop notifications
-    };
+    const currentIds = new Set(notifications.map((n) => n.id));
 
-    // Check immediately and on interval (WebSocket might not be initialized yet)
-    checkWebSocket();
-    const interval = setInterval(checkWebSocket, 1000);
+    // First load: mark as initialized, don't notify for historical rows.
+    if (!hasInitializedRef.current) {
+      hasInitializedRef.current = true;
+      seenNotificationIdsRef.current = currentIds;
+      return;
+    }
 
-    // Listen for cache updates as a proxy for new notifications
-    const unsubscribe = queryClient.getQueryCache().subscribe((event) => {
-      if (
-        event.type === "updated" &&
-        event.query.queryKey[0] === "/api/notifications" &&
-        event.action?.type === "success"
-      ) {
-        const newData = event.action.data as Notification[] | undefined;
-        const oldData = event.query.state.data as Notification[] | undefined;
-
-        if (newData && oldData) {
-          // Find new notifications
-          const oldIds = new Set(oldData.map((n) => n.id));
-          const newNotifications = newData.filter((n) => !oldIds.has(n.id) && !n.isRead);
-
-          newNotifications.forEach((notification) => {
-            handleNewNotification({
-              type: notification.type,
-              title: notification.title,
-              message: notification.message || undefined,
-            });
-          });
-        }
-      }
+    const newNotifications = notifications.filter((n) => !seenNotificationIdsRef.current.has(n.id) && !n.isRead);
+    newNotifications.forEach((notification) => {
+      handleNewNotification({
+        type: notification.type,
+        title: notification.title,
+        message: notification.message || undefined,
+      });
     });
 
-    return () => {
-      clearInterval(interval);
-      unsubscribe();
-    };
-  }, [handleNewNotification]);
+    seenNotificationIdsRef.current = currentIds;
+  }, [handleNewNotification, notifications]);
 
   // Request desktop notification permission on first interaction
   const handleBellClick = async () => {

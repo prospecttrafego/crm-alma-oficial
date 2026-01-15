@@ -36,12 +36,7 @@ export function broadcast(type: string, data: unknown) {
  */
 export function broadcastToConversation(conversationId: number, type: string, data: unknown) {
   const room = conversationRooms.get(conversationId);
-  if (!room || room.size === 0) {
-    // Fallback para broadcast global se ninguem esta inscrito
-    // (util durante transicao para o novo sistema)
-    broadcast(type, data);
-    return;
-  }
+  if (!room || room.size === 0) return;
 
   const message = JSON.stringify({ type, data });
   room.forEach((client) => {
@@ -213,17 +208,22 @@ export function setupWebSocketServer(httpServer: HttpServer, sessionParser: Requ
         // ===== ROOM MANAGEMENT =====
         // Cliente se inscreve em uma conversa para receber mensagens direcionadas
         if (data.type === "room:join") {
-          const { conversationId } = data.payload as { conversationId: number };
-          if (typeof conversationId === "number") {
-            joinConversationRoom(ws, conversationId);
+          const conversationId = (data?.payload as { conversationId?: unknown } | undefined)?.conversationId;
+          if (typeof conversationId === "number" && Number.isInteger(conversationId) && conversationId > 0) {
+            // Validate that the conversation exists for the tenant org before joining.
+            // This prevents users from subscribing to arbitrary conversation IDs.
+            const conversation = await storage.getConversation(conversationId);
+            if (conversation) {
+              joinConversationRoom(ws, conversationId);
+            }
           }
           return;
         }
 
         // Cliente sai de uma room de conversa
         if (data.type === "room:leave") {
-          const { conversationId } = data.payload as { conversationId: number };
-          if (typeof conversationId === "number") {
+          const conversationId = (data?.payload as { conversationId?: unknown } | undefined)?.conversationId;
+          if (typeof conversationId === "number" && Number.isInteger(conversationId) && conversationId > 0) {
             leaveConversationRoom(ws, conversationId);
           }
           return;
