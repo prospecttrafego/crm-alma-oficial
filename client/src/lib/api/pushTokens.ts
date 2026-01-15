@@ -2,7 +2,7 @@
  * Push Tokens API
  */
 
-import { api } from "./index";
+import { api } from "./client";
 import type { CreatePushTokenDTO } from "@shared/types";
 
 export const pushTokensApi = {

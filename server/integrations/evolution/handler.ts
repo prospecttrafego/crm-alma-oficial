@@ -6,6 +6,7 @@
 import { storage } from '../../storage';
 import { whatsappLogger } from '../../logger';
 import { ObjectStorageService } from '../supabase/storage';
+import { autoCreateDealForContact } from '../../services/deal-auto-creator';
 
 // Evolution API webhook event types
 export interface EvolutionWebhookEvent {
@@ -272,6 +273,9 @@ export class EvolutionMessageHandler {
       whatsappLogger.info(`[Evolution Handler] New message from ${phoneNumber}: ${content.substring(0, 50)}...`);
 
       try {
+        // Collect events to broadcast after all DB operations complete
+        const pendingBroadcasts: Array<{ event: string; data: unknown }> = [];
+
         // Find or create contact by phone number (optimized: direct DB query)
         let contact = await storage.getContactByPhone(phoneNumber, organizationId);
 
@@ -305,71 +309,20 @@ export class EvolutionMessageHandler {
           await storage.updateConversation(conversation.id, { status: 'open' });
         }
 
-        // === AUTO-CRIAÇÃO DE DEAL ===
-        try {
-          // Verificar se contato já tem deal aberto
-          const existingDeals = await storage.getDealsByContact(contact.id);
-          const hasOpenDeal = existingDeals.some(d => d.status === 'open');
+        // === AUTO-CRIAÇÃO DE DEAL (with race condition protection) ===
+        const dealResult = await autoCreateDealForContact({
+          contactId: contact.id,
+          contactName: senderName || phoneNumber,
+          organizationId,
+          source: "whatsapp",
+        });
 
-          if (!hasOpenDeal) {
-            // Buscar ou criar pipeline default
-            let defaultPipeline = await storage.getDefaultPipeline(organizationId);
-
-            if (!defaultPipeline) {
-              // Criar pipeline padrão automaticamente
-              whatsappLogger.info(`[Evolution Handler] Creating default pipeline for organization ${organizationId}`);
-              defaultPipeline = await storage.createPipeline({
-                name: 'Pipeline Padrão',
-                organizationId,
-                isDefault: true,
-              });
-
-              // Criar stage inicial
-              await storage.createPipelineStage({
-                name: 'Novo Lead',
-                pipelineId: defaultPipeline.id,
-                order: 0,
-                color: '#3B82F6',
-                isWon: false,
-                isLost: false,
-              });
-
-              whatsappLogger.info(`[Evolution Handler] Created default pipeline: ${defaultPipeline.id}`);
-            }
-
-            // Buscar stages do pipeline (ordenados por order)
-            const stages = await storage.getPipelineStages(defaultPipeline.id);
-            const firstStage = stages.sort((a, b) => a.order - b.order)[0];
-
-            if (firstStage) {
-              const dealTitle = `Lead WhatsApp: ${senderName || phoneNumber}`;
-
-              const newDeal = await storage.createDeal({
-                title: dealTitle,
-                pipelineId: defaultPipeline.id,
-                stageId: firstStage.id,
-                contactId: contact.id,
-                organizationId,
-                source: 'whatsapp',
-                probability: 10,
-                status: 'open',
-              });
-
-              whatsappLogger.info(`[Evolution Handler] Auto-created deal: ${newDeal.id} for contact: ${contact.id}`);
-
-              // Broadcast para atualizar UI
-              if (this.broadcast) {
-                this.broadcast(organizationId, 'deal_created', { deal: newDeal });
-              }
-            } else {
-              whatsappLogger.error(`[Evolution Handler] No stages found even after creating pipeline`);
-            }
-          }
-        } catch (dealError) {
-          whatsappLogger.error('[Evolution Handler] Error auto-creating deal', {
-            error: dealError instanceof Error ? dealError.message : String(dealError),
+        // Queue deal_created broadcast (will be sent after all DB ops complete)
+        if (dealResult.created && dealResult.deal) {
+          pendingBroadcasts.push({
+            event: "deal_created",
+            data: { deal: dealResult.deal },
           });
-          // Não falhar o fluxo principal por erro na criação de deal
         }
 
         // Process media if present
@@ -390,17 +343,29 @@ export class EvolutionMessageHandler {
 
         whatsappLogger.info(`[Evolution Handler] Created message: ${message.id}${mediaAttachment ? ' with media' : ''}`);
 
+        // Queue new_message broadcast
+        pendingBroadcasts.push({
+          event: "new_message",
+          data: {
+            conversationId: conversation.id,
+            message,
+            contact,
+          },
+        });
+
         // Broadcast direcionado para usuarios inscritos na conversa
         if (this.broadcastToConversation) {
           this.broadcastToConversation(conversation.id, 'message:created', message);
         }
 
-        // Broadcast global para organizacao (legado/notificacoes)
+        // Send all broadcasts AFTER all DB operations completed successfully
         if (this.broadcast) {
-          this.broadcast(organizationId, 'new_message', {
-            conversationId: conversation.id,
-            message,
-            contact,
+          for (const broadcast of pendingBroadcasts) {
+            this.broadcast(organizationId, broadcast.event, broadcast.data);
+          }
+        } else if (pendingBroadcasts.length > 0) {
+          whatsappLogger.debug("[Evolution Handler] Broadcast unavailable, skipping events", {
+            events: pendingBroadcasts.map(b => b.event),
           });
         }
       } catch (error) {
@@ -454,6 +419,8 @@ export class EvolutionMessageHandler {
           channelConfigId,
           status: connectionStatus,
         });
+      } else {
+        whatsappLogger.debug("[Evolution Handler] Broadcast unavailable, skipping whatsapp_status event");
       }
     } catch (error) {
       whatsappLogger.error('[Evolution Handler] Error updating connection status', {
@@ -493,6 +460,8 @@ export class EvolutionMessageHandler {
           channelConfigId,
           qrCode: data.base64 || data.code,
         });
+      } else {
+        whatsappLogger.debug("[Evolution Handler] Broadcast unavailable, skipping whatsapp_qr event");
       }
     } catch (error) {
       whatsappLogger.error('[Evolution Handler] Error updating QR code', {

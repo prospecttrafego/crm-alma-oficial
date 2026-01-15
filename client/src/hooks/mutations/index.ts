@@ -1,10 +1,17 @@
 /**
- * Mutation Hooks - Re-exports all mutation hooks
+ * Mutation Hooks Index
+ * Re-exports all mutation hooks for easier imports
  */
 
-export { useContactMutations } from './useContactMutations';
-export { useDealMutations } from './useDealMutations';
-export { usePipelineMutations } from './usePipelineMutations';
-export { useActivityMutations } from './useActivityMutations';
-export { useConversationMutations } from './useConversationMutations';
-export { useCalendarMutations } from './useCalendarMutations';
+// Existing hooks
+export { useActivityMutations } from "./useActivityMutations";
+export { useCalendarMutations } from "./useCalendarMutations";
+export { useContactMutations } from "./useContactMutations";
+export { useConversationMutations } from "./useConversationMutations";
+export { useDealMutations } from "./useDealMutations";
+
+// New hooks
+export { usePipelineMutations } from "./usePipelineMutations";
+export { useStageMutations } from "./useStageMutations";
+export { useChannelConfigMutations } from "./useChannelConfigMutations";
+export { useEmailTemplateMutations } from "./useEmailTemplateMutations";

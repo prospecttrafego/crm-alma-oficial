@@ -2,7 +2,7 @@
  * Pipelines API - CRUD operations for pipelines and stages
  */
 
-import { api } from './index';
+import { api } from "./client";
 import { pipelineWithStagesSchema, pipelineStageSchema } from "@shared/apiSchemas";
 import type { PipelineStage } from '@shared/schema';
 import type {

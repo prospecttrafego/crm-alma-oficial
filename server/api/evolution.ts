@@ -27,17 +27,23 @@ export function registerEvolutionRoutes(app: Express) {
   app.post("/api/webhooks/evolution", async (req, res) => {
     try {
       const expectedToken = process.env.EVOLUTION_WEBHOOK_SECRET;
+      const clientIp = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "unknown";
+
+      // In production, EVOLUTION_WEBHOOK_SECRET is REQUIRED
+      if (process.env.NODE_ENV === "production" && !expectedToken) {
+        whatsappLogger.error("[Evolution Webhook] EVOLUTION_WEBHOOK_SECRET is not configured in production. Rejecting all webhooks.", { ip: clientIp });
+        return res.status(401).json({ error: "Webhook secret not configured" });
+      }
+
+      // Validate token if configured
       if (expectedToken) {
         const providedToken =
           (req.query?.token as string | undefined) ||
           (req.headers["x-evolution-webhook-secret"] as string | undefined);
         if (!providedToken || providedToken !== expectedToken) {
-          whatsappLogger.warn("[Evolution Webhook] Invalid token");
-          return res.status(200).json({ received: true });
+          whatsappLogger.warn("[Evolution Webhook] Invalid or missing token", { ip: clientIp, hasToken: !!providedToken });
+          return res.status(401).json({ error: "Unauthorized" });
         }
-      } else if (process.env.NODE_ENV === "production") {
-        whatsappLogger.warn("[Evolution Webhook] EVOLUTION_WEBHOOK_SECRET is not set; skipping processing");
-        return res.status(200).json({ received: true });
       }
 
       const event = req.body as EvolutionWebhookEvent;
@@ -92,11 +98,15 @@ export function registerEvolutionRoutes(app: Express) {
 
       res.status(200).json({ received: true });
     } catch (error) {
+      const clientIp = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "unknown";
       whatsappLogger.error("[Evolution Webhook] Error processing webhook", {
         error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        ip: clientIp,
       });
-      // Always return 200 to prevent retries
-      res.status(200).json({ received: true, error: "Processing failed" });
+      // Return 500 to allow Evolution API to retry
+      // Note: Evolution API has built-in retry logic, so returning 500 is the correct behavior
+      res.status(500).json({ error: "Processing failed" });
     }
   });
 }

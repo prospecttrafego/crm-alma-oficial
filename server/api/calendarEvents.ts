@@ -11,6 +11,7 @@ import {
   validateParams,
   validateQuery,
   asyncHandler,
+  getCurrentUser,
 } from "../middleware";
 import { sendSuccess, sendNotFound } from "../response";
 import { storage } from "../storage";
@@ -28,7 +29,7 @@ export function registerCalendarEventRoutes(app: Express) {
     "/api/calendar-events",
     isAuthenticated,
     validateQuery(calendarEventsQuerySchema),
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const org = await storage.getDefaultOrganization();
       if (!org) return sendSuccess(res, []);
 
@@ -46,7 +47,7 @@ export function registerCalendarEventRoutes(app: Express) {
     "/api/calendar-events/:id",
     isAuthenticated,
     validateParams(idParamSchema),
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const { id } = req.validatedParams;
       const event = await storage.getCalendarEvent(id);
       if (!event) {
@@ -61,12 +62,12 @@ export function registerCalendarEventRoutes(app: Express) {
     "/api/calendar-events",
     isAuthenticated,
     validateBody(createCalendarEventSchema),
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const org = await storage.getDefaultOrganization();
       if (!org) {
         return sendNotFound(res, "No organization");
       }
-      const userId = (req.user as any).id;
+      const userId = getCurrentUser(req)!.id;
 
       const event = await storage.createCalendarEvent({
         ...req.validatedBody,
@@ -84,7 +85,7 @@ export function registerCalendarEventRoutes(app: Express) {
     isAuthenticated,
     validateParams(idParamSchema),
     validateBody(updateCalendarEventSchema),
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const { id } = req.validatedParams;
 
       const event = await storage.updateCalendarEvent(id, req.validatedBody);
@@ -101,7 +102,7 @@ export function registerCalendarEventRoutes(app: Express) {
     "/api/calendar-events/:id",
     isAuthenticated,
     validateParams(idParamSchema),
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const { id } = req.validatedParams;
 
       await storage.deleteCalendarEvent(id);

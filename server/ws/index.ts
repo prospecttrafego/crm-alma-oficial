@@ -3,6 +3,9 @@ import type { RequestHandler } from "express";
 import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "../storage";
 import { setUserOffline, setUserOnline } from "../redis";
+import { createServiceLogger } from "../logger";
+
+const wsLogger = createServiceLogger("websocket");
 
 const clients = new Set<WebSocket>();
 const HEARTBEAT_INTERVAL_MS = 30000;
@@ -191,7 +194,7 @@ export function setupWebSocketServer(httpServer: HttpServer, sessionParser: Requ
       await setUserOnline(userId);
       broadcast("user:online", { userId, userName, lastSeenAt: new Date().toISOString() });
     } catch (error) {
-      console.error("WebSocket online status error:", error);
+      wsLogger.error("WebSocket online status error", { error });
     }
 
     ws.on("pong", async () => {
@@ -199,7 +202,7 @@ export function setupWebSocketServer(httpServer: HttpServer, sessionParser: Requ
       try {
         await setUserOnline(userId);
       } catch (error) {
-        console.error("WebSocket presence refresh error:", error);
+        wsLogger.error("WebSocket presence refresh error", { error });
       }
     });
 
@@ -239,7 +242,7 @@ export function setupWebSocketServer(httpServer: HttpServer, sessionParser: Requ
           return;
         }
       } catch (error) {
-        console.error("WebSocket message error:", error);
+        wsLogger.error("WebSocket message error", { error });
       }
     });
 
@@ -257,7 +260,7 @@ export function setupWebSocketServer(httpServer: HttpServer, sessionParser: Requ
       try {
         await setUserOffline(userId);
       } catch (error) {
-        console.error("WebSocket offline status error:", error);
+        wsLogger.error("WebSocket offline status error", { error });
       }
 
       broadcast("user:offline", { userId, lastSeenAt: new Date().toISOString() });

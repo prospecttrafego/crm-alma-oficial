@@ -1,3 +1,8 @@
+/**
+ * Deal Storage Module
+ * Handles all database operations for sales pipeline deals
+ */
+
 import {
   deals,
   pipelines,
@@ -16,6 +21,11 @@ import {
   type PaginatedResult,
 } from "./helpers";
 
+/**
+ * Get all deals for an organization
+ * @param _organizationId - Organization ID (overridden by tenant in single-tenant mode)
+ * @returns Array of deals
+ */
 export async function getDeals(_organizationId: number): Promise<Deal[]> {
   const tenantOrganizationId = await getTenantOrganizationId();
   return await db
@@ -80,6 +90,11 @@ export async function getDealsPaginated(
   };
 }
 
+/**
+ * Get all deals in a specific pipeline
+ * @param pipelineId - Pipeline ID to filter by
+ * @returns Array of deals in the pipeline
+ */
 export async function getDealsByPipeline(pipelineId: number): Promise<Deal[]> {
   const tenantOrganizationId = await getTenantOrganizationId();
   return await db
@@ -88,6 +103,11 @@ export async function getDealsByPipeline(pipelineId: number): Promise<Deal[]> {
     .where(and(eq(deals.pipelineId, pipelineId), eq(deals.organizationId, tenantOrganizationId)));
 }
 
+/**
+ * Get a single deal by ID
+ * @param id - Deal ID
+ * @returns Deal or undefined if not found
+ */
 export async function getDeal(id: number): Promise<Deal | undefined> {
   const tenantOrganizationId = await getTenantOrganizationId();
   const [deal] = await db
@@ -97,6 +117,13 @@ export async function getDeal(id: number): Promise<Deal | undefined> {
   return deal;
 }
 
+/**
+ * Create a new deal
+ * Validates that pipeline, stage, contact, and company exist before creation
+ * @param deal - Deal data to insert
+ * @returns Created deal
+ * @throws Error if pipeline, stage, contact, or company not found
+ */
 export async function createDeal(deal: InsertDeal): Promise<Deal> {
   const tenantOrganizationId = await getTenantOrganizationId();
 
@@ -143,6 +170,12 @@ export async function createDeal(deal: InsertDeal): Promise<Deal> {
   return created;
 }
 
+/**
+ * Update an existing deal
+ * @param id - Deal ID to update
+ * @param deal - Partial deal data to update
+ * @returns Updated deal or undefined if not found
+ */
 export async function updateDeal(
   id: number,
   deal: Partial<InsertDeal>,
@@ -159,6 +192,10 @@ export async function updateDeal(
   return updated;
 }
 
+/**
+ * Delete a deal
+ * @param id - Deal ID to delete
+ */
 export async function deleteDeal(id: number): Promise<void> {
   const tenantOrganizationId = await getTenantOrganizationId();
   await db
@@ -166,9 +203,26 @@ export async function deleteDeal(id: number): Promise<void> {
     .where(and(eq(deals.id, id), eq(deals.organizationId, tenantOrganizationId)));
 }
 
+/**
+ * Options for moving a deal to a new stage
+ */
+interface MoveDealOptions {
+  status?: "open" | "won" | "lost";
+  lostReason?: string;
+}
+
+/**
+ * Move a deal to a different stage in its pipeline
+ * Automatically updates deal status to 'won' or 'lost' if target stage is marked as such
+ * @param dealId - Deal ID to move
+ * @param stageId - Target stage ID (must be in same pipeline)
+ * @param options - Optional status and lostReason overrides
+ * @returns Updated deal or undefined if deal/stage not found or stage not in same pipeline
+ */
 export async function moveDealToStage(
   dealId: number,
   stageId: number,
+  options?: MoveDealOptions,
 ): Promise<Deal | undefined> {
   const tenantOrganizationId = await getTenantOrganizationId();
 
@@ -193,13 +247,21 @@ export async function moveDealToStage(
 
   if (stage.pipelineId !== deal.pipelineId) return undefined;
 
-  let status = "open";
-  if (stage.isWon) status = "won";
-  if (stage.isLost) status = "lost";
+  // Use provided status or infer from stage flags
+  let status: string = options?.status || "open";
+  if (!options?.status) {
+    if (stage.isWon) status = "won";
+    if (stage.isLost) status = "lost";
+  }
+
+  const updateData: Record<string, unknown> = { stageId, status, updatedAt: new Date() };
+  if (options?.lostReason !== undefined) {
+    updateData.lostReason = options.lostReason;
+  }
 
   const [updated] = await db
     .update(deals)
-    .set({ stageId, status, updatedAt: new Date() })
+    .set(updateData)
     .where(and(eq(deals.id, dealId), eq(deals.organizationId, tenantOrganizationId)))
     .returning();
   return updated;

@@ -2,7 +2,7 @@
  * Files API - upload and file management
  */
 
-import { api } from "./index";
+import { api } from "./client";
 import { fileSchema, uploadUrlSchema, transcriptionResultSchema } from "@shared/apiSchemas";
 import type { File as FileRecord } from "@shared/schema";
 import type { CreateFileDTO, TranscriptionResult } from "@shared/types";

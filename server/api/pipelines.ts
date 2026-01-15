@@ -14,6 +14,7 @@ import {
   validateBody,
   validateParams,
   asyncHandler,
+  getCurrentUser,
 } from "../middleware";
 import { sendSuccess, sendNotFound, sendError, ErrorCodes } from "../response";
 import { storage } from "../storage";
@@ -24,7 +25,7 @@ export function registerPipelineRoutes(app: Express) {
   app.get(
     "/api/pipelines/default",
     isAuthenticated,
-    asyncHandler(async (_req: any, res) => {
+    asyncHandler(async (_req, res) => {
       const org = await storage.getDefaultOrganization();
       if (!org) {
         return sendNotFound(res, "Organization not found");
@@ -42,7 +43,7 @@ export function registerPipelineRoutes(app: Express) {
   app.get(
     "/api/pipelines",
     isAuthenticated,
-    asyncHandler(async (_req: any, res) => {
+    asyncHandler(async (_req, res) => {
       const org = await storage.getDefaultOrganization();
       if (!org) return sendSuccess(res, []);
       const allPipelines = await storage.getPipelines(org.id);
@@ -61,7 +62,7 @@ export function registerPipelineRoutes(app: Express) {
     "/api/pipelines/:id",
     isAuthenticated,
     validateParams(idParamSchema),
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const { id } = req.validatedParams;
       const pipeline = await storage.getPipeline(id);
       if (!pipeline) {
@@ -78,12 +79,12 @@ export function registerPipelineRoutes(app: Express) {
     isAuthenticated,
     requireRole("admin"),
     validateBody(createPipelineSchema),
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const org = await storage.getDefaultOrganization();
       if (!org) {
         return sendNotFound(res, "No organization");
       }
-      const userId = (req.user as any).id;
+      const userId = getCurrentUser(req)!.id;
 
       const pipeline = await storage.createPipeline({
         ...req.validatedBody,
@@ -123,9 +124,9 @@ export function registerPipelineRoutes(app: Express) {
     requireRole("admin"),
     validateParams(idParamSchema),
     validateBody(updatePipelineSchema),
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const { id } = req.validatedParams;
-      const userId = (req.user as any).id;
+      const userId = getCurrentUser(req)!.id;
 
       const existing = await storage.getPipeline(id);
       if (!existing) {
@@ -164,9 +165,9 @@ export function registerPipelineRoutes(app: Express) {
     isAuthenticated,
     requireRole("admin"),
     validateParams(idParamSchema),
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const { id } = req.validatedParams;
-      const userId = (req.user as any).id;
+      const userId = getCurrentUser(req)!.id;
 
       const existing = await storage.getPipeline(id);
       if (!existing) {
@@ -205,7 +206,7 @@ export function registerPipelineRoutes(app: Express) {
     isAuthenticated,
     requireRole("admin"),
     validateParams(idParamSchema),
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const { id } = req.validatedParams;
 
       const existing = await storage.getPipeline(id);
@@ -232,7 +233,7 @@ export function registerPipelineRoutes(app: Express) {
     requireRole("admin"),
     validateParams(idParamSchema),
     validateBody(createPipelineStageInlineSchema),
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const { id: pipelineId } = req.validatedParams;
 
       const stage = await storage.createPipelineStage({
@@ -251,7 +252,7 @@ export function registerPipelineRoutes(app: Express) {
     requireRole("admin"),
     validateParams(pipelineStageParamsSchema),
     validateBody(updatePipelineStageSchema),
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const { id } = req.validatedParams;
 
       const stage = await storage.updatePipelineStage(id, req.validatedBody);
@@ -269,7 +270,7 @@ export function registerPipelineRoutes(app: Express) {
     isAuthenticated,
     requireRole("admin"),
     validateParams(pipelineStageParamsSchema),
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const { id } = req.validatedParams;
 
       await storage.deletePipelineStage(id);

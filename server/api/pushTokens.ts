@@ -16,7 +16,7 @@ export function registerPushTokenRoutes(app: Express) {
     "/api/push-tokens",
     isAuthenticated,
     validateBody(createPushTokenSchema),
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const currentUser = getCurrentUser(req);
       const userId = currentUser!.id;
       const { token, deviceInfo, oldToken } = req.validatedBody;
@@ -75,7 +75,7 @@ export function registerPushTokenRoutes(app: Express) {
     "/api/push-tokens",
     isAuthenticated,
     validateBody(deletePushTokenSchema),
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const { token } = req.validatedBody;
       await storage.deletePushToken(token);
       logger.info("[FCM] Push token deleted");

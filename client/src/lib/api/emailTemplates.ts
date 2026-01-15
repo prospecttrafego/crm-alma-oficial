@@ -2,7 +2,7 @@
  * Email Templates API - CRUD operations for email templates
  */
 
-import { api } from './index';
+import { api } from "./client";
 import { emailTemplateSchema } from "@shared/apiSchemas";
 import type { EmailTemplate } from '@shared/schema';
 import type { CreateEmailTemplateDTO, UpdateEmailTemplateDTO } from '@shared/types';

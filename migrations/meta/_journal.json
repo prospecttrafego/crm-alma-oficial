@@ -8,6 +8,48 @@
       "when": 1768078110044,
       "tag": "0000_great_hammerhead",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1768402535922,
+      "tag": "0001_mute_cargill",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1768403721151,
+      "tag": "0002_colorful_la_nuit",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1768414401326,
+      "tag": "0003_adorable_forgotten_one",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1736870400000,
+      "tag": "0004_audit_logs_immutable",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1768415882901,
+      "tag": "0005_special_joseph",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1768439528986,
+      "tag": "0006_woozy_devos",
+      "breakpoints": true
     }
   ]
 }

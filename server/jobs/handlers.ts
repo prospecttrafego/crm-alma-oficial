@@ -15,6 +15,8 @@ export const JobTypes = {
   CALCULATE_LEAD_SCORE: "leadScore:calculate",
   SYNC_GOOGLE_CALENDAR: "googleCalendar:sync",
   SYNC_EMAIL: "email:sync",
+  CLEANUP_ORPHAN_FILES: "files:cleanupOrphans",
+  CLEANUP_DLQ: "dlq:cleanup",
 } as const;
 
 // ==================== PAYLOAD TYPES ====================
@@ -41,6 +43,16 @@ export interface SyncEmailPayload {
   channelConfigId: number;
   organizationId: number;
   userId: string;
+}
+
+export interface CleanupOrphanFilesPayload {
+  dryRun?: boolean;
+  limit?: number;
+  olderThanDays?: number;
+}
+
+export interface CleanupDLQPayload {
+  maxAgeMs?: number;
 }
 
 // ==================== HANDLERS ====================
@@ -184,10 +196,17 @@ async function handleSyncGoogleCalendar(payload: SyncGoogleCalendarPayload): Pro
       }
       const refreshed = await googleCalendarService.refreshAccessToken(decryptToken(token.refreshToken));
       accessToken = refreshed.accessToken;
-      await storage.updateGoogleOAuthToken(payload.userId, {
+
+      // Update tokens - IMPORTANT: Save new refresh token if Google provides one!
+      const tokenUpdate: Parameters<typeof storage.updateGoogleOAuthToken>[1] = {
         accessToken: encryptToken(accessToken),
         expiresAt: refreshed.expiresAt,
-      });
+      };
+      if (refreshed.refreshToken) {
+        tokenUpdate.refreshToken = encryptToken(refreshed.refreshToken);
+        logger.info("[Jobs:GoogleCalendar] Saved new refresh token", { userId: payload.userId });
+      }
+      await storage.updateGoogleOAuthToken(payload.userId, tokenUpdate);
     }
 
     const calendarId = token.calendarId || "primary";
@@ -362,6 +381,58 @@ async function handleSyncEmail(payload: SyncEmailPayload): Promise<{
   return { newEmails: result.newEmails, errors: result.errors };
 }
 
+/**
+ * Cleanup orphan files in background
+ */
+async function handleCleanupOrphanFiles(payload: CleanupOrphanFilesPayload): Promise<{
+  orphanedFiles: number;
+  deletedFromDb: number;
+  deletedFromStorage: number;
+  errors: string[];
+}> {
+  const { cleanupOrphanFiles } = await import("./file-cleanup");
+
+  logger.info("[Jobs:FileCleanup] Starting orphan file cleanup", {
+    dryRun: payload.dryRun,
+    limit: payload.limit,
+    olderThanDays: payload.olderThanDays,
+  });
+
+  const result = await cleanupOrphanFiles({
+    dryRun: payload.dryRun ?? false,
+    limit: payload.limit ?? 100,
+    olderThanDays: payload.olderThanDays ?? 7,
+  });
+
+  logger.info("[Jobs:FileCleanup] Cleanup completed", {
+    orphanedFiles: result.orphanedFiles,
+    deletedFromDb: result.deletedFromDb,
+    deletedFromStorage: result.deletedFromStorage,
+    errors: result.errors.length,
+  });
+
+  return result;
+}
+
+/**
+ * Cleanup old dead letter queue entries
+ */
+async function handleCleanupDLQ(payload: CleanupDLQPayload): Promise<{
+  deletedCount: number;
+}> {
+  const { cleanupOldDeadLetterJobs } = await import("./dead-letter");
+
+  logger.info("[Jobs:DLQ] Starting DLQ cleanup", {
+    maxAgeMs: payload.maxAgeMs,
+  });
+
+  const deletedCount = await cleanupOldDeadLetterJobs(payload.maxAgeMs);
+
+  logger.info("[Jobs:DLQ] Cleanup completed", { deletedCount });
+
+  return { deletedCount };
+}
+
 // ==================== REGISTER ALL HANDLERS ====================
 
 export function initializeJobHandlers(): void {
@@ -369,6 +440,8 @@ export function initializeJobHandlers(): void {
   registerJobHandler(JobTypes.CALCULATE_LEAD_SCORE, handleCalculateLeadScore);
   registerJobHandler(JobTypes.SYNC_GOOGLE_CALENDAR, handleSyncGoogleCalendar);
   registerJobHandler(JobTypes.SYNC_EMAIL, handleSyncEmail);
+  registerJobHandler(JobTypes.CLEANUP_ORPHAN_FILES, handleCleanupOrphanFiles);
+  registerJobHandler(JobTypes.CLEANUP_DLQ, handleCleanupDLQ);
 
   logger.info("[Jobs] All job handlers initialized");
 }

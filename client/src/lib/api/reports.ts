@@ -2,7 +2,7 @@
  * Reports API
  */
 
-import { api } from "./index";
+import { api } from "./client";
 import { reportDataSchema } from "@shared/apiSchemas";
 import type { ReportData } from "@shared/types";
 

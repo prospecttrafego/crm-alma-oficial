@@ -2,7 +2,7 @@
  * Calendar Events API - CRUD operations for calendar events
  */
 
-import { api } from './index';
+import { api } from "./client";
 import {
   calendarEventSchema,
   googleCalendarAuthSchema,

@@ -22,7 +22,7 @@ export function registerUserRoutes(app: Express) {
     "/api/users/me",
     isAuthenticated,
     validateBody(updateUserProfileSchema),
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const currentUser = getCurrentUser(req);
       const userId = currentUser!.id;
       const { firstName, lastName, profileImageUrl, preferences } = req.validatedBody;

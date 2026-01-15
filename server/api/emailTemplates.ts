@@ -9,6 +9,7 @@ import {
   validateBody,
   validateParams,
   asyncHandler,
+  getCurrentUser,
 } from "../middleware";
 import { sendSuccess, sendNotFound } from "../response";
 import { storage } from "../storage";
@@ -18,7 +19,7 @@ export function registerEmailTemplateRoutes(app: Express) {
   app.get(
     "/api/email-templates",
     isAuthenticated,
-    asyncHandler(async (_req: any, res) => {
+    asyncHandler(async (_req, res) => {
       const org = await storage.getDefaultOrganization();
       if (!org) return sendSuccess(res, []);
       const templates = await storage.getEmailTemplates(org.id);
@@ -31,7 +32,7 @@ export function registerEmailTemplateRoutes(app: Express) {
     "/api/email-templates/:id",
     isAuthenticated,
     validateParams(idParamSchema),
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const org = await storage.getDefaultOrganization();
       if (!org) {
         return sendNotFound(res, "Organization not found");
@@ -50,12 +51,12 @@ export function registerEmailTemplateRoutes(app: Express) {
     "/api/email-templates",
     isAuthenticated,
     validateBody(createEmailTemplateSchema),
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const org = await storage.getDefaultOrganization();
       if (!org) {
         return sendNotFound(res, "No organization");
       }
-      const userId = (req.user as any).id;
+      const userId = getCurrentUser(req)!.id;
 
       const template = await storage.createEmailTemplate({
         ...req.validatedBody,
@@ -72,7 +73,7 @@ export function registerEmailTemplateRoutes(app: Express) {
     isAuthenticated,
     validateParams(idParamSchema),
     validateBody(updateEmailTemplateSchema),
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const org = await storage.getDefaultOrganization();
       if (!org) {
         return sendNotFound(res, "Organization not found");
@@ -92,7 +93,7 @@ export function registerEmailTemplateRoutes(app: Express) {
     "/api/email-templates/:id",
     isAuthenticated,
     validateParams(idParamSchema),
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const org = await storage.getDefaultOrganization();
       if (!org) {
         return sendNotFound(res, "Organization not found");

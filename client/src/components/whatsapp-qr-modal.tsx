@@ -22,6 +22,9 @@ interface WhatsAppQRModalProps {
 
 type ConnectionStatus = WhatsAppStatusResponse;
 
+const MAX_RETRIES = 3;
+const RETRY_BASE_DELAY_MS = 2000;
+
 export function WhatsAppQRModal({
   open,
   onOpenChange,
@@ -33,6 +36,8 @@ export function WhatsAppQRModal({
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [pairingCode, setPairingCode] = useState<string | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+  const [isRetrying, setIsRetrying] = useState(false);
 
   // Connect mutation - creates instance and gets QR code
   const connectMutation = useMutation({
@@ -43,12 +48,34 @@ export function WhatsAppQRModal({
       setQrCode(data.qrCode);
       setPairingCode(data.pairingCode || null);
       setIsConnecting(true);
+      setRetryCount(0); // Reset retry count on success
+      setIsRetrying(false);
     },
     onError: (error) => {
       console.error("Connect error:", error);
       setIsConnecting(false);
+      // Automatic retry with exponential backoff
+      if (retryCount < MAX_RETRIES) {
+        setIsRetrying(true);
+      }
     },
   });
+
+  // Auto-retry effect with exponential backoff
+  useEffect(() => {
+    if (isRetrying && retryCount < MAX_RETRIES && !connectMutation.isPending) {
+      const delay = RETRY_BASE_DELAY_MS * Math.pow(2, retryCount);
+      console.log(`[WhatsApp QR] Retrying in ${delay}ms (attempt ${retryCount + 1}/${MAX_RETRIES})`);
+
+      const timer = setTimeout(() => {
+        setRetryCount((prev) => prev + 1);
+        setIsRetrying(false);
+        connectMutation.mutate();
+      }, delay);
+
+      return () => clearTimeout(timer);
+    }
+  }, [isRetrying, retryCount, connectMutation]);
 
   // Poll connection status
   const { data: statusData } = useQuery<ConnectionStatus>({
@@ -75,6 +102,8 @@ export function WhatsAppQRModal({
       setQrCode(null);
       setPairingCode(null);
       setIsConnecting(false);
+      setRetryCount(0);
+      setIsRetrying(false);
     }
   }, [open]);
 
@@ -88,9 +117,10 @@ export function WhatsAppQRModal({
     connectMutation.mutate();
   }, [connectMutation]);
 
-  const isLoading = connectMutation.isPending;
+  const isLoading = connectMutation.isPending || isRetrying;
   const isConnected = statusData?.status === "connected";
-  const hasError = connectMutation.isError;
+  // Only show error after all retries are exhausted
+  const hasError = connectMutation.isError && !isRetrying && retryCount >= MAX_RETRIES;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -122,7 +152,11 @@ export function WhatsAppQRModal({
           {isLoading && (
             <div className="w-64 h-64 bg-muted rounded-lg flex flex-col items-center justify-center">
               <Loader2 className="h-12 w-12 animate-spin text-primary" />
-              <p className="mt-4 text-sm text-muted-foreground">{t("whatsappQr.generatingQr")}</p>
+              <p className="mt-4 text-sm text-muted-foreground">
+                {isRetrying
+                  ? `${t("whatsappQr.generatingQr")} (${retryCount + 1}/${MAX_RETRIES})`
+                  : t("whatsappQr.generatingQr")}
+              </p>
             </div>
           )}
 
@@ -206,15 +240,21 @@ export function WhatsAppQRModal({
           {/* Error state */}
           {hasError && !isLoading && (
             <div className="text-center space-y-4">
-              <div className="w-64 h-64 bg-red-50 rounded-lg flex flex-col items-center justify-center">
+              <div className="w-64 h-64 bg-red-50 dark:bg-red-950/20 rounded-lg flex flex-col items-center justify-center">
                 <XCircle className="h-16 w-16 text-red-600" />
-                <p className="mt-4 text-lg font-medium text-red-800">{t("whatsappQr.error")}</p>
-                <p className="text-sm text-red-600 max-w-[200px]">
+                <p className="mt-4 text-lg font-medium text-red-800 dark:text-red-400">{t("whatsappQr.error")}</p>
+                <p className="text-sm text-red-600 dark:text-red-500 max-w-[200px]">
                   {connectMutation.error?.message || t("whatsappQr.errorGeneratingQr")}
                 </p>
               </div>
               <div className="flex gap-2">
-                <Button onClick={handleStartConnect} className="flex-1">
+                <Button
+                  onClick={() => {
+                    setRetryCount(0); // Reset retry count for manual retry
+                    handleStartConnect();
+                  }}
+                  className="flex-1"
+                >
                   {t("whatsappQr.tryAgain")}
                 </Button>
                 <Button

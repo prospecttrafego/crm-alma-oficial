@@ -31,8 +31,13 @@ Sistema de CRM (Customer Relationship Management) desenvolvido para a agencia di
 - Calendario de eventos
 - Templates de email
 - Notificacoes em tempo real
-- Logs de auditoria
+- Logs de auditoria (imutaveis via trigger PostgreSQL)
 - Multi-organizacao (parcial: schema suporta, execucao atual em modo single-tenant por instalacao)
+- Monitoramento de erros (Sentry)
+- Circuit breaker para integracoes externas
+- URLs assinadas para arquivos (15 min expiracao)
+- Upload de arquivos ate 50MB
+- Background jobs com Dead Letter Queue
 
 ## Stack Tecnologica
 
@@ -43,6 +48,7 @@ Sistema de CRM (Customer Relationship Management) desenvolvido para a agencia di
 | Styling | Tailwind CSS | 4.1.18 |
 | Componentes | shadcn/ui + Radix UI | - |
 | Estado | TanStack Query | 5.60.5 |
+| Tabelas | TanStack Table | 8.21.3 |
 | Roteamento | Wouter | 3.3.5 |
 | Backend | Express | 4.21.2 |
 | Linguagem | TypeScript | 5.9.3 |
@@ -53,6 +59,7 @@ Sistema de CRM (Customer Relationship Management) desenvolvido para a agencia di
 | Storage | Supabase Storage | 2.87.3 |
 | Real-time | WebSocket (ws) | 8.18.0 |
 | AI | OpenAI | 6.10.0 |
+| Monitoramento | Sentry | 10.34.0 |
 
 ## Design System
 
@@ -105,26 +112,27 @@ npm run dev
 │   ├── routes.ts            # Agregador (auth + rate limit + API + WebSocket)
 │   ├── middleware.ts        # Middlewares padronizados (asyncHandler, validate*)
 │   ├── response.ts          # Helpers de resposta (sendSuccess, sendError, etc)
+│   ├── constants.ts         # Constantes centralizadas (limites, TTLs, etc)
 │   ├── validation/          # Schemas Zod para validacao de entrada (shared/contracts)
-│   │   ├── index.ts         # Re-exports
-│   │   └── schemas.ts       # Schemas de validacao
-│   ├── api/                 # Rotas HTTP por domínio (módulos)
-│   ├── ws/                  # WebSocket (/ws) + broadcast
-│   ├── jobs/                # Background jobs (Redis/fallback memoria)
-│   ├── logger.ts            # Logs estruturados (requestId + integrações)
-│   ├── health.ts            # Health check (DB + integrações opcionais)
+│   ├── api/                 # Rotas HTTP por dominio (contacts, deals, files, etc)
+│   ├── ws/                  # WebSocket (/ws) + broadcast + presenca
+│   ├── jobs/                # Background jobs (Redis/fallback memoria + DLQ)
+│   ├── services/            # Logica de negocio (deal-auto-creator, email-ingest)
+│   ├── lib/                 # Bibliotecas internas
+│   │   ├── sentry.ts        # Integracao Sentry (error tracking)
+│   │   └── circuit-breaker.ts # Circuit breaker para integracoes
+│   ├── integrations/        # Integracoes externas
+│   │   ├── evolution/       # WhatsApp (Evolution API)
+│   │   ├── google/          # Google Calendar (OAuth + sync)
+│   │   ├── openai/          # Lead scoring + Whisper (transcricao)
+│   │   ├── supabase/        # Storage (uploads)
+│   │   ├── firebase/        # Push notifications (FCM)
+│   │   └── email/           # IMAP/SMTP
 │   ├── storage/             # DAL por dominio (contacts, deals, etc.)
-│   ├── storage.ts           # Facade do storage (re-export dos modulos)
+│   ├── logger.ts            # Logs estruturados (requestId)
+│   ├── health.ts            # Health check (DB, jobs, circuit breakers)
 │   ├── auth.ts              # Autenticacao Passport.js
 │   ├── db.ts                # Drizzle + conexao Postgres
-│   ├── tenant.ts            # Single-tenant (organizacao)
-│   ├── storage.supabase.ts  # Upload de arquivos (Supabase Storage)
-│   ├── aiScoring.ts         # Lead scoring com IA
-│   ├── whisper.ts           # Transcricao de audio (Whisper/OpenAI)
-│   ├── evolution-api.ts     # Evolution API (WhatsApp)
-│   ├── evolution-message-handler.ts # Webhook handler (WhatsApp)
-│   ├── google-calendar.ts   # Google Calendar (OAuth + sync)
-│   ├── notifications.ts     # Push notifications (Firebase Admin)
 │   ├── redis.ts             # Redis (Upstash)
 │   ├── static.ts            # Servir frontend em producao
 │   └── vite.ts              # Vite middleware (dev)
@@ -136,6 +144,7 @@ npm run dev
 │   └── types/               # Tipos compartilhados frontend/backend
 │       ├── api.ts           # ApiResponse, ErrorCodes, PaginationMeta
 │       └── dto.ts           # DTOs para transferencia de dados
+├── migrations/              # Migracoes SQL (Drizzle + manuais)
 ├── scripts/                 # Scripts utilitarios
 │   └── migrate-users.ts     # Migracao de usuarios
 └── script/
@@ -184,6 +193,8 @@ Notas importantes:
 | `EVOLUTION_API_KEY` | Nao | API key da Evolution API |
 | `EVOLUTION_INSTANCE_PREFIX` | Nao | Prefixo unico por deploy para evitar colisao de instancias (quando varios CRMs compartilham a mesma Evolution API) |
 | `EVOLUTION_WEBHOOK_SECRET` | Nao | Segredo para validar webhooks da Evolution API |
+| `SENTRY_DSN` | Nao | DSN do Sentry para rastreamento de erros |
+| `APP_VERSION` | Nao | Versao da aplicacao (usado pelo Sentry para release tracking) |
 
 ## Comandos Disponiveis
 
@@ -203,71 +214,54 @@ npm run db:migrate-ptbr # Ajustes pontuais (dados legados PT-BR)
 
 ## Health check
 
-- `GET /api/health` retorna status do banco e integrações opcionais (Redis/Supabase/Evolution API) quando configuradas.
+- `GET /api/health` retorna status de:
+  - Banco de dados (PostgreSQL) - status da conexao e uso do pool
+  - Fila de jobs (Redis) - status do worker e backlog
+  - Circuit breakers - estado dos circuit breakers de integracoes
+  - Integracoes opcionais (Redis/Supabase/Evolution API) quando configuradas
 
 ## Padrao de Resposta da API
 
 - Endpoints JSON retornam `{ success, data }` (erros padronizados). Respostas `204` nao possuem corpo.
 
-## Deploy em VPS (Ubuntu)
+## Deploy via Coolify (Docker)
+
+O deploy e feito usando **Coolify** com integracao GitHub e Dockerfile.
 
 ### Pre-requisitos
-- Node.js 20+
+- Servidor Coolify configurado
 - PostgreSQL (ou usar Supabase)
 - Projeto Supabase com bucket "uploads"
 
 ### Passo a Passo
 
-```bash
-# 1. Clonar repositorio
-git clone https://github.com/prospecttrafego/crm-alma-oficial.git
-cd crm-alma-oficial
+1. **Conectar repositorio no Coolify:**
+   - Criar novo projeto no Coolify
+   - Conectar com GitHub (repositorio `prospecttrafego/crm-alma-oficial`)
+   - Selecionar branch `staging` ou `main`
 
-# 2. Instalar dependencias
-npm install
+2. **Configurar variaveis de ambiente no Coolify:**
+   - Adicionar todas as variaveis do `.env.example`
+   - Variaveis `VITE_*` devem ser configuradas como **Build Arguments**
 
-# 3. Configurar ambiente
-cp .env.example .env.production
-nano .env.production  # Preencher credenciais
+3. **Deploy:**
+   - O Coolify usa o `Dockerfile` automaticamente
+   - Build multi-stage: deps → build → runtime
+   - Health check configurado em `/api/healthz`
 
-# 4. Aplicar migrations no banco
-npm run db:migrate
+4. **Apos o deploy, rodar migrations manualmente:**
+   ```bash
+   # Conectar no terminal do container ou servidor
+   npm run db:migrate:prod
+   ```
 
-# 5. Build de producao
-npm run build
+### Dockerfile
 
-# 6. Aplicar migrations em producao
-npm run db:migrate:prod
-
-# 7. Instalar PM2 globalmente
-npm install -g pm2
-
-# 8. Iniciar aplicacao
-pm2 start dist/index.cjs --name "crm-alma"
-
-# 9. Configurar auto-start
-pm2 save
-pm2 startup
-```
-
-### Nginx (Proxy Reverso)
-
-```nginx
-server {
-    listen 80;
-    server_name seu-dominio.com;
-
-    location / {
-        proxy_pass http://localhost:3000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_cache_bypass $http_upgrade;
-    }
-}
-```
+O projeto inclui um Dockerfile otimizado com:
+- Multi-stage build (deps, build, runtime)
+- Node.js 20 slim
+- Health check automatico
+- Variaveis VITE_* como build args
 
 ## Configuracao do Supabase
 

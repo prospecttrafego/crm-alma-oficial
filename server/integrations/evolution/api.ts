@@ -6,6 +6,7 @@
 
 import { whatsappLogger } from '../../logger';
 import { withRetry } from '../../retry';
+import { getCircuitBreaker, isServiceFailure, type CircuitBreakerMetrics } from '../../lib/circuit-breaker';
 
 // Timeout padrao para chamadas externas (30 segundos)
 const DEFAULT_TIMEOUT_MS = 30000;
@@ -17,6 +18,21 @@ const RETRY_OPTIONS = {
   maxDelayMs: 10000,
   label: 'Evolution API',
 };
+
+/**
+ * Required webhook events for full WhatsApp functionality
+ * Based on Evolution API v2.3.7 documentation
+ */
+export const REQUIRED_WEBHOOK_EVENTS = [
+  'MESSAGES_UPSERT',      // Incoming messages (required)
+  'MESSAGES_UPDATE',      // Message status updates (delivered, read)
+  'MESSAGES_DELETE',      // Deleted messages
+  'SEND_MESSAGE',         // Outgoing message confirmation
+  'CONNECTION_UPDATE',    // Connection state changes (required)
+  'QRCODE_UPDATED',       // QR code refresh (required)
+  'CONTACTS_UPDATE',      // Contact updates
+  'PRESENCE_UPDATE',      // Online/offline status
+];
 
 export interface EvolutionInstance {
   instanceName: string;
@@ -48,13 +64,43 @@ export interface EvolutionInstanceInfo {
   };
 }
 
+/**
+ * Webhook configuration for instance creation
+ */
+export interface WebhookConfig {
+  url: string;
+  events?: string[];
+}
+
+/**
+ * Result from createInstance including QR code data
+ */
+export interface CreateInstanceResult extends EvolutionInstance {
+  qrcode?: {
+    base64?: string;
+    pairingCode?: string;
+    code?: string;
+  };
+  hash?: {
+    apikey?: string;
+  };
+}
+
 export class EvolutionApiService {
   private baseUrl: string;
   private apiKey: string;
+  private circuitBreaker;
 
   constructor() {
     this.baseUrl = (process.env.EVOLUTION_API_URL || '').replace(/\/+$/, '');
     this.apiKey = process.env.EVOLUTION_API_KEY || '';
+    this.circuitBreaker = getCircuitBreaker({
+      name: 'evolution-api',
+      failureThreshold: 5,
+      resetTimeout: 30000, // 30 seconds
+      successThreshold: 2,
+      isFailure: isServiceFailure,
+    });
   }
 
   /**
@@ -75,7 +121,21 @@ export class EvolutionApiService {
   }
 
   /**
-   * Make a request to Evolution API with timeout and retry
+   * Get circuit breaker metrics
+   */
+  getCircuitBreakerMetrics(): CircuitBreakerMetrics {
+    return this.circuitBreaker.getMetrics();
+  }
+
+  /**
+   * Check if Evolution API is available (circuit breaker state)
+   */
+  isAvailable(): boolean {
+    return this.isConfigured() && this.circuitBreaker.isAvailable();
+  }
+
+  /**
+   * Make a request to Evolution API with timeout, retry, and circuit breaker
    */
   private async request<T>(
     method: string,
@@ -89,7 +149,8 @@ export class EvolutionApiService {
 
     const url = `${this.baseUrl}${endpoint}`;
 
-    return withRetry(async () => {
+    // Wrap the entire request with circuit breaker
+    return this.circuitBreaker.execute(() => withRetry(async () => {
       const start = Date.now();
 
       const options: RequestInit = {
@@ -156,26 +217,50 @@ export class EvolutionApiService {
         }
         return true;
       },
-    });
+    }));
   }
 
   /**
-   * Create a new WhatsApp instance
+   * Create a new WhatsApp instance with optional webhook configuration
+   * In Evolution API v2.3.7, webhook should be included in creation for best results
    */
-  async createInstance(instanceName: string): Promise<EvolutionInstance> {
-    whatsappLogger.info(`[Evolution API] Creating instance: ${instanceName}`);
+  async createInstance(
+    instanceName: string,
+    webhookConfig?: WebhookConfig
+  ): Promise<CreateInstanceResult> {
+    whatsappLogger.info(`[Evolution API] Creating instance: ${instanceName}`, {
+      hasWebhook: !!webhookConfig,
+    });
 
-    const result = await this.request<{ instance: EvolutionInstance }>(
-      'POST',
-      '/instance/create',
-      {
-        instanceName,
-        qrcode: true,
-        integration: 'WHATSAPP-BAILEYS',
-      }
-    );
+    const payload: Record<string, unknown> = {
+      instanceName,
+      qrcode: true,
+      integration: 'WHATSAPP-BAILEYS',
+      readMessages: true,
+      readStatus: true,
+    };
 
-    return result.instance;
+    // Include webhook in instance creation (recommended for v2.3.7)
+    if (webhookConfig) {
+      payload.webhook = {
+        url: webhookConfig.url,
+        byEvents: false,
+        base64: false,
+        events: webhookConfig.events || REQUIRED_WEBHOOK_EVENTS,
+      };
+    }
+
+    const result = await this.request<{
+      instance: EvolutionInstance;
+      qrcode?: { base64?: string; pairingCode?: string; code?: string };
+      hash?: { apikey?: string };
+    }>('POST', '/instance/create', payload);
+
+    return {
+      ...result.instance,
+      qrcode: result.qrcode,
+      hash: result.hash,
+    };
   }
 
   /**
@@ -247,6 +332,30 @@ export class EvolutionApiService {
       'DELETE',
       `/instance/delete/${instanceName}`
     );
+  }
+
+  /**
+   * Force clean an instance (logout + delete)
+   * Used when instance is in invalid/corrupted state
+   */
+  async forceCleanInstance(instanceName: string): Promise<void> {
+    whatsappLogger.info(`[Evolution API] Force cleaning instance: ${instanceName}`);
+
+    try {
+      // Try logout first
+      await this.disconnectInstance(instanceName);
+    } catch {
+      // Ignore errors (instance might not be connected)
+      whatsappLogger.info(`[Evolution API] Logout failed (expected): ${instanceName}`);
+    }
+
+    try {
+      // Delete the instance
+      await this.deleteInstance(instanceName);
+    } catch {
+      // Ignore if doesn't exist
+      whatsappLogger.info(`[Evolution API] Delete failed (may not exist): ${instanceName}`);
+    }
   }
 
   /**

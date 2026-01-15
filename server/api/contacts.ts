@@ -11,34 +11,39 @@ import {
   validateParams,
   validateQuery,
   asyncHandler,
+  getCurrentUser,
 } from "../middleware";
 import { sendSuccess, sendNotFound } from "../response";
 import { storage } from "../storage";
 
 export function registerContactRoutes(app: Express) {
   // GET /api/contacts - Listar contatos (com paginacao opcional)
+  // Query params:
+  //   - withStats=true: Retorna contatos com estatisticas agregadas (deals, activities)
+  //   - page, limit, search, sortBy, sortOrder: Paginacao (nao combinavel com withStats)
   app.get(
     "/api/contacts",
     isAuthenticated,
     validateQuery(paginationQuerySchema),
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
+      const org = await storage.getDefaultOrganization();
+      if (!org) {
+        return sendSuccess(res, []);
+      }
+
+      // Check for withStats flag
+      const withStats = req.query?.withStats === "true";
+      if (withStats) {
+        const contactsWithStats = await storage.getContactsWithStats(org.id);
+        return sendSuccess(res, contactsWithStats);
+      }
+
       const paginationRequested =
         req.query?.page !== undefined ||
         req.query?.limit !== undefined ||
         req.query?.search !== undefined ||
         req.query?.sortBy !== undefined ||
         req.query?.sortOrder !== undefined;
-
-      const org = await storage.getDefaultOrganization();
-      if (!org) {
-        if (!paginationRequested) return sendSuccess(res, []);
-        const page = req.validatedQuery.page ?? 1;
-        const limit = req.validatedQuery.limit ?? 20;
-        return sendSuccess(res, {
-          data: [],
-          pagination: { page, limit, total: 0, totalPages: 0, hasMore: false },
-        });
-      }
 
       const { page, limit, search, sortBy, sortOrder } = req.validatedQuery;
 
@@ -65,7 +70,7 @@ export function registerContactRoutes(app: Express) {
     "/api/contacts/:id",
     isAuthenticated,
     validateParams(idParamSchema),
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const { id } = req.validatedParams;
       const contact = await storage.getContact(id);
       if (!contact) {
@@ -80,12 +85,12 @@ export function registerContactRoutes(app: Express) {
     "/api/contacts",
     isAuthenticated,
     validateBody(createContactSchema),
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const org = await storage.getDefaultOrganization();
       if (!org) {
         return sendNotFound(res, "No organization");
       }
-      const userId = (req.user as any).id;
+      const userId = getCurrentUser(req)!.id;
 
       const { companyName, ...contactData } = req.validatedBody;
       let companyId: number | undefined;
@@ -131,9 +136,9 @@ export function registerContactRoutes(app: Express) {
     isAuthenticated,
     validateParams(idParamSchema),
     validateBody(updateContactSchema),
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const { id } = req.validatedParams;
-      const userId = (req.user as any).id;
+      const userId = getCurrentUser(req)!.id;
 
       const existingContact = await storage.getContact(id);
       if (!existingContact) {
@@ -170,9 +175,9 @@ export function registerContactRoutes(app: Express) {
     "/api/contacts/:id",
     isAuthenticated,
     validateParams(idParamSchema),
-    asyncHandler(async (req: any, res) => {
+    asyncHandler(async (req, res) => {
       const { id } = req.validatedParams;
-      const userId = (req.user as any).id;
+      const userId = getCurrentUser(req)!.id;
 
       const existingContact = await storage.getContact(id);
       await storage.deleteContact(id);
