@@ -9,6 +9,9 @@ import type { Request, Response, NextFunction } from "express";
 const SENTRY_DSN = process.env.SENTRY_DSN;
 const isProduction = process.env.NODE_ENV === "production";
 const isEnabled = !!SENTRY_DSN;
+const sentryEnvironment = process.env.APP_ENV || process.env.NODE_ENV || "development";
+const sentryRelease =
+  process.env.APP_VERSION || process.env.SOURCE_COMMIT || "unknown";
 
 /**
  * Initialize Sentry
@@ -22,15 +25,17 @@ export function initSentry(): void {
 
   Sentry.init({
     dsn: SENTRY_DSN,
-    environment: process.env.NODE_ENV || "development",
-    release: process.env.APP_VERSION || "unknown",
+    environment: sentryEnvironment,
+    release: sentryRelease,
 
     // Set tracesSampleRate to 1.0 to capture 100% of transactions for tracing.
     // We recommend adjusting this value in production
     tracesSampleRate: isProduction ? 0.1 : 1.0,
 
     // Capture unhandled promise rejections
-    integrations: [
+    // NOTE: using a function preserves Sentry's default integrations.
+    integrations: (integrations) => [
+      ...integrations,
       Sentry.onUnhandledRejectionIntegration({
         mode: "warn",
       }),

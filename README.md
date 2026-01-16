@@ -163,7 +163,7 @@ Notas importantes:
 
 | Variavel | Obrigatoria | Descricao |
 |----------|-------------|-----------|
-| `DATABASE_URL` | Sim | URL de conexao PostgreSQL |
+| `DATABASE_URL` | Sim | URL de conexao PostgreSQL (Supabase Postgres - configuracao oficial) |
 | `SESSION_SECRET` | Sim | Chave para criptografia de sessoes |
 | `SUPABASE_URL` | Sim | URL do projeto Supabase |
 | `SUPABASE_ANON_KEY` | Nao | Anon key do Supabase (nao usada diretamente hoje pelo backend) |
@@ -236,6 +236,10 @@ Nota: o Storybook usa mocks de API em `.storybook/apiMock.ts` para renderizar co
 
 Guia completo (didatico, com “onde rodar comandos”, migrations e redeploy): `DEPLOY_COOLIFY_HOSTINGER.md`.
 
+Infra oficial:
+- **Banco**: Supabase (Postgres)
+- **Storage**: Supabase Storage (bucket `uploads`)
+
 Resumo rapido do fluxo:
 
 1. No Coolify, criar uma **Application** com **Build Pack: Dockerfile** (porta `3000`).
@@ -262,6 +266,7 @@ O projeto inclui um Dockerfile otimizado com:
 4. Copiar credenciais para `.env.staging` e/ou `.env.production`:
    - `SUPABASE_URL`: Settings > API > Project URL
    - `SUPABASE_SERVICE_ROLE_KEY`: Settings > API > service_role key
+   - `DATABASE_URL`: Settings > Database > Connection string (PostgreSQL)
 
 ## Licenca
 

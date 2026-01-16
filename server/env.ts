@@ -51,6 +51,7 @@ const envSchema = z
       z.string().min(32, "SESSION_SECRET must be at least 32 characters"),
     ),
     APP_URL: optionalUrl(),
+    APP_VERSION: optionalString(),
     DEFAULT_ORGANIZATION_ID: z.preprocess(emptyToUndefined, z.coerce.number().int().positive()).optional(),
     ALLOW_REGISTRATION: z.preprocess(emptyToUndefined, z.enum(["true", "false"])).optional(),
     VITE_ALLOW_REGISTRATION: z.preprocess(emptyToUndefined, z.enum(["true", "false"])).optional(),
@@ -78,6 +79,7 @@ const envSchema = z
     GOOGLE_CLIENT_SECRET: optionalString(),
     GOOGLE_REDIRECT_URI: optionalString(),
     GOOGLE_TOKEN_ENCRYPTION_KEY: optionalString(),
+    SENTRY_DSN: optionalUrl(),
     DOTENV_FILE: optionalString(),
     ENV_FILE: optionalString(),
     DRIZZLE_MIGRATIONS_SCHEMA: optionalString(),
@@ -91,6 +93,22 @@ const envSchema = z
         code: z.ZodIssueCode.custom,
         path: ["APP_URL"],
         message: "APP_URL is required in production",
+      });
+    }
+
+    // Infra oficial: Supabase (Storage) em producao
+    if (isProd && !env.SUPABASE_URL) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["SUPABASE_URL"],
+        message: "SUPABASE_URL is required in production",
+      });
+    }
+    if (isProd && !env.SUPABASE_SERVICE_ROLE_KEY) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["SUPABASE_SERVICE_ROLE_KEY"],
+        message: "SUPABASE_SERVICE_ROLE_KEY is required in production",
       });
     }
 

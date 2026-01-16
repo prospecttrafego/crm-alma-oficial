@@ -27,10 +27,9 @@ Quando este guia falar “**Terminal do container do app**”, significa:
 ## 3) Checklist antes do primeiro deploy
 
 - O repo esta no GitHub e voce sabe qual branch vai usar (ex.: `staging` ou `main`).
-- Voce tem um banco Postgres (pode ser:
-  - **um Postgres criado no Coolify**, ou
-  - **um Postgres externo** como Supabase).
-- No Supabase Storage existe um bucket chamado **`uploads`**.
+- Configuracao oficial do projeto:
+  - **Banco**: Supabase (Postgres) → voce vai usar esse valor em `DATABASE_URL`
+  - **Storage**: Supabase Storage com bucket **`uploads`** (`SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`)
 - Voce tem (ou vai gerar) um `SESSION_SECRET` forte.
 - Voce sabe o dominio (ex.: `crm.seudominio.com`) e ja apontou o DNS para a VPS (a configuracao exata depende do seu DNS).
 
@@ -63,7 +62,7 @@ No Coolify:
 No Coolify, va em **Environment Variables** (do app) e adicione:
 
 **Runtime (rodam quando o container esta ligado):**
-- `DATABASE_URL`
+- `DATABASE_URL` (Supabase Postgres)
 - `SESSION_SECRET`
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
@@ -129,7 +128,9 @@ Se tiver migrations novas:
 - Se mudou **runtime vars** (ex.: `DATABASE_URL`, `SESSION_SECRET`, `APP_URL`): normalmente basta **Restart**.
 - Se mudou **Build Variable** (ex.: `VITE_*`): faca **Deploy** (rebuild), senao o frontend nao muda.
 
-## 8) (Opcional) Criar um Postgres dentro do Coolify
+## 8) (Alternativo) Criar um Postgres dentro do Coolify
+
+Na infra oficial, usamos **Supabase Postgres**. Esta secao e apenas uma alternativa (ex.: ambiente de testes).
 
 Se voce quer um Postgres gerenciado pelo proprio Coolify (em vez de externo):
 

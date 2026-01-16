@@ -736,7 +736,8 @@ Se precisar forçar um arquivo, use `ENV_FILE=/caminho/para/.env`.
 ```bash
 # ====== MINIMO PARA RODAR (OBRIGATORIAS) ======
 
-# Conexao com PostgreSQL
+# Conexao com PostgreSQL (configuracao oficial: Supabase Postgres)
+# Dica: pegue a connection string em Supabase > Settings > Database > Connection string
 DATABASE_URL=postgresql://usuario:senha@host:5432/database
 
 # Chave para criptografia de sessoes (gerar com: openssl rand -base64 32)
@@ -758,7 +759,7 @@ DEFAULT_ORGANIZATION_ID=1
 ALLOW_REGISTRATION=false
 VITE_ALLOW_REGISTRATION=false
 
-# ====== SUPABASE (UPLOADS) ======
+# ====== SUPABASE (CONFIGURACAO OFICIAL) ======
 
 SUPABASE_URL=https://xxxxx.supabase.co
 # Opcional (nao usado diretamente hoje pelo backend, mas util para futuros fluxos/cliente)
@@ -846,8 +847,9 @@ O deploy e feito usando **Coolify** com integracao GitHub e build pack **Dockerf
 ### Pre-requisitos
 
 - **Coolify**: Servidor configurado
-- **PostgreSQL**: 14.x ou superior (ou Supabase)
-- **Supabase**: Projeto com bucket "uploads" criado
+- **Supabase (configuracao oficial)**:
+  - **Postgres** (DATABASE_URL)
+  - **Storage** com bucket "uploads" (SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY)
 
 ### Passo a Passo Completo
 
