@@ -94,6 +94,16 @@ function toTimestamp(value: unknown): number {
   return 0;
 }
 
+/**
+ * Establishes a WebSocket connection (`/ws`) with automatic reconnect and optional cache invalidation.
+ *
+ * The hook keeps local state for:
+ * - Connection status (`isConnected`)
+ * - Online users presence (`onlineUsers`)
+ * - Typing indicators per conversation (`typingUsers`)
+ *
+ * When `autoInvalidate` is enabled, it invalidates known React Query keys based on server events.
+ */
 export function useWebSocket(options: UseWebSocketOptions = {}) {
   const { userId, userName, onMessage, onTyping, onPresence, autoInvalidate = true } = options;
 

@@ -448,14 +448,14 @@
 
 ## MILESTONE 9: Qualidade de Codigo
 
-**Prioridade:** BAIXA | **Status:** Pendente
+**Prioridade:** BAIXA | **Status:** 🔄 Em progresso (9.1 ✅, 9.3 ✅ | 9.2 pendente)
 
 ### 9.1 Refatoracao de Arquivos Grandes
 
-- [ ] MessageComposer: extrair RecordingUI.tsx (~60 linhas)
-- [ ] MessageComposer: extrair MessageInput.tsx (~80 linhas)
-- [ ] MessageComposer: extrair FileAttachments.tsx (~40 linhas)
-- [ ] Auditar outros arquivos > 300 linhas
+- [x] MessageComposer: extrair RecordingUI.tsx (~60 linhas)
+- [x] MessageComposer: extrair MessageInput.tsx (~80 linhas)
+- [x] MessageComposer: extrair FileAttachments.tsx (~40 linhas)
+- [x] Auditar outros arquivos > 300 linhas (ex.: shared/schema.ts, client/src/pages/inbox.tsx, client/src/pages/calendar.tsx, server/storage/conversations.ts, server/auth.ts...)
 - [ ] **Arquivos:**
   - `client/src/pages/inbox/components/MessageComposer.tsx`
   - `client/src/pages/inbox/components/RecordingUI.tsx` (novo)
@@ -481,17 +481,17 @@
 ### 9.3 Documentacao
 
 #### JSDoc
-- [ ] Documentar funcoes de storage
-- [ ] Documentar hooks
-- [ ] Documentar utils
+- [x] Documentar funcoes de storage
+- [x] Documentar hooks
+- [x] Documentar utils
 
 #### Storybook
-- [ ] Setup Storybook para Vite
-- [ ] Documentar Button (todos os variants)
-- [ ] Documentar Input, Select, DatePicker
-- [ ] Documentar FilterPanel
-- [ ] Documentar NotificationBell
-- [ ] Documentar CommandPalette
+- [x] Setup Storybook para Vite
+- [x] Documentar Button (todos os variants)
+- [x] Documentar Input, Select, DatePicker
+- [x] Documentar FilterPanel
+- [x] Documentar NotificationBell
+- [x] Documentar CommandPalette
 
 ---
 

@@ -16,6 +16,7 @@ Estrutura atual (nível alto):
 
 ```
 /
+  .storybook/      # Storybook (documentação de UI) + mocks de API
   client/
   server/
     api/            # Rotas HTTP por domínio

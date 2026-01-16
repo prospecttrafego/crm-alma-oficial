@@ -99,6 +99,7 @@ npm run dev
 ## Estrutura do Projeto
 
 ```
+├── .storybook/              # Storybook (UI docs) + mocks de API (dev)
 ├── client/                  # Frontend React
 │   ├── public/              # Assets publicos (favicon, logo, SW do Firebase)
 │   └── src/
@@ -209,11 +210,15 @@ npm run check     # Verifica tipos TypeScript
 npm run test      # Alias para verificacao de tipos
 npm run lint      # Lint (ESLint)
 npm run lint:fix  # Lint + autofix (opcional)
+npm run storybook # Storybook (UI docs) em http://localhost:6006
+npm run build-storybook # Build estatico do Storybook
 npm run db:migrate   # Aplica migrations no banco
 npm run db:push:dev  # Sincroniza schema direto (somente dev/local)
 npm run db:generate  # Gera novas migrations a partir do schema
 npm run db:migrate-ptbr # Ajustes pontuais (dados legados PT-BR)
 ```
+
+Nota: o Storybook usa mocks de API em `.storybook/apiMock.ts` para renderizar componentes que dependem de `/api/*` sem precisar subir o backend.
 
 ## Health check
 

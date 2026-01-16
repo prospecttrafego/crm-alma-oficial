@@ -29,5 +29,8 @@ ecosystem.config.cjs
 *.log
 npm-debug.log*
 
+# Storybook
+storybook-static/
+
 # OS
 Thumbs.db

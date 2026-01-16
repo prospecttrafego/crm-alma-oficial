@@ -8,6 +8,9 @@ import { db } from "../db";
 import { and, eq } from "drizzle-orm";
 import { getTenantOrganizationId } from "./helpers";
 
+/**
+ * Lists saved views of a given `type` for the specified user within the current tenant.
+ */
 export async function getSavedViews(
   userId: string,
   type: SavedViewType,
@@ -26,6 +29,9 @@ export async function getSavedViews(
     .orderBy(savedViews.name);
 }
 
+/**
+ * Returns a saved view by ID within the current tenant.
+ */
 export async function getSavedView(id: number): Promise<SavedView | undefined> {
   const tenantOrganizationId = await getTenantOrganizationId();
   const [view] = await db
@@ -35,6 +41,9 @@ export async function getSavedView(id: number): Promise<SavedView | undefined> {
   return view;
 }
 
+/**
+ * Creates a saved view in the current tenant (organizationId is injected server-side).
+ */
 export async function createSavedView(view: InsertSavedView): Promise<SavedView> {
   const tenantOrganizationId = await getTenantOrganizationId();
   const [created] = await db
@@ -44,6 +53,11 @@ export async function createSavedView(view: InsertSavedView): Promise<SavedView>
   return created;
 }
 
+/**
+ * Updates a saved view owned by the given user, scoped to the current tenant.
+ *
+ * `organizationId` is ignored even if provided by the caller.
+ */
 export async function updateSavedView(
   id: number,
   userId: string,
@@ -67,6 +81,9 @@ export async function updateSavedView(
   return updated;
 }
 
+/**
+ * Deletes a saved view owned by the given user, scoped to the current tenant.
+ */
 export async function deleteSavedView(id: number, userId: string): Promise<void> {
   const tenantOrganizationId = await getTenantOrganizationId();
   await db

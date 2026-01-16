@@ -99,6 +99,13 @@ Reports emphasize “Executive Dashboard” patterns:
 
 ## Components
 
+### Storybook
+
+UI component documentation lives in Storybook.
+
+- Run: `npm run storybook` (http://localhost:6006)
+- Stories: `client/src/**/*.stories.tsx`
+
 ### Cards
 
 - Always use `Card` (`client/src/components/ui/card.tsx`)

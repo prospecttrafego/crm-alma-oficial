@@ -176,6 +176,7 @@ Todos os componentes Radix UI estao na versao ~1.1.x a ~2.1.x:
 
 ```
 CRM_Oficial/
+├── .storybook/              # Storybook (documentação de UI) + mocks de API
 ├── client/
 │   ├── public/                  # Assets publicos (favicon, logo, SW do Firebase)
 │   └── src/
@@ -688,6 +689,10 @@ npm run check
 npm run lint
 # (Opcional) aplicar correcoes automaticas
 npm run lint:fix
+
+# Storybook (documentação de UI)
+npm run storybook
+npm run build-storybook
 ```
 
 ### Banco de Dados
