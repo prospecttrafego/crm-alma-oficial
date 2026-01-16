@@ -45,6 +45,7 @@ Estrutura atual (nível alto):
   .git/
   DESIGN_SYSTEM.md   # Sistema de design (Frontend - tokens/padrões)
   README.md          # Visao geral + como rodar
+  RODAR_LOCAL.md     # Guia didatico: rodar local (Postgres + .env.local + seed)
   CLAUDE.md          # Documentacao tecnica completa (backend + frontend + deploy)
   DEPLOY_COOLIFY_HOSTINGER.md # Guia de deploy (Coolify v4 na Hostinger)
   ESTRUTURA_DE_PASTAS.md # Este documento (estrutura do repo)
@@ -422,12 +423,16 @@ O que evitar:
 
 ```
 scripts/
-  ...
+  migrate.ts            # Runner de migrations (Drizzle) para dev/prod
+  seed.ts               # Seed local (cria organizacao + admin + pipeline)
+  migrate-ptbr-data.ts  # Ajustes pontuais (dados legados PT-BR)
+  migrate-users.ts      # Script de migracao de usuarios (legado)
 ```
 
 - O que é: scripts para migrações, correções pontuais, importação/exportação de dados.
 - Quando mexer: quando você precisa rodar uma tarefa "de manutenção" (ex.: migrar dados antigos).
 - O que evitar: usar scripts como "solução permanente" para lógica do sistema (o lugar disso é o backend).
+ - Dica (dev local): use `ENV_FILE=.env.local` para garantir que os scripts usem o seu arquivo de ambiente local.
 
 ---
 

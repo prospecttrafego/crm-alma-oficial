@@ -695,11 +695,16 @@ npm run storybook
 npm run build-storybook
 ```
 
+Para rodar o CRM localmente (Postgres via Docker + `.env.local` + migrations + seed), veja `RODAR_LOCAL.md`.
+
 ### Banco de Dados
 
 ```bash
 # Aplicar migrations no banco (criar/atualizar tabelas)
 npm run db:migrate
+
+# Criar dados iniciais (organizacao + admin + pipeline)
+npm run db:seed
 
 # (Somente dev/local) Sincronizar schema direto
 npm run db:push:dev

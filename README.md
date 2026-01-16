@@ -73,28 +73,37 @@ O guia definitivo do sistema visual (tokens de tema, padrões de componentes e r
 # Instalar dependencias
 npm install
 
-# Configurar ambiente
-cp .env.example .env.staging
-cp .env.example .env.production
-# Editar os arquivos com suas credenciais
+# Rodar local (recomendado): Postgres via Docker + .env.local (gitignored)
+# 1) Subir Postgres (porta 5432). Se 5432 estiver ocupada, use 5433 e ajuste DATABASE_URL.
+docker volume create crm-alma-pgdata
+docker run --name crm-alma-postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=crm_alma -p 5432:5432 -v crm-alma-pgdata:/var/lib/postgresql/data -d postgres:16
 
-# Aplicar migrations no banco
-npm run db:migrate
+# 2) Criar um .env.local (na raiz do repo) com as variaveis minimas:
+# DATABASE_URL=postgresql://postgres:postgres@localhost:5432/crm_alma
+# SESSION_SECRET=<gere com openssl rand -base64 32>
+# APP_URL=http://localhost:3000
+# DEFAULT_ORGANIZATION_ID=1
+# (Opcional) ALLOW_REGISTRATION=true e VITE_ALLOW_REGISTRATION=true
 
-# (Opcional, somente dev/local) Sincronizar schema direto (evite se voce estiver usando migrations)
-# npm run db:push:dev
+# 3) Aplicar migrations e criar dados iniciais (cria organizacao + admin + pipeline)
+ENV_FILE=.env.local npm run db:migrate
+ENV_FILE=.env.local npm run db:seed
 
-# Desenvolvimento (usa .env.staging quando APP_ENV=staging)
-APP_ENV=staging npm run dev
-
-# Producao local (usa .env.production quando NODE_ENV=production)
-APP_ENV=production npm run build
-npm start
-
-# Ou mantenha um .env para uso local rapido
-npm run dev
+# 4) Iniciar em dev (backend + frontend)
+ENV_FILE=.env.local npm run dev
 
 ```
+
+Abra `http://localhost:3000` e faça login com o usuário do seed.
+Guia completo (com troubleshooting e reset do banco): `RODAR_LOCAL.md`.
+
+Credenciais do seed (padrao):
+- Email: `admin@example.com`
+- Senha: `Admin123!`
+
+Obs.:
+- Para dev local sem integrar servicos externos, voce pode deixar `SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY` vazios no `.env.local` (uploads/anexos nao funcionam).
+- Para parar o banco: `docker stop crm-alma-postgres`
 
 ## Estrutura do Projeto
 
@@ -216,6 +225,7 @@ npm run lint:fix  # Lint + autofix (opcional)
 npm run storybook # Storybook (UI docs) em http://localhost:6006
 npm run build-storybook # Build estatico do Storybook
 npm run db:migrate   # Aplica migrations no banco
+npm run db:seed      # Cria dados iniciais (org + admin + pipeline)
 npm run db:push:dev  # Sincroniza schema direto (somente dev/local)
 npm run db:generate  # Gera novas migrations a partir do schema
 npm run db:migrate-ptbr # Ajustes pontuais (dados legados PT-BR)
