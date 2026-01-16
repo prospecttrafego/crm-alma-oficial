@@ -835,9 +835,13 @@ node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 
 ---
 
-## Deploy em Producao (Coolify + Docker)
+## Deploy em Producao (Coolify v4 + Docker)
 
-O deploy e feito usando **Coolify** com integracao GitHub e Dockerfile.
+Infra atual (sem expor IP/segredos): **Coolify v4** rodando em uma **VPS da Hostinger**.
+
+Guia passo a passo (bem didatico, incluindo “onde rodar comandos”, migrations e redeploy): `DEPLOY_COOLIFY_HOSTINGER.md`.
+
+O deploy e feito usando **Coolify** com integracao GitHub e build pack **Dockerfile**.
 
 ### Pre-requisitos
 
@@ -852,7 +856,7 @@ O deploy e feito usando **Coolify** com integracao GitHub e Dockerfile.
 1. Criar novo projeto no Coolify
 2. Conectar com GitHub (repositorio `prospecttrafego/crm-alma-oficial`)
 3. Selecionar branch (`staging` ou `main`)
-4. Coolify detectara automaticamente o `Dockerfile`
+4. Dentro do Project, usar **Create New Resource** e criar uma **Application** com **Build Pack: Dockerfile** (Base Directory `/`)
 
 #### 2. Configurar Variaveis de Ambiente
 
@@ -867,7 +871,7 @@ No painel do Coolify, adicionar todas as variaveis:
 - `DEFAULT_ORGANIZATION_ID`
 - Demais variaveis conforme `.env.example`
 
-**Variaveis de Build (Build Arguments):**
+**Variaveis de Build (Build Variable / build time):**
 - `VITE_ALLOW_REGISTRATION`
 - `VITE_FIREBASE_API_KEY`
 - `VITE_FIREBASE_AUTH_DOMAIN`
@@ -877,7 +881,7 @@ No painel do Coolify, adicionar todas as variaveis:
 - `VITE_FIREBASE_APP_ID`
 - `VITE_FIREBASE_VAPID_KEY`
 
-**Importante:** Variaveis `VITE_*` sao injetadas no build do frontend (Vite) e devem ser configuradas como Build Arguments no Coolify.
+**Importante:** Variaveis `VITE_*` sao injetadas no build do frontend (Vite) e devem estar marcadas como **Build Variable** no Coolify. Se voce mudar `VITE_*`, precisa fazer **Deploy** (rebuild), nao apenas Restart.
 
 #### 3. Deploy
 
@@ -890,20 +894,22 @@ No painel do Coolify, adicionar todas as variaveis:
 **IMPORTANTE:** Migrations devem ser rodadas manualmente apos cada deploy que inclua alteracoes de schema.
 
 ```bash
-# Conectar no terminal do container via Coolify ou SSH
+# Conectar no terminal do container do app via Coolify (Terminal no painel)
 npm run db:migrate
 
 # (Opcional, apenas 1x) Se o banco ja existia antes de usar migrations e voce precisa "baseline":
 # npm run db:migrate -- --baseline
 ```
 
+Obs.: no Coolify v4 existe “Terminal Access” no servidor (aba Security). Se estiver desabilitado, nenhum terminal funciona ate reabilitar.
+
 #### 5. Criar Primeiro Usuario
 
-1. Configurar `VITE_ALLOW_REGISTRATION=true` como Build Argument
-2. Fazer redeploy
+1. Configurar `VITE_ALLOW_REGISTRATION=true` como **Build Variable** (build time)
+2. Fazer **Deploy** (rebuild)
 3. Acessar a aplicacao e criar conta
 4. Alterar `VITE_ALLOW_REGISTRATION=false`
-5. Fazer novo redeploy
+5. Fazer novo **Deploy** (rebuild)
 
 ### Dockerfile
 
@@ -925,8 +931,9 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
 Para atualizar a aplicacao:
 
 1. Push das alteracoes para o branch configurado (staging/main)
-2. Coolify detecta automaticamente (webhook) ou clicar em "Redeploy"
-3. **Se houver alteracoes de schema:** rodar migrations manualmente apos deploy
+2. Coolify detecta automaticamente (webhook) ou clique em **Deploy**
+3. **Se houver alteracoes de schema:** rodar migrations manualmente apos deploy (no terminal do container do app)
+4. **Se voce mudou `VITE_*`:** faca Deploy (rebuild). Se mudou apenas runtime vars, Restart costuma bastar.
 
 ```bash
 # Apos o container subir, conectar e rodar:
@@ -953,7 +960,7 @@ Verificar se DATABASE_URL esta correta e se o banco aceita conexoes externas.
 
 ### WebSocket nao conecta
 
-Verificar se Nginx esta configurado com os headers de upgrade.
+Verificar se o proxy do Coolify (Caddy/Traefik) esta encaminhando WebSocket corretamente (Upgrade/Connection). Em geral e automatico; confira tambem o dominio/HTTPS e os logs do container.
 
 ### Upload nao funciona
 
@@ -972,8 +979,8 @@ Verificar se SESSION_SECRET esta configurado corretamente.
 ### Atualizar Aplicacao
 
 1. Push para o branch configurado no Coolify (staging/main)
-2. Coolify detecta automaticamente via webhook ou clique em "Redeploy"
-3. Se houver alteracoes de schema, rodar migrations apos deploy:
+2. Coolify detecta automaticamente via webhook ou clique em **Deploy**
+3. Se houver alteracoes de schema, rodar migrations apos deploy (no terminal do container do app):
    ```bash
    npm run db:migrate
    ```

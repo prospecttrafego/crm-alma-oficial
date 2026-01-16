@@ -196,7 +196,7 @@ Notas importantes:
 | `EVOLUTION_API_KEY` | Nao | API key da Evolution API |
 | `EVOLUTION_INSTANCE_PREFIX` | Nao | Prefixo unico por deploy para evitar colisao de instancias (quando varios CRMs compartilham a mesma Evolution API) |
 | `EVOLUTION_WEBHOOK_SECRET` | Nao | Segredo para validar webhooks da Evolution API |
-| `MEDIA_DOWNLOAD_ALLOWED_HOSTS` | Nao | Hosts extras permitidos para download de midia (SSRF hardening; CSV de hostnames) |
+| `MEDIA_DOWNLOAD_ALLOWED_HOSTS` | Nao | Hosts extras permitidos para download de midia (SSRF hardening; CSV de hostnames, sem `https://` — ex.: `cdn.seudominio.com`) |
 | `SENTRY_DSN` | Nao | DSN do Sentry para rastreamento de erros |
 | `APP_VERSION` | Nao | Versao da aplicacao (usado pelo Sentry para release tracking) |
 
@@ -232,39 +232,19 @@ Nota: o Storybook usa mocks de API em `.storybook/apiMock.ts` para renderizar co
 
 - Endpoints JSON retornam `{ success, data }` (erros padronizados). Respostas `204` nao possuem corpo.
 
-## Deploy via Coolify (Docker)
+## Deploy (Coolify na Hostinger)
 
-O deploy e feito usando **Coolify** com integracao GitHub e Dockerfile.
+Guia completo (didatico, com “onde rodar comandos”, migrations e redeploy): `DEPLOY_COOLIFY_HOSTINGER.md`.
 
-### Pre-requisitos
-- Servidor Coolify configurado
-- PostgreSQL (ou usar Supabase)
-- Projeto Supabase com bucket "uploads"
+Resumo rapido do fluxo:
 
-### Passo a Passo
-
-1. **Conectar repositorio no Coolify:**
-   - Criar novo projeto no Coolify
-   - Conectar com GitHub (repositorio `prospecttrafego/crm-alma-oficial`)
-   - Selecionar branch `staging` ou `main`
-
-2. **Configurar variaveis de ambiente no Coolify:**
-   - Adicionar todas as variaveis do `.env.example`
-   - Variaveis `VITE_*` devem ser configuradas como **Build Arguments**
-
-3. **Deploy:**
-   - O Coolify usa o `Dockerfile` automaticamente
-   - Build multi-stage: deps → build → runtime
-   - Health check configurado em `/api/healthz`
-
-4. **Apos o deploy, rodar migrations manualmente:**
-   ```bash
-   # Conectar no terminal do container ou servidor
-   npm run db:migrate
-
-   # (Opcional, apenas 1x) Se o banco ja existia antes de usar migrations e voce precisa "baseline":
-   # npm run db:migrate -- --baseline
-   ```
+1. No Coolify, criar uma **Application** com **Build Pack: Dockerfile** (porta `3000`).
+2. Configurar as variaveis do `.env.example`:
+   - Backend: variaveis normais (runtime)
+   - Frontend: `VITE_*` como **Build Variable** (build time)
+3. Fazer **Deploy** e, no **Terminal do container do app**, rodar:
+   - `npm run db:migrate`
+   - (Opcional, apenas 1x) `npm run db:migrate -- --baseline`
 
 ### Dockerfile
 
@@ -272,7 +252,7 @@ O projeto inclui um Dockerfile otimizado com:
 - Multi-stage build (deps, build, runtime)
 - Node.js 20 slim
 - Health check automatico
-- Variaveis VITE_* como build args
+- Variaveis `VITE_*` como build args/build variables (build time)
 
 ## Configuracao do Supabase
 

@@ -44,6 +44,10 @@ Estrutura atual (nível alto):
   .claude/
   .git/
   DESIGN_SYSTEM.md   # Sistema de design (Frontend - tokens/padrões)
+  README.md          # Visao geral + como rodar
+  CLAUDE.md          # Documentacao tecnica completa (backend + frontend + deploy)
+  DEPLOY_COOLIFY_HOSTINGER.md # Guia de deploy (Coolify v4 na Hostinger)
+  ESTRUTURA_DE_PASTAS.md # Este documento (estrutura do repo)
 ```
 
 ---
