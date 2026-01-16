@@ -1,5 +1,6 @@
 import React from "react";
 import { Button } from "@/components/ui/button";
+import { captureClientException } from "@/lib/sentry";
 
 type ErrorBoundaryState = {
   hasError: boolean;
@@ -18,6 +19,9 @@ export class ErrorBoundary extends React.Component<
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error("[ErrorBoundary] Unhandled error", error, errorInfo);
+    captureClientException(error, {
+      componentStack: errorInfo.componentStack,
+    });
   }
 
   handleReload = () => {

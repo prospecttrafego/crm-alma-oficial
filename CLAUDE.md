@@ -822,6 +822,14 @@ GOOGLE_TOKEN_ENCRYPTION_KEY=sua-chave-base64-aqui
 SENTRY_DSN=https://xxx@xxx.ingest.sentry.io/xxx
 # Versao da aplicacao (para release tracking)
 APP_VERSION=1.0.0
+
+# Sentry (Frontend) - recomendada para telemetria no navegador
+# IMPORTANTE: como e VITE_*, isso e build time (Build Variable no Coolify)
+VITE_SENTRY_DSN=
+# (Opcional) Ajuda a separar ambientes no Sentry (ex.: staging/production)
+VITE_APP_ENV=staging
+# (Opcional) Release do frontend no Sentry (pode ser igual ao APP_VERSION)
+VITE_APP_VERSION=1.0.0
 ```
 
 ### Gerando SESSION_SECRET

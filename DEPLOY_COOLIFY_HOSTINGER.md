@@ -68,12 +68,17 @@ No Coolify, va em **Environment Variables** (do app) e adicione:
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `APP_URL` (ex.: `https://crm.seudominio.com`)
 - `APP_ENV` (ex.: `staging` - ajuda a separar ambiente no Sentry)
+- `SENTRY_DSN` (telemetria do backend; recomendado)
+- `APP_VERSION` (release do backend no Sentry; recomendado)
 - `DEFAULT_ORGANIZATION_ID` (ex.: `1`)
 - Opcionais conforme seu uso: `OPENAI_API_KEY`, `EVOLUTION_API_URL`, `EVOLUTION_API_KEY`, etc.
 
 **Build time (Vite / frontend):** marque a checkbox **Build Variable** para cada uma:
 - `VITE_ALLOW_REGISTRATION`
 - `VITE_FIREBASE_*` (se estiver usando push)
+- `VITE_SENTRY_DSN` (telemetria do frontend; recomendado)
+- `VITE_APP_ENV` (ex.: `staging`/`production`)
+- `VITE_APP_VERSION` (release do frontend)
 
 Por que isso importa?
 - Variaveis `VITE_*` sao “coladas” no frontend durante o **build**. Se voce mudar `VITE_*`, precisa fazer **Deploy** (rebuild), nao so “Restart”.

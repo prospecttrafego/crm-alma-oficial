@@ -1,4 +1,4 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { Switch, Route } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -13,6 +13,7 @@ import { NotificationBell } from "@/components/notification-bell";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { useAuth } from "@/hooks/useAuth";
 import { WebSocketProvider } from "@/contexts/WebSocketContext";
+import { setSentryUser } from "@/lib/sentry";
 import {
   SidebarProvider,
   SidebarTrigger,
@@ -93,7 +94,11 @@ function PageLoadingFallback() {
 }
 
 function Router() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { user, isAuthenticated, isLoading } = useAuth();
+
+  useEffect(() => {
+    setSentryUser(user);
+  }, [user]);
 
   if (isLoading) {
     return <LoadingScreen />;

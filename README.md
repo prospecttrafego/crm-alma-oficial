@@ -199,6 +199,9 @@ Notas importantes:
 | `MEDIA_DOWNLOAD_ALLOWED_HOSTS` | Nao | Hosts extras permitidos para download de midia (SSRF hardening; CSV de hostnames, sem `https://` — ex.: `cdn.seudominio.com`) |
 | `SENTRY_DSN` | Nao | DSN do Sentry para rastreamento de erros |
 | `APP_VERSION` | Nao | Versao da aplicacao (usado pelo Sentry para release tracking) |
+| `VITE_SENTRY_DSN` | Nao | DSN do Sentry no frontend (telemetria no navegador; build time) |
+| `VITE_APP_ENV` | Nao | Ambiente do frontend no Sentry (ex.: `staging`, `production`; build time) |
+| `VITE_APP_VERSION` | Nao | Release do frontend no Sentry (build time) |
 
 ## Comandos Disponiveis
 
