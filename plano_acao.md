@@ -407,7 +407,7 @@
 
 ## MILESTONE 8: Performance e Otimizacoes
 
-**Prioridade:** BAIXA | **Status:** ✅ Parcial (8.1, 8.3) | 🔍 Pendente (8.2)
+**Prioridade:** BAIXA | **Status:** ✅ Parcial (8.1, 8.2-Pipeline, 8.3)
 
 ### 8.1 Lazy Loading de Graficos
 
@@ -422,11 +422,11 @@
 ### 8.2 Virtualization Melhorias
 
 - [ ] Contacts Table: implementar @tanstack/react-virtual
-- [ ] Pipeline: virtualizar colunas longas (**depois** de refatorar `client/src/pages/pipeline/index.tsx` em componentes menores)
+- [x] Pipeline: refatorar e virtualizar colunas longas (usando `react-virtuoso`)
 - [ ] Audit Log: infinite scroll com virtualizacao
 - [ ] **Arquivos:**
   - `client/src/pages/contacts/contacts-table.tsx`
-  - `client/src/pages/pipeline/index.tsx`
+  - `client/src/pages/pipeline/PipelinePage.tsx`
   - `client/src/pages/audit-log.tsx`
 
 ### 8.3 Bundle Size - Code Splitting
