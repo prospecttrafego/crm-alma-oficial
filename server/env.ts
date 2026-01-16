@@ -37,14 +37,19 @@ const emptyToUndefined = (value: unknown) => {
   return value;
 };
 
-const optionalString = () => z.preprocess(emptyToUndefined, z.string()).optional();
-const optionalUrl = () => z.preprocess(emptyToUndefined, z.string().url()).optional();
+const optionalString = () => z.preprocess(emptyToUndefined, z.string().optional());
+const optionalUrl = () => z.preprocess(emptyToUndefined, z.string().url().optional());
+const optionalBooleanString = () =>
+  z.preprocess(emptyToUndefined, z.enum(["true", "false"]).optional());
 
 const envSchema = z
   .object({
-    NODE_ENV: z.enum(["development", "production", "test"]).optional(),
+    NODE_ENV: z.preprocess(
+      emptyToUndefined,
+      z.enum(["development", "production", "test"]).optional(),
+    ),
     APP_ENV: optionalString(),
-    PORT: z.preprocess(emptyToUndefined, z.coerce.number().int().positive()).optional(),
+    PORT: z.preprocess(emptyToUndefined, z.coerce.number().int().positive().optional()),
     DATABASE_URL: z.preprocess(emptyToUndefined, z.string().min(1, "DATABASE_URL is required")),
     SESSION_SECRET: z.preprocess(
       emptyToUndefined,
@@ -52,9 +57,9 @@ const envSchema = z
     ),
     APP_URL: optionalUrl(),
     APP_VERSION: optionalString(),
-    DEFAULT_ORGANIZATION_ID: z.preprocess(emptyToUndefined, z.coerce.number().int().positive()).optional(),
-    ALLOW_REGISTRATION: z.preprocess(emptyToUndefined, z.enum(["true", "false"])).optional(),
-    VITE_ALLOW_REGISTRATION: z.preprocess(emptyToUndefined, z.enum(["true", "false"])).optional(),
+    DEFAULT_ORGANIZATION_ID: z.preprocess(emptyToUndefined, z.coerce.number().int().positive().optional()),
+    ALLOW_REGISTRATION: optionalBooleanString(),
+    VITE_ALLOW_REGISTRATION: optionalBooleanString(),
     SUPABASE_URL: optionalUrl(),
     SUPABASE_ANON_KEY: optionalString(),
     SUPABASE_SERVICE_ROLE_KEY: optionalString(),

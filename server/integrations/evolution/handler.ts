@@ -92,10 +92,12 @@ interface ProcessedMedia {
 export class EvolutionMessageHandler {
   private broadcast: BroadcastFn | null = null;
   private broadcastToConversation: BroadcastToConversationFn | null = null;
-  private objectStorage: ObjectStorageService;
+  private objectStorage: ObjectStorageService | null = null;
 
-  constructor() {
+  private getObjectStorage(): ObjectStorageService {
+    if (this.objectStorage) return this.objectStorage;
     this.objectStorage = new ObjectStorageService();
+    return this.objectStorage;
   }
 
   /**
@@ -162,7 +164,8 @@ export class EvolutionMessageHandler {
     try {
       whatsappLogger.info(`[Evolution Handler] Downloading media: ${mediaInfo.mimeType}`);
 
-      const { objectPath, publicUrl, fileName: storedFileName } = await this.objectStorage.downloadAndUploadFromUrl(
+      const objectStorage = this.getObjectStorage();
+      const { objectPath, publicUrl, fileName: storedFileName } = await objectStorage.downloadAndUploadFromUrl(
         mediaInfo.url,
         mediaInfo.mimeType,
         mediaInfo.fileName
