@@ -186,8 +186,13 @@ CRM_Oficial/
 │       ├── lib/                 # Infra do frontend (query client, firebase, utils, api clients)
 │       ├── locales/             # Traducoes (pt-BR/en)
 │       └── pages/               # Paginas (dashboard, pipeline, inbox, settings…)
-│           ├── inbox/           # UI/partes do Inbox (3 painéis)
-│           ├── reports/         # UI/partes de Reports (dashboard executivo)
+│           ├── inbox.tsx        # Entrada da rota + compose do Inbox
+│           ├── inbox/           # Componentes/handlers do Inbox (3 painéis)
+│           ├── pipeline/        # Kanban de deals (entrada + componentes)
+│           ├── contacts/        # Tabela de contatos (entrada + componentes)
+│           ├── audit-log/       # Auditoria (entrada + componentes)
+│           ├── reports.tsx      # Entrada da rota + compose de Reports
+│           ├── reports/         # Componentes/Charts de Reports (dashboard executivo)
 │           └── ...
 ├── server/
 │   ├── index.ts                 # Entry point, inicia servidor

@@ -53,7 +53,8 @@
 - [x] Desabilitar botao confirmar se campo vazio
 - [x] Adicionar traducao para mensagem de erro
 - [x] **Arquivos:**
-  - `client/src/pages/pipeline/index.tsx`
+  - `client/src/pages/pipeline/PipelinePage.tsx`
+  - `client/src/pages/pipeline/components/LostReasonDialog.tsx`
   - `client/src/locales/pt-BR.json`
   - `client/src/locales/en.json`
 
@@ -366,7 +367,7 @@
 - [x] Contador de filtros ativos
 - [x] **Arquivos:**
   - `client/src/pages/contacts/index.tsx`
-  - `client/src/pages/audit-log.tsx`
+  - `client/src/pages/audit-log/AuditLogPage.tsx`
   - `client/src/components/filter-panel.tsx`
   - `shared/schema.ts` (adicionado "auditLog" em savedViewTypes)
 
@@ -395,19 +396,19 @@
 - [x] DatePicker para range de datas
 - [x] Botao exportar CSV
 - [x] Contador de resultados ("Mostrando X-Y de Z registros")
-- [x] Controles de paginacao
+- [x] Lista navegavel (paginacao/infinite scroll)
 
 - [x] **Arquivos:**
   - `server/storage/auditLogs.ts` (getAuditLogsPaginated)
   - `server/api/auditLogs.ts`
   - `client/src/lib/api/auditLogs.ts` (novo)
-  - `client/src/pages/audit-log.tsx`
+  - `client/src/pages/audit-log/AuditLogPage.tsx`
 
 ---
 
 ## MILESTONE 8: Performance e Otimizacoes
 
-**Prioridade:** BAIXA | **Status:** ✅ Parcial (8.1, 8.2-Pipeline, 8.3)
+**Prioridade:** BAIXA | **Status:** ✅ Completo (8.1, 8.2, 8.3)
 
 ### 8.1 Lazy Loading de Graficos
 
@@ -421,13 +422,15 @@
 
 ### 8.2 Virtualization Melhorias
 
-- [ ] Contacts Table: implementar @tanstack/react-virtual
+- [x] Contacts Table: virtualizar linhas (usando `react-virtuoso`)
 - [x] Pipeline: refatorar e virtualizar colunas longas (usando `react-virtuoso`)
-- [ ] Audit Log: infinite scroll com virtualizacao
+- [x] Audit Log: infinite scroll + virtualizacao (usando `react-virtuoso` + `useInfiniteQuery`)
 - [ ] **Arquivos:**
   - `client/src/pages/contacts/contacts-table.tsx`
+  - `client/src/pages/contacts/contacts-table-virtualized.tsx`
+  - `client/src/pages/contacts/contacts-pagination-controls.tsx`
   - `client/src/pages/pipeline/PipelinePage.tsx`
-  - `client/src/pages/audit-log.tsx`
+  - `client/src/pages/audit-log/AuditLogPage.tsx`
 
 ### 8.3 Bundle Size - Code Splitting
 
