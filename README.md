@@ -190,7 +190,7 @@ Notas importantes:
 | `GOOGLE_CLIENT_SECRET` | Nao | Client Secret OAuth (Google Calendar) |
 | `GOOGLE_REDIRECT_URI` | Nao | Redirect URI OAuth (Google Calendar) |
 | `GOOGLE_TOKEN_ENCRYPTION_KEY` | Nao | Chave base64 (32 bytes) para criptografar tokens (obrigatoria em producao se usar Google Calendar) |
-| `APP_ENV` | Nao | Define arquivo `.env.{APP_ENV}` (ex.: `staging`, `production`) |
+| `APP_ENV` | Nao | Define arquivo `.env.{APP_ENV}` (ex.: `staging`); quando setado, tambem rotula o ambiente no Sentry |
 | `ENV_FILE` | Nao | Caminho explicito para arquivo `.env` (sobrescreve APP_ENV) |
 | `EVOLUTION_API_URL` | Nao | URL base da Evolution API V2 |
 | `EVOLUTION_API_KEY` | Nao | API key da Evolution API |

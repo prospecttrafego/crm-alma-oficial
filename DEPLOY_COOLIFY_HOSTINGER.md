@@ -67,6 +67,7 @@ No Coolify, va em **Environment Variables** (do app) e adicione:
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `APP_URL` (ex.: `https://crm.seudominio.com`)
+- `APP_ENV` (ex.: `staging` - ajuda a separar ambiente no Sentry)
 - `DEFAULT_ORGANIZATION_ID` (ex.: `1`)
 - Opcionais conforme seu uso: `OPENAI_API_KEY`, `EVOLUTION_API_URL`, `EVOLUTION_API_KEY`, etc.
 
