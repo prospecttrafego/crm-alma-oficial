@@ -16,6 +16,7 @@
     "loading": "Loading...",
     "saving": "Saving...",
     "noResults": "No results found",
+    "loadMore": "Load more",
     "confirm": "Confirm",
     "yes": "Yes",
     "no": "No",
@@ -50,6 +51,30 @@
     "clear": "Clear",
     "reset": "Reset"
   },
+  "a11y": {
+    "notifications": "Open notifications",
+    "openCommandPalette": "Open command palette",
+    "cancelRecording": "Cancel recording",
+    "stopRecording": "Stop recording",
+    "startRecording": "Start audio recording",
+    "attachFile": "Attach file",
+    "openEmojiPicker": "Open emoji picker",
+    "sendMessage": "Send message",
+    "expandPanel": "Expand panel",
+    "collapsePanel": "Collapse panel",
+    "searchMessages": "Search messages",
+    "closeDialog": "Close dialog",
+    "removeItem": "Remove item",
+    "moreOptions": "More options",
+    "editItem": "Edit item",
+    "deleteItem": "Delete item",
+    "previousMonth": "Previous month",
+    "nextMonth": "Next month",
+    "playAudio": "Play audio",
+    "pauseAudio": "Pause audio",
+    "downloadFile": "Download file",
+    "toggleView": "Toggle view"
+  },
   "nav": {
     "dashboard": "Dashboard",
     "inbox": "Inbox",
@@ -71,7 +96,17 @@
     "navigation": "Navigation",
     "quickActions": "Quick Actions",
     "newDeal": "Create New Deal",
-    "newContact": "Add New Contact"
+    "newContact": "Add New Contact",
+    "searchResults": "Search Results",
+    "contacts": "Contacts",
+    "deals": "Deals",
+    "conversations": "Conversations",
+    "searching": "Searching...",
+    "typeToSearch": "Type to search contacts, deals and conversations",
+    "recentSearches": "Recent Searches",
+    "clearRecent": "Clear history",
+    "createDealFor": "Create deal for",
+    "noSearchResults": "No results for"
   },
   "notifications": {
     "title": "Notifications",
@@ -83,9 +118,12 @@
     "title": "Audit Log",
     "subtitle": "Track all changes made to your CRM data",
     "empty": "No audit logs yet. Changes to deals, contacts, and companies will appear here.",
+    "noResults": "No results found with the applied filters.",
     "system": "System",
     "unknownUser": "Unknown User",
     "by": "by",
+    "exportCsv": "Export CSV",
+    "showing": "Showing {{from}}-{{to}} of {{total}} records",
     "table": {
       "timestamp": "Timestamp",
       "user": "User",
@@ -93,10 +131,30 @@
       "entityType": "Entity Type",
       "entityName": "Entity Name"
     },
+    "filters": {
+      "title": "Filters",
+      "action": "Action",
+      "entityType": "Entity Type",
+      "user": "User",
+      "dateFrom": "Date From",
+      "dateTo": "Date To",
+      "allActions": "All Actions",
+      "allEntities": "All Entities",
+      "allUsers": "All Users",
+      "selectDate": "Select",
+      "clear": "Clear"
+    },
+    "pagination": {
+      "page": "Page {{current}} of {{total}}",
+      "previous": "Previous",
+      "next": "Next"
+    },
     "actions": {
       "create": "Created",
       "update": "Updated",
-      "delete": "Deleted"
+      "delete": "Deleted",
+      "lgpd_export": "LGPD Export",
+      "lgpd_delete": "LGPD Delete"
     },
     "entities": {
       "deal": "Deal",
@@ -105,7 +163,9 @@
       "conversation": "Conversation",
       "activity": "Activity",
       "pipeline": "Pipeline",
-      "email_template": "Email Template"
+      "email_template": "Email Template",
+      "file": "File",
+      "integration": "Integration"
     }
   },
   "entityHistory": {
@@ -159,7 +219,15 @@
       "saved": "View saved successfully",
       "saveError": "Failed to save view",
       "deleted": "View deleted"
-    }
+    },
+    "filter": "filter",
+    "filtersCount": "filters",
+    "source": "Source",
+    "allSources": "All sources",
+    "tags": "Tags",
+    "hasDeals": "Has deals",
+    "withDeals": "Only with deals",
+    "allContacts": "All contacts"
   },
   "notFound": {
     "title": "404 Page Not Found",
@@ -604,6 +672,7 @@
     "lostReasonTitle": "Record Loss",
     "lostReasonDescription": "Why was this deal lost? Recording the reason helps improve your future strategies.",
     "lostReasonPlaceholder": "E.g.: High price, competitor, lack of budget...",
+    "lostReasonRequired": "Lost reason is required to confirm",
     "sourcePlaceholder": "E.g.: Referral, Google Ads, Social Media...",
     "noDeals": "No deals in this stage",
     "dragToMove": "Drag to move",
@@ -613,7 +682,9 @@
   "inbox": {
     "title": "Inbox",
     "reply": "Reply",
+    "replyTo": "Reply",
     "note": "Note",
+    "internalNote": "Internal note",
     "emojiSearch": "Search emoji...",
     "templates": "Templates",
     "newConversation": "New Conversation",
@@ -639,6 +710,54 @@
       "open": "Open",
       "pending": "Pending",
       "closed": "Closed"
+    },
+    "contextPanel": {
+      "title": "Context",
+      "contact": "Contact",
+      "relatedDeal": "Related Deal",
+      "conversationInfo": "Conversation Info",
+      "channel": "Channel",
+      "status": "Status"
+    },
+    "searchMessages": "Search messages",
+    "searchPlaceholder": "Type to search messages...",
+    "searchMinChars": "Type at least 2 characters to search",
+    "searchResults": "{{count}} result(s) found",
+    "noSubject": "No subject",
+    "messageActions": {
+      "edit": "Edit message",
+      "delete": "Delete message",
+      "reply": "Reply",
+      "copy": "Copy text"
+    },
+    "editMessage": {
+      "title": "Edit message",
+      "placeholder": "Enter new content...",
+      "save": "Save",
+      "cancel": "Cancel",
+      "expired": "Cannot edit this message. The 15-minute window has expired."
+    },
+    "deleteMessage": {
+      "title": "Delete message",
+      "confirm": "Are you sure you want to delete this message?",
+      "deleted": "This message was deleted"
+    },
+    "edited": "edited",
+    "offlineQueue": {
+      "queued": "Message queued",
+      "willSync": "Will be sent when connection is restored"
+    },
+    "offlineSync": {
+      "synced": "{{count}} message(s) synced",
+      "failed": "{{count}} message(s) failed to sync"
+    },
+    "messageStatus": {
+      "queued": "Queued",
+      "syncing": "Syncing...",
+      "sending": "Sending...",
+      "sent": "Sent",
+      "delivered": "Delivered",
+      "error": "Send error"
     }
   },
   "contacts": {
@@ -675,7 +794,12 @@
     "toggleColumns": "Toggle columns",
     "columnsHint": "Drag to reorder. Use the header edge to resize.",
     "viewDetails": "View Details",
-    "deleteConfirm": "Are you sure you want to delete \"{{name}}\"?"
+    "deleteConfirm": "Are you sure you want to delete \"{{name}}\"?",
+    "pagination": {
+      "showing": "Showing",
+      "of": "of {{total}} contacts",
+      "page": "Page {{current}} of {{total}}"
+    }
   },
   "activities": {
     "title": "Activities",

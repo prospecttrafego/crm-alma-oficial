@@ -3,7 +3,7 @@
  * Used for visualizing and playing audio messages
  */
 import { useRef, useEffect, useState, useCallback } from "react";
-import WaveSurfer from "wavesurfer.js";
+import type WaveSurfer from "wavesurfer.js";
 import { Button } from "@/components/ui/button";
 import { Play, Pause, Download, FileText, Loader2, ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -72,58 +72,71 @@ export function AudioWaveform({
   useEffect(() => {
     if (!containerRef.current) return;
 
-    const wavesurfer = WaveSurfer.create({
-      container: containerRef.current,
-      height,
-      waveColor,
-      progressColor,
-      cursorWidth: 1,
-      cursorColor: progressColor,
-      barWidth: 2,
-      barGap: 1,
-      barRadius: 2,
-      normalize: true,
-      hideScrollbar: true,
-    });
+    let cancelled = false;
+    let objectUrl: string | null = null;
 
-    wavesurferRef.current = wavesurfer;
+    async function setup() {
+      const { default: WaveSurferLib } = await import("wavesurfer.js");
+      if (cancelled || !containerRef.current) return;
 
-    // Load audio
-    if (typeof src === "string") {
-      wavesurfer.load(src);
-    } else {
-      // For Blob, create object URL
-      const url = URL.createObjectURL(src);
-      wavesurfer.load(url);
-      // Cleanup URL when wavesurfer is destroyed
-      wavesurfer.on("destroy", () => URL.revokeObjectURL(url));
+      const wavesurfer = WaveSurferLib.create({
+        container: containerRef.current,
+        height,
+        waveColor,
+        progressColor,
+        cursorWidth: 1,
+        cursorColor: progressColor,
+        barWidth: 2,
+        barGap: 1,
+        barRadius: 2,
+        normalize: true,
+        hideScrollbar: true,
+      });
+
+      wavesurferRef.current = wavesurfer as unknown as WaveSurfer;
+
+      // Load audio
+      if (typeof src === "string") {
+        wavesurfer.load(src);
+      } else {
+        objectUrl = URL.createObjectURL(src);
+        wavesurfer.load(objectUrl);
+      }
+
+      // Event handlers
+      wavesurfer.on("ready", () => {
+        setDuration(wavesurfer.getDuration());
+        setIsReady(true);
+      });
+
+      wavesurfer.on("audioprocess", () => {
+        setCurrentTime(wavesurfer.getCurrentTime());
+      });
+
+      wavesurfer.on("play", () => setIsPlaying(true));
+      wavesurfer.on("pause", () => setIsPlaying(false));
+      wavesurfer.on("finish", () => {
+        setIsPlaying(false);
+        setCurrentTime(0);
+        onEnded?.();
+      });
+
+      wavesurfer.on("seeking", () => {
+        setCurrentTime(wavesurfer.getCurrentTime());
+      });
     }
 
-    // Event handlers
-    wavesurfer.on("ready", () => {
-      setDuration(wavesurfer.getDuration());
-      setIsReady(true);
-    });
-
-    wavesurfer.on("audioprocess", () => {
-      setCurrentTime(wavesurfer.getCurrentTime());
-    });
-
-    wavesurfer.on("play", () => setIsPlaying(true));
-    wavesurfer.on("pause", () => setIsPlaying(false));
-    wavesurfer.on("finish", () => {
-      setIsPlaying(false);
-      setCurrentTime(0);
-      onEnded?.();
-    });
-
-    wavesurfer.on("seeking", () => {
-      setCurrentTime(wavesurfer.getCurrentTime());
+    setup().catch((error) => {
+      console.error("WaveSurfer init error:", error);
     });
 
     return () => {
-      wavesurfer.destroy();
+      cancelled = true;
+      wavesurferRef.current?.destroy();
       wavesurferRef.current = null;
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
       setIsReady(false);
       setIsPlaying(false);
     };

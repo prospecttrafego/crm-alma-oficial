@@ -20,7 +20,7 @@ export function registerContactRoutes(app: Express) {
   // GET /api/contacts - Listar contatos (com paginacao opcional)
   // Query params:
   //   - withStats=true: Retorna contatos com estatisticas agregadas (deals, activities)
-  //   - page, limit, search, sortBy, sortOrder: Paginacao (nao combinavel com withStats)
+  //   - page, limit, search, sortBy, sortOrder: Paginacao (combinavel com withStats)
   app.get(
     "/api/contacts",
     isAuthenticated,
@@ -31,12 +31,8 @@ export function registerContactRoutes(app: Express) {
         return sendSuccess(res, []);
       }
 
-      // Check for withStats flag
       const withStats = req.query?.withStats === "true";
-      if (withStats) {
-        const contactsWithStats = await storage.getContactsWithStats(org.id);
-        return sendSuccess(res, contactsWithStats);
-      }
+      const { page, limit, search, sortBy, sortOrder } = req.validatedQuery;
 
       const paginationRequested =
         req.query?.page !== undefined ||
@@ -45,9 +41,25 @@ export function registerContactRoutes(app: Express) {
         req.query?.sortBy !== undefined ||
         req.query?.sortOrder !== undefined;
 
-      const { page, limit, search, sortBy, sortOrder } = req.validatedQuery;
+      // withStats + pagination: use paginated with stats
+      if (withStats && paginationRequested) {
+        const result = await storage.getContactsPaginatedWithStats(org.id, {
+          page,
+          limit,
+          search,
+          sortBy,
+          sortOrder,
+        });
+        return sendSuccess(res, result);
+      }
 
-      // Check if pagination is requested
+      // withStats without pagination: return all contacts with stats (backward compatibility)
+      if (withStats) {
+        const contactsWithStats = await storage.getContactsWithStats(org.id);
+        return sendSuccess(res, contactsWithStats);
+      }
+
+      // Pagination without stats
       if (paginationRequested) {
         const result = await storage.getContactsPaginated(org.id, {
           page,

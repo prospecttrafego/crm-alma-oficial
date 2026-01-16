@@ -4,6 +4,7 @@
  */
 import { useEffect, useRef, useCallback, useState } from "react";
 import { queryClient } from "@/lib/queryClient";
+import { onWebSocketReconnect } from "@/lib/offlineSync";
 
 // Tipos de eventos do servidor
 export type WebSocketEventType =
@@ -18,7 +19,10 @@ export type WebSocketEventType =
   | "deal:moved"
   | "deal:deleted"
   | "conversation:created"
+  | "conversation:updated"
   | "message:created"
+  | "message:updated"
+  | "message:deleted"
   | "notification:new"
   | "calendar:event:created"
   | "calendar:event:updated"
@@ -69,6 +73,7 @@ const eventToQueryMap: Record<string, string[]> = {
   "deal:moved": ["/api/deals"],
   "deal:deleted": ["/api/deals"],
   "conversation:created": ["/api/conversations"],
+  "conversation:updated": ["/api/conversations"],
   "message:created": ["/api/conversations"],
   "notification:new": ["/api/notifications", "/api/notifications/unread-count"],
   "calendar:event:created": ["/api/calendar-events"],
@@ -79,6 +84,26 @@ const eventToQueryMap: Record<string, string[]> = {
   "channel:config:deleted": ["/api/channel-configs"],
 };
 
+function toTimestamp(value: unknown): number {
+  if (!value) return 0;
+  if (value instanceof Date) return value.getTime();
+  if (typeof value === "string" || typeof value === "number") {
+    const time = new Date(value).getTime();
+    return Number.isNaN(time) ? 0 : time;
+  }
+  return 0;
+}
+
+/**
+ * Establishes a WebSocket connection (`/ws`) with automatic reconnect and optional cache invalidation.
+ *
+ * The hook keeps local state for:
+ * - Connection status (`isConnected`)
+ * - Online users presence (`onlineUsers`)
+ * - Typing indicators per conversation (`typingUsers`)
+ *
+ * When `autoInvalidate` is enabled, it invalidates known React Query keys based on server events.
+ */
 export function useWebSocket(options: UseWebSocketOptions = {}) {
   const { userId, userName, onMessage, onTyping, onPresence, autoInvalidate = true } = options;
 
@@ -157,6 +182,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
 
       ws.onopen = () => {
         console.log("[WebSocket] Conectado");
+        const wasDisconnected = !wsRef.current || reconnectAttemptsRef.current > 0;
         setIsConnected(true);
         reconnectAttemptsRef.current = 0;
 
@@ -166,6 +192,13 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
             type: "presence",
             payload: { userId, userName }
           }));
+        }
+
+        // Trigger offline message sync on reconnect
+        if (wasDisconnected) {
+          onWebSocketReconnect().catch((error) => {
+            console.error("[WebSocket] Error syncing offline messages:", error);
+          });
         }
       };
 
@@ -204,19 +237,199 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
 
           // Auto-invalidar queries
           if (autoInvalidate) {
-            const queriesToInvalidate = eventToQueryMap[message.type];
-            if (queriesToInvalidate) {
-              queriesToInvalidate.forEach((queryKey) => {
-                queryClient.invalidateQueries({ queryKey: [queryKey] });
-              });
-            }
-
-            // Para mensagens, invalidar query especifica da conversa
+            // Para mensagens, fazer append DIRETO no cache (sem refetch!)
             if (message.type === "message:created" && message.data) {
-              const messageData = message.data as { conversationId?: number };
-              if (messageData.conversationId) {
-                queryClient.invalidateQueries({
-                  queryKey: ["/api/conversations", messageData.conversationId, "messages"],
+              const newMessage = message.data as {
+                id: number;
+                conversationId: number;
+                senderId?: string;
+                senderType?: string;
+                content: string;
+                contentType?: string;
+                isInternal?: boolean;
+                createdAt: string;
+                readBy?: string[];
+                externalId?: string | null;
+                [key: string]: unknown;
+              };
+
+              if (newMessage.conversationId) {
+                const queryKey = ["/api/conversations", newMessage.conversationId, "messages"];
+
+                // Append direto no cache
+                type MessageInCache = { id?: number; _tempId?: string; externalId?: string | null; replyTo?: unknown };
+                queryClient.setQueryData<{
+                  pages: Array<{ messages: MessageInCache[]; nextCursor: number | null; hasMore: boolean }>;
+                  pageParams: unknown[];
+                }>(queryKey, (old) => {
+                  if (!old || !old.pages || old.pages.length === 0) return old;
+
+                  const externalId = newMessage.externalId ?? null;
+                  let found = false;
+
+                  // Replace optimistic message (matched by externalId == _tempId) or skip duplicates by id.
+                  const newPages = old.pages.map((page) => ({
+                    ...page,
+                    messages: page.messages.map((m) => {
+                      if (m.id === newMessage.id) {
+                        found = true;
+                        return m;
+                      }
+
+                      if (
+                        !found &&
+                        externalId &&
+                        (m._tempId === externalId || (m.externalId && m.externalId === externalId))
+                      ) {
+                        found = true;
+                        // Preserve quoted payload if we had it locally
+                        return { ...(newMessage as MessageInCache), replyTo: m.replyTo };
+                      }
+
+                      return m;
+                    }),
+                  }));
+
+                  if (found) {
+                    return { ...old, pages: newPages };
+                  }
+
+                  // Append to the last page (newest chunk) when this is truly a new message.
+                  const lastPageIndex = newPages.length - 1;
+                  newPages[lastPageIndex] = {
+                    ...newPages[lastPageIndex],
+                    messages: [...newPages[lastPageIndex].messages, newMessage as MessageInCache],
+                  };
+
+                  return { ...old, pages: newPages };
+                });
+
+                // Atualizar lista de conversas (lastMessageAt, unreadCount)
+                queryClient.setQueryData<
+                  Array<{ id: number; lastMessageAt?: Date | string | null; unreadCount?: number; [key: string]: unknown }>
+                >(
+                  ["/api/conversations"],
+                  (old) => {
+                    if (!old) return old;
+                    return old
+                      .map((conv) =>
+                        conv.id === newMessage.conversationId
+                          ? {
+                              ...conv,
+                              lastMessageAt: new Date(newMessage.createdAt),
+                              // Incrementar unreadCount se msg nao e do usuario atual
+                              unreadCount:
+                                newMessage.senderType === "contact"
+                                  ? (conv.unreadCount || 0) + 1
+                                  : conv.unreadCount,
+                            }
+                          : conv
+                      )
+                      .sort(
+                        (a, b) =>
+                          toTimestamp(b.lastMessageAt) - toTimestamp(a.lastMessageAt)
+                      );
+                  }
+                );
+              }
+            } else if (message.type === "conversation:updated" && message.data) {
+              const payload = message.data as {
+                conversationId: number;
+                lastMessageAt?: string | null;
+                unreadCount?: number | null;
+              };
+
+              if (!payload.conversationId) return;
+
+              queryClient.setQueryData<Array<{ id: number; lastMessageAt?: unknown; unreadCount?: number; [key: string]: unknown }>>(
+                ["/api/conversations"],
+                (old) => {
+                  if (!old) return old;
+
+                  const updatedLastMessageAt = payload.lastMessageAt ? new Date(payload.lastMessageAt) : undefined;
+                  const updatedUnreadCount = typeof payload.unreadCount === "number" ? payload.unreadCount : undefined;
+
+                  return old
+                    .map((conv) =>
+                      conv.id === payload.conversationId
+                        ? {
+                            ...conv,
+                            ...(updatedLastMessageAt ? { lastMessageAt: updatedLastMessageAt } : {}),
+                            ...(updatedUnreadCount !== undefined ? { unreadCount: updatedUnreadCount } : {}),
+                          }
+                        : conv,
+                    )
+                    .sort((a, b) => toTimestamp(b.lastMessageAt) - toTimestamp(a.lastMessageAt));
+                },
+              );
+            } else if (message.type === "message:updated" && message.data) {
+              // Handle edited message - update in cache
+              const updatedMessage = message.data as {
+                id: number;
+                conversationId: number;
+                content: string;
+                editedAt: string;
+                [key: string]: unknown;
+              };
+
+              if (updatedMessage.conversationId) {
+                const queryKey = ["/api/conversations", updatedMessage.conversationId, "messages"];
+
+                type MessageInCache = { id?: number; content?: string; editedAt?: string | null; [key: string]: unknown };
+                queryClient.setQueryData<{
+                  pages: Array<{ messages: MessageInCache[]; nextCursor: number | null; hasMore: boolean }>;
+                  pageParams: unknown[];
+                }>(queryKey, (old) => {
+                  if (!old || !old.pages) return old;
+
+                  const newPages = old.pages.map((page) => ({
+                    ...page,
+                    messages: page.messages.map((m) =>
+                      m.id === updatedMessage.id
+                        ? { ...m, content: updatedMessage.content, editedAt: updatedMessage.editedAt }
+                        : m
+                    ),
+                  }));
+
+                  return { ...old, pages: newPages };
+                });
+              }
+            } else if (message.type === "message:deleted" && message.data) {
+              // Handle deleted message - update in cache
+              const deletedPayload = message.data as {
+                id: number;
+                conversationId: number;
+                deletedAt: string;
+              };
+
+              if (deletedPayload.conversationId) {
+                const queryKey = ["/api/conversations", deletedPayload.conversationId, "messages"];
+
+                type MessageInCache = { id?: number; deletedAt?: string | null; [key: string]: unknown };
+                queryClient.setQueryData<{
+                  pages: Array<{ messages: MessageInCache[]; nextCursor: number | null; hasMore: boolean }>;
+                  pageParams: unknown[];
+                }>(queryKey, (old) => {
+                  if (!old || !old.pages) return old;
+
+                  const newPages = old.pages.map((page) => ({
+                    ...page,
+                    messages: page.messages.map((m) =>
+                      m.id === deletedPayload.id
+                        ? { ...m, deletedAt: deletedPayload.deletedAt }
+                        : m
+                    ),
+                  }));
+
+                  return { ...old, pages: newPages };
+                });
+              }
+            } else {
+              // Para outros eventos, usar invalidacao normal
+              const queriesToInvalidate = eventToQueryMap[message.type];
+              if (queriesToInvalidate) {
+                queriesToInvalidate.forEach((queryKey) => {
+                  queryClient.invalidateQueries({ queryKey: [queryKey] });
                 });
               }
             }
@@ -301,24 +514,4 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     onlineUsers,
     isUserOnline,
   };
-}
-
-// Hook singleton para uso global
-let globalWsInstance: ReturnType<typeof useWebSocket> | null = null;
-
-export function useGlobalWebSocket() {
-  const ws = useWebSocket();
-
-  useEffect(() => {
-    globalWsInstance = ws;
-    return () => {
-      globalWsInstance = null;
-    };
-  }, [ws]);
-
-  return ws;
-}
-
-export function getGlobalWebSocket() {
-  return globalWsInstance;
 }

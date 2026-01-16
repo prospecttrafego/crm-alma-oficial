@@ -30,8 +30,10 @@ Sistema de CRM (Customer Relationship Management) desenvolvido para a agencia di
 - Lead scoring com IA (OpenAI)
 - Calendario de eventos
 - Templates de email
-- Notificacoes em tempo real
-- Logs de auditoria (imutaveis via trigger PostgreSQL)
+- Notificacoes em tempo real (WebSocket + Web Notifications API)
+- Command Palette com busca global (contacts, deals, conversations)
+- Saved Views (Pipeline, Contacts, Audit Log)
+- Logs de auditoria com filtros avancados, paginacao e exportacao CSV
 - Multi-organizacao (parcial: schema suporta, execucao atual em modo single-tenant por instalacao)
 - Monitoramento de erros (Sentry)
 - Circuit breaker para integracoes externas
@@ -79,8 +81,8 @@ cp .env.example .env.production
 # Aplicar migrations no banco
 npm run db:migrate
 
-# (Somente dev/local) Sincronizar schema direto
-npm run db:push:dev
+# (Opcional, somente dev/local) Sincronizar schema direto (evite se voce estiver usando migrations)
+# npm run db:push:dev
 
 # Desenvolvimento (usa .env.staging quando APP_ENV=staging)
 APP_ENV=staging npm run dev
@@ -97,6 +99,7 @@ npm run dev
 ## Estrutura do Projeto
 
 ```
+├── .storybook/              # Storybook (UI docs) + mocks de API (dev)
 ├── client/                  # Frontend React
 │   ├── public/              # Assets publicos (favicon, logo, SW do Firebase)
 │   └── src/
@@ -193,6 +196,7 @@ Notas importantes:
 | `EVOLUTION_API_KEY` | Nao | API key da Evolution API |
 | `EVOLUTION_INSTANCE_PREFIX` | Nao | Prefixo unico por deploy para evitar colisao de instancias (quando varios CRMs compartilham a mesma Evolution API) |
 | `EVOLUTION_WEBHOOK_SECRET` | Nao | Segredo para validar webhooks da Evolution API |
+| `MEDIA_DOWNLOAD_ALLOWED_HOSTS` | Nao | Hosts extras permitidos para download de midia (SSRF hardening; CSV de hostnames, sem `https://` — ex.: `cdn.seudominio.com`) |
 | `SENTRY_DSN` | Nao | DSN do Sentry para rastreamento de erros |
 | `APP_VERSION` | Nao | Versao da aplicacao (usado pelo Sentry para release tracking) |
 
@@ -206,11 +210,15 @@ npm run check     # Verifica tipos TypeScript
 npm run test      # Alias para verificacao de tipos
 npm run lint      # Lint (ESLint)
 npm run lint:fix  # Lint + autofix (opcional)
+npm run storybook # Storybook (UI docs) em http://localhost:6006
+npm run build-storybook # Build estatico do Storybook
 npm run db:migrate   # Aplica migrations no banco
 npm run db:push:dev  # Sincroniza schema direto (somente dev/local)
 npm run db:generate  # Gera novas migrations a partir do schema
 npm run db:migrate-ptbr # Ajustes pontuais (dados legados PT-BR)
 ```
+
+Nota: o Storybook usa mocks de API em `.storybook/apiMock.ts` para renderizar componentes que dependem de `/api/*` sem precisar subir o backend.
 
 ## Health check
 
@@ -224,36 +232,19 @@ npm run db:migrate-ptbr # Ajustes pontuais (dados legados PT-BR)
 
 - Endpoints JSON retornam `{ success, data }` (erros padronizados). Respostas `204` nao possuem corpo.
 
-## Deploy via Coolify (Docker)
+## Deploy (Coolify na Hostinger)
 
-O deploy e feito usando **Coolify** com integracao GitHub e Dockerfile.
+Guia completo (didatico, com “onde rodar comandos”, migrations e redeploy): `DEPLOY_COOLIFY_HOSTINGER.md`.
 
-### Pre-requisitos
-- Servidor Coolify configurado
-- PostgreSQL (ou usar Supabase)
-- Projeto Supabase com bucket "uploads"
+Resumo rapido do fluxo:
 
-### Passo a Passo
-
-1. **Conectar repositorio no Coolify:**
-   - Criar novo projeto no Coolify
-   - Conectar com GitHub (repositorio `prospecttrafego/crm-alma-oficial`)
-   - Selecionar branch `staging` ou `main`
-
-2. **Configurar variaveis de ambiente no Coolify:**
-   - Adicionar todas as variaveis do `.env.example`
-   - Variaveis `VITE_*` devem ser configuradas como **Build Arguments**
-
-3. **Deploy:**
-   - O Coolify usa o `Dockerfile` automaticamente
-   - Build multi-stage: deps → build → runtime
-   - Health check configurado em `/api/healthz`
-
-4. **Apos o deploy, rodar migrations manualmente:**
-   ```bash
-   # Conectar no terminal do container ou servidor
-   npm run db:migrate:prod
-   ```
+1. No Coolify, criar uma **Application** com **Build Pack: Dockerfile** (porta `3000`).
+2. Configurar as variaveis do `.env.example`:
+   - Backend: variaveis normais (runtime)
+   - Frontend: `VITE_*` como **Build Variable** (build time)
+3. Fazer **Deploy** e, no **Terminal do container do app**, rodar:
+   - `npm run db:migrate`
+   - (Opcional, apenas 1x) `npm run db:migrate -- --baseline`
 
 ### Dockerfile
 
@@ -261,7 +252,7 @@ O projeto inclui um Dockerfile otimizado com:
 - Multi-stage build (deps, build, runtime)
 - Node.js 20 slim
 - Health check automatico
-- Variaveis VITE_* como build args
+- Variaveis `VITE_*` como build args/build variables (build time)
 
 ## Configuracao do Supabase
 

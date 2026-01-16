@@ -17,7 +17,7 @@ import {
 } from "../middleware";
 import { sendSuccess, sendNotFound } from "../response";
 import { storage } from "../storage";
-import { broadcast } from "../ws/index";
+import { broadcast, broadcastToUser } from "../ws/index";
 
 // Schema estendido para query de deals (adiciona campos especificos)
 const dealsQuerySchema = paginationQuerySchema.extend({
@@ -191,7 +191,7 @@ export function registerDealRoutes(app: Express) {
           entityType: "deal",
           entityId: deal.id,
         });
-        broadcast("notification:new", { userId });
+        broadcastToUser(userId, "notification:new", {});
       }
       sendSuccess(res, deal);
     }),

@@ -127,9 +127,23 @@ export const conversationWithRelationsSchema = conversationSchema
   .strict();
 export type ConversationWithRelations = z.infer<typeof conversationWithRelationsSchema>;
 
+// Schema for the quoted/replied-to message (simplified, no recursion)
+export const quotedMessageSchema = z.object({
+  id: z.number().int().positive(),
+  content: z.string(),
+  contentType: z.string().nullable().optional(),
+  senderType: z.string().nullable().optional(),
+  senderId: z.string().nullable().optional(),
+  senderName: z.string().nullable().optional(),
+  createdAt: z.coerce.date().nullable().optional(),
+}).strict();
+export type QuotedMessage = z.infer<typeof quotedMessageSchema>;
+
 export const messageWithSenderSchema = messageSchema
   .extend({
     sender: safeUserSchema.nullable().optional(),
+    // The message being replied to (if this is a reply)
+    replyTo: quotedMessageSchema.nullable().optional(),
   })
   .strict();
 export type MessageWithSender = z.infer<typeof messageWithSenderSchema>;

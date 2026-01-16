@@ -11,11 +11,12 @@
     "test": "npm run check",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build",
     "db:push": "drizzle-kit push",
     "db:push:dev": "drizzle-kit push",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
-    "db:migrate:prod": "node dist/migrate.cjs",
+    "db:migrate": "node --input-type=module -e \"import fs from 'node:fs'; import { spawnSync } from 'node:child_process'; const args = process.argv.slice(1); const isProd = process.env.NODE_ENV === 'production'; const useDist = isProd && fs.existsSync('dist/migrate.cjs'); const cmd = useDist ? ['node', ['dist/migrate.cjs', ...args]] : ['tsx', ['scripts/migrate.ts', ...args]]; const res = spawnSync(cmd[0], cmd[1], { stdio: 'inherit' }); process.exit(res.status ?? 1);\" --",
     "db:studio": "drizzle-kit studio",
     "db:seed": "tsx scripts/seed.ts",
     "db:seed:prod": "node dist/seed.cjs",
@@ -72,6 +73,7 @@
     "firebase": "^12.7.0",
     "firebase-admin": "^13.6.0",
     "googleapis": "^169.0.0",
+    "idb": "^8.0.3",
     "imap": "^0.8.19",
     "input-otp": "^1.4.2",
     "lucide-react": "^0.453.0",
@@ -121,6 +123,9 @@
     "eslint-plugin-react-hooks": "^5.0.0",
     "eslint-plugin-react-refresh": "^0.4.0",
     "globals": "^15.0.0",
+    "storybook": "^10.1.11",
+    "@storybook/addon-docs": "^10.1.11",
+    "@storybook/react-vite": "^10.1.11",
     "tailwindcss": "^4.1.18",
     "tsx": "^4.20.5",
     "typescript": "^5.9.3",
@@ -129,5 +134,10 @@
   },
   "optionalDependencies": {
     "bufferutil": "^4.0.8"
+  },
+  "overrides": {
+    "utf7": {
+      "semver": "5.7.2"
+    }
   }
 }

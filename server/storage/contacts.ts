@@ -336,3 +336,124 @@ export async function getContactsWithStats(_organizationId: number): Promise<Con
     lastActivityAt: row.lastActivityAt,
   }));
 }
+
+/**
+ * Get paginated contacts with aggregated deal and activity statistics
+ * @param _organizationId - Organization ID (overridden by tenant in single-tenant mode)
+ * @param params - Pagination params (page, limit, search, sortOrder)
+ * @returns Paginated result with contacts with stats and metadata
+ */
+export async function getContactsPaginatedWithStats(
+  _organizationId: number,
+  params: PaginationParams,
+): Promise<PaginatedResult<ContactWithStats>> {
+  const tenantOrganizationId = await getTenantOrganizationId();
+  const { page, limit, offset } = normalizePagination(params);
+
+  // Build search condition
+  const searchCondition = params.search
+    ? or(
+        ilike(contacts.firstName, `%${params.search}%`),
+        ilike(contacts.lastName, `%${params.search}%`),
+        ilike(contacts.email, `%${params.search}%`),
+        ilike(contacts.phone, `%${params.search}%`),
+      )
+    : undefined;
+
+  const whereCondition = searchCondition
+    ? and(eq(contacts.organizationId, tenantOrganizationId), searchCondition)
+    : eq(contacts.organizationId, tenantOrganizationId);
+
+  // Subquery for deal stats per contact
+  const dealStatsSubquery = db
+    .select({
+      contactId: deals.contactId,
+      totalValue: sum(sql<number>`COALESCE(${deals.value}, 0)`).as("total_value"),
+      openCount: count(deals.id).as("open_count"),
+    })
+    .from(deals)
+    .where(and(eq(deals.organizationId, tenantOrganizationId), eq(deals.status, "open")))
+    .groupBy(deals.contactId)
+    .as("deal_stats");
+
+  // Subquery for last activity per contact
+  const activityStatsSubquery = db
+    .select({
+      contactId: activities.contactId,
+      lastActivityAt: max(activities.createdAt).as("last_activity_at"),
+    })
+    .from(activities)
+    .where(eq(activities.organizationId, tenantOrganizationId))
+    .groupBy(activities.contactId)
+    .as("activity_stats");
+
+  // Get total count (without stats joins for efficiency)
+  const [countResult] = await db
+    .select({ count: count() })
+    .from(contacts)
+    .where(whereCondition);
+  const total = Number(countResult?.count || 0);
+
+  // Get paginated data with stats
+  const sortOrder = params.sortOrder === "asc" ? asc : desc;
+  const results = await db
+    .select({
+      id: contacts.id,
+      firstName: contacts.firstName,
+      lastName: contacts.lastName,
+      email: contacts.email,
+      phone: contacts.phone,
+      jobTitle: contacts.jobTitle,
+      tags: contacts.tags,
+      source: contacts.source,
+      createdAt: contacts.createdAt,
+      companyId: companies.id,
+      companyName: companies.name,
+      ownerId: users.id,
+      ownerFirstName: users.firstName,
+      ownerLastName: users.lastName,
+      totalDealsValue: sql<number>`COALESCE(${dealStatsSubquery.totalValue}, 0)`,
+      openDealsCount: sql<number>`COALESCE(${dealStatsSubquery.openCount}, 0)`,
+      lastActivityAt: activityStatsSubquery.lastActivityAt,
+    })
+    .from(contacts)
+    .leftJoin(companies, eq(contacts.companyId, companies.id))
+    .leftJoin(users, eq(contacts.ownerId, users.id))
+    .leftJoin(dealStatsSubquery, eq(contacts.id, dealStatsSubquery.contactId))
+    .leftJoin(activityStatsSubquery, eq(contacts.id, activityStatsSubquery.contactId))
+    .where(whereCondition)
+    .orderBy(sortOrder(contacts.createdAt))
+    .limit(limit)
+    .offset(offset);
+
+  const totalPages = Math.ceil(total / limit);
+
+  // Transform to ContactWithStats format
+  const data = results.map((row) => ({
+    id: row.id,
+    firstName: row.firstName,
+    lastName: row.lastName,
+    email: row.email,
+    phone: row.phone,
+    jobTitle: row.jobTitle,
+    tags: row.tags,
+    source: row.source,
+    createdAt: row.createdAt,
+    company: row.companyId && row.companyName ? { id: row.companyId, name: row.companyName } : null,
+    owner: row.ownerId ? { id: row.ownerId, firstName: row.ownerFirstName, lastName: row.ownerLastName } : null,
+    totalDealsValue: Number(row.totalDealsValue) || 0,
+    openDealsCount: Number(row.openDealsCount) || 0,
+    lastActivityAt: row.lastActivityAt,
+  }));
+
+  return {
+    data,
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages,
+      hasMore: page < totalPages,
+    },
+  };
+}

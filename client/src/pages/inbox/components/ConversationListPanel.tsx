@@ -48,10 +48,11 @@ export function ConversationListPanel({
           size="icon"
           className="h-9 w-9"
           onClick={onExpandFromRail}
-          title="Expandir painel"
+          title={t("a11y.expandPanel")}
+          aria-label={t("a11y.expandPanel")}
           data-testid="button-expand-inbox-list"
         >
-          <PanelLeftOpen className="h-5 w-5" />
+          <PanelLeftOpen className="h-5 w-5" aria-hidden="true" />
         </Button>
       </div>
 
@@ -68,7 +69,7 @@ export function ConversationListPanel({
             />
           </div>
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
             <input
               type="text"
               placeholder={t("common.search")}
@@ -106,6 +107,8 @@ export function ConversationListPanel({
                     selectedConversationId === conversation.id ? "bg-muted" : ""
                   }`}
                   data-testid={`conversation-${conversation.id}`}
+                  role="option"
+                  aria-selected={selectedConversationId === conversation.id}
                 >
                   <Avatar className="h-12 w-12 flex-shrink-0">
                     <AvatarFallback className="bg-primary text-primary-foreground text-sm font-medium">

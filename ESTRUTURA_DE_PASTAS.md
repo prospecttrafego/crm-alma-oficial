@@ -16,6 +16,7 @@ Estrutura atual (nível alto):
 
 ```
 /
+  .storybook/      # Storybook (documentação de UI) + mocks de API
   client/
   server/
     api/            # Rotas HTTP por domínio
@@ -43,6 +44,10 @@ Estrutura atual (nível alto):
   .claude/
   .git/
   DESIGN_SYSTEM.md   # Sistema de design (Frontend - tokens/padrões)
+  README.md          # Visao geral + como rodar
+  CLAUDE.md          # Documentacao tecnica completa (backend + frontend + deploy)
+  DEPLOY_COOLIFY_HOSTINGER.md # Guia de deploy (Coolify v4 na Hostinger)
+  ESTRUTURA_DE_PASTAS.md # Este documento (estrutura do repo)
 ```
 
 ---
@@ -79,8 +84,9 @@ client/
 - O que é: as “páginas” do sistema (ex.: pipeline, inbox, contatos, settings).
 - Como usar: quando você quer criar uma nova tela principal, geralmente nasce aqui.
 - O que pode mudar: dividir páginas muito grandes, criar novas páginas, reorganizar navegação (mantendo rotas consistentes).
-- Observação: páginas grandes podem ter uma **subpasta** ao lado do arquivo principal para organizar componentes locais.
-  - Ex.: `client/src/pages/inbox/` e `client/src/pages/reports/` (componentes e utilitários específicos dessas páginas).
+- Observação: páginas grandes podem ser organizadas de duas formas (ambas usadas no projeto):
+  - **Pasta com `index.tsx`** (entrada da rota) + componentes locais: ex. `client/src/pages/pipeline/`, `client/src/pages/contacts/`, `client/src/pages/audit-log/`.
+  - **Arquivo `.tsx`** (entrada da rota) + **subpasta** ao lado com componentes/utilitários: ex. `client/src/pages/inbox.tsx` + `client/src/pages/inbox/`, `client/src/pages/reports.tsx` + `client/src/pages/reports/`.
 
 #### `client/src/components/`
 - O que é: peças reutilizáveis das páginas (cards, listas, modais, componentes de feature).
@@ -92,11 +98,22 @@ client/
 - O que evitar: mudar a “API” dos componentes (props) sem checar onde eles são usados, porque isso quebra telas.
 
 #### `client/src/hooks/`
-- O que é: “atalhos” de lógica do frontend (ex.: autenticação, WebSocket, notificações).
+- O que é: "atalhos" de lógica do frontend (ex.: autenticação, WebSocket, notificações, push).
+- Hooks principais:
+  - `useAuth.ts`: autenticação e sessão
+  - `useWebSocket.ts`: conexão WebSocket e eventos real-time
+  - `useDesktopNotifications.ts`: Web Notifications API (notificações desktop)
+  - `usePushNotifications.ts`: Firebase Cloud Messaging (push)
+  - `useToast.ts`: notificações toast in-app
 - O que pode mudar: melhorar organização, separar hooks por tema, adicionar novos hooks para features.
 
 #### `client/src/lib/`
 - O que é: utilitários e configurações do frontend (ex.: cliente de API, helpers, formatações).
+- Subpastas principais:
+  - `lib/api/`: clientes de API tipados (contacts, deals, conversations, search, auditLogs, etc.)
+  - `lib/firebase.ts`: configuração Firebase (push)
+  - `lib/queryClient.ts`: configuração TanStack Query
+  - `lib/utils.ts`: utilitários gerais (cn, formatters)
 - O que pode mudar: centralizar chamadas HTTP, melhorar helpers, configurar libs.
 
 #### `client/src/contexts/`
@@ -152,6 +169,8 @@ O que você encontra aqui (exemplos reais):
 - `server/api/deals.ts`: deals (`/api/deals`)
 - `server/api/conversations.ts`: inbox (conversas/mensagens)
 - `server/api/files.ts`: arquivos (upload/download/transcrição)
+- `server/api/search.ts`: busca global (contacts, deals, conversations)
+- `server/api/auditLogs.ts`: logs de auditoria (com filtros e paginação)
 - `server/api/channelConfigs.ts`: configurações de canais (email/whatsapp)
 - `server/api/googleCalendar.ts`: rotas da integração do Google Calendar
 - `server/api/evolution.ts`: status + webhook do WhatsApp (Evolution API)
@@ -370,11 +389,16 @@ O que evitar: mudanças sem atualizar o banco (migração/push), porque o backen
 migrations/
   0000_great_hammerhead.sql   # Migração inicial
   0001_mute_cargill.sql       # ...
+  0002_colorful_la_nuit.sql   # ...
+  0003_adorable_forgotten_one.sql # ...
   0004_audit_logs_immutable.sql  # Trigger para logs imutáveis
   0005_special_joseph.sql     # CHECK constraints e indexes
+  0006_woozy_devos.sql        # Deals: adiciona tags (text[])
+  0007_neat_freak.sql         # Messages: reply/edit/delete + indice de busca
   meta/
     _journal.json             # Histórico de migrações aplicadas
     0000_snapshot.json        # Snapshots de schema
+    0007_snapshot.json        # Snapshot mais recente (exemplo)
 ```
 
 - O que é: arquivos SQL gerados pelo Drizzle (ou manuais) para alterar o schema do banco.
@@ -382,6 +406,8 @@ migrations/
 - Migrações especiais:
   - `0004_audit_logs_immutable.sql`: trigger PostgreSQL que impede UPDATE/DELETE na tabela audit_logs
   - `0005_special_joseph.sql`: adiciona CHECK constraints e indexes LOWER(email)
+  - `0006_woozy_devos.sql`: adiciona `deals.tags`
+  - `0007_neat_freak.sql`: adiciona campos de reply/edit/delete em `messages` e indice GIN para busca
 
 O que pode ser mudado/alterado:
 - Criar migrações manuais para triggers, functions, ou alterações que o Drizzle não gera automaticamente.

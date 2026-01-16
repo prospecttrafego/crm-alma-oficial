@@ -4,6 +4,15 @@ import type { ContactWithCompany } from "@/lib/api/conversations";
 
 type Translator = (key: string, params?: Record<string, string | number>) => string;
 
+/**
+ * Replaces supported `{{variable}}` placeholders in a message/template string.
+ *
+ * Supported variables:
+ * - `{{contact.firstName}}`, `{{contact.lastName}}`, `{{contact.email}}`, `{{contact.phone}}`, `{{contact.jobTitle}}`
+ * - `{{deal.title}}`, `{{deal.value}}`
+ * - `{{company.name}}`
+ * - `{{user.firstName}}`, `{{user.lastName}}`
+ */
 export function substituteVariables(
   template: string,
   context: {
@@ -28,25 +37,40 @@ export function substituteVariables(
     .replace(/\{\{user\.lastName\}\}/g, user?.lastName || "");
 }
 
+/**
+ * Formats a recording duration in `m:ss` for UI display.
+ */
 export function formatRecordingTime(seconds: number) {
   const mins = Math.floor(seconds / 60);
   const secs = seconds % 60;
   return `${mins}:${secs.toString().padStart(2, "0")}`;
 }
 
+/**
+ * Returns a translation for `key`, falling back to `fallback` when the key is missing.
+ */
 export function getTranslatedValue(t: Translator, key: string, fallback: string) {
   const translated = t(key);
   return translated === key ? fallback : translated;
 }
 
+/**
+ * Returns a localized label for an inbox channel (e.g. "email", "whatsapp").
+ */
 export function getChannelLabel(t: Translator, channel: string) {
   return getTranslatedValue(t, `inbox.channels.${channel}`, channel);
 }
 
+/**
+ * Returns a localized label for an inbox status (e.g. "open", "closed").
+ */
 export function getStatusLabel(t: Translator, status: string) {
   return getTranslatedValue(t, `inbox.status.${status}`, status);
 }
 
+/**
+ * Formats a timestamp for inbox list display (time for today, "yesterday", weekday, or short date).
+ */
 export function formatInboxTime(t: Translator, date: Date | string | null) {
   if (!date) return "";
   const d = new Date(date);

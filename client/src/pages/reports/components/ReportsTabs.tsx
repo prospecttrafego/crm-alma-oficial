@@ -2,20 +2,33 @@
 
 import type { ChartType, ReportData } from "@/pages/reports/types";
 
+import { lazy, Suspense } from "react";
 import { Activity, Download, Users } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ActivitySummaryChart } from "@/pages/reports/charts/ActivitySummaryChart";
-import { DealsByStageChart } from "@/pages/reports/charts/DealsByStageChart";
-import { DealsOverTimeChart } from "@/pages/reports/charts/DealsOverTimeChart";
-import { TeamPerformanceChart } from "@/pages/reports/charts/TeamPerformanceChart";
-import { WonLostChart } from "@/pages/reports/charts/WonLostChart";
 import { ChartTypeToggle } from "@/pages/reports/components/ChartTypeToggle";
+import { ChartSkeleton } from "@/pages/reports/components/ChartSkeleton";
 import { ConversionFunnelCard } from "@/pages/reports/components/ConversionFunnelCard";
 import { TopPerformersCard } from "@/pages/reports/components/TopPerformersCard";
+
+const DealsOverTimeChart = lazy(() =>
+  import("@/pages/reports/charts/DealsOverTimeChart").then((module) => ({ default: module.DealsOverTimeChart })),
+);
+const ActivitySummaryChart = lazy(() =>
+  import("@/pages/reports/charts/ActivitySummaryChart").then((module) => ({ default: module.ActivitySummaryChart })),
+);
+const DealsByStageChart = lazy(() =>
+  import("@/pages/reports/charts/DealsByStageChart").then((module) => ({ default: module.DealsByStageChart })),
+);
+const WonLostChart = lazy(() =>
+  import("@/pages/reports/charts/WonLostChart").then((module) => ({ default: module.WonLostChart })),
+);
+const TeamPerformanceChart = lazy(() =>
+  import("@/pages/reports/charts/TeamPerformanceChart").then((module) => ({ default: module.TeamPerformanceChart })),
+);
 
 type Props = {
   activeTab: string;
@@ -74,13 +87,15 @@ export function ReportsTabs({
               {isLoading ? (
                 <Skeleton className="h-64 w-full" />
               ) : (
-                <DealsOverTimeChart
-                  dealsOverTime={reportData?.dealsOverTime}
-                  noDataLabel={t("reports.noData.timeline")}
-                  dealsLabel={t("reports.deals")}
-                  formatCount={formatCount}
-                  formatShortDate={formatShortDate}
-                />
+                <Suspense fallback={<ChartSkeleton />}>
+                  <DealsOverTimeChart
+                    dealsOverTime={reportData?.dealsOverTime}
+                    noDataLabel={t("reports.noData.timeline")}
+                    dealsLabel={t("reports.deals")}
+                    formatCount={formatCount}
+                    formatShortDate={formatShortDate}
+                  />
+                </Suspense>
               )}
             </CardContent>
           </Card>
@@ -94,10 +109,12 @@ export function ReportsTabs({
               {isLoading ? (
                 <Skeleton className="h-64 w-full" />
               ) : (
-                <ActivitySummaryChart
-                  activitySummary={reportData?.activitySummary}
-                  noDataLabel={t("reports.noData.activities")}
-                />
+                <Suspense fallback={<ChartSkeleton />}>
+                  <ActivitySummaryChart
+                    activitySummary={reportData?.activitySummary}
+                    noDataLabel={t("reports.noData.activities")}
+                  />
+                </Suspense>
               )}
             </CardContent>
           </Card>
@@ -116,13 +133,15 @@ export function ReportsTabs({
               {isLoading ? (
                 <Skeleton className="h-64 w-full" />
               ) : (
-                <DealsByStageChart
-                  dealsByStage={reportData?.dealsByStage}
-                  chartType={chartType}
-                  noDataLabel={t("reports.noData.deals")}
-                  dealsLabel={t("reports.deals")}
-                  formatCount={formatCount}
-                />
+                <Suspense fallback={<ChartSkeleton />}>
+                  <DealsByStageChart
+                    dealsByStage={reportData?.dealsByStage}
+                    chartType={chartType}
+                    noDataLabel={t("reports.noData.deals")}
+                    dealsLabel={t("reports.deals")}
+                    formatCount={formatCount}
+                  />
+                </Suspense>
               )}
             </CardContent>
           </Card>
@@ -160,13 +179,15 @@ export function ReportsTabs({
               {isLoading ? (
                 <Skeleton className="h-64 w-full" />
               ) : (
-                <WonLostChart
-                  wonLostByMonth={reportData?.wonLostByMonth}
-                  noDataLabel={t("reports.noData.winLoss")}
-                  wonLabel={t("dashboard.won")}
-                  lostLabel={t("dashboard.lost")}
-                  formatCount={formatCount}
-                />
+                <Suspense fallback={<ChartSkeleton />}>
+                  <WonLostChart
+                    wonLostByMonth={reportData?.wonLostByMonth}
+                    noDataLabel={t("reports.noData.winLoss")}
+                    wonLabel={t("dashboard.won")}
+                    lostLabel={t("dashboard.lost")}
+                    formatCount={formatCount}
+                  />
+                </Suspense>
               )}
             </CardContent>
           </Card>
@@ -183,13 +204,15 @@ export function ReportsTabs({
               {isLoading ? (
                 <Skeleton className="h-64 w-full" />
               ) : (
-                <DealsByStageChart
-                  dealsByStage={reportData?.dealsByStage}
-                  chartType={chartType}
-                  noDataLabel={t("reports.noData.deals")}
-                  dealsLabel={t("reports.deals")}
-                  formatCount={formatCount}
-                />
+                <Suspense fallback={<ChartSkeleton />}>
+                  <DealsByStageChart
+                    dealsByStage={reportData?.dealsByStage}
+                    chartType={chartType}
+                    noDataLabel={t("reports.noData.deals")}
+                    dealsLabel={t("reports.deals")}
+                    formatCount={formatCount}
+                  />
+                </Suspense>
               )}
             </CardContent>
           </Card>
@@ -212,13 +235,15 @@ export function ReportsTabs({
             {isLoading ? (
               <Skeleton className="h-64 w-full" />
             ) : (
-              <TeamPerformanceChart
-                teamPerformance={reportData?.teamPerformance}
-                noDataLabel={t("reports.noData.team")}
-                dealsLabel={t("reports.deals")}
-                wonDealsLabel={t("dashboard.stats.wonDeals")}
-                formatCount={formatCount}
-              />
+              <Suspense fallback={<ChartSkeleton />}>
+                <TeamPerformanceChart
+                  teamPerformance={reportData?.teamPerformance}
+                  noDataLabel={t("reports.noData.team")}
+                  dealsLabel={t("reports.deals")}
+                  wonDealsLabel={t("dashboard.stats.wonDeals")}
+                  formatCount={formatCount}
+                />
+              </Suspense>
             )}
           </CardContent>
         </Card>

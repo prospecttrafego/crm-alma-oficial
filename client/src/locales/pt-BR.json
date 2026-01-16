@@ -16,6 +16,7 @@
     "loading": "Carregando...",
     "saving": "Salvando...",
     "noResults": "Nenhum resultado encontrado",
+    "loadMore": "Carregar mais",
     "confirm": "Confirmar",
     "yes": "Sim",
     "no": "Não",
@@ -50,6 +51,30 @@
     "clear": "Limpar",
     "reset": "Resetar"
   },
+  "a11y": {
+    "notifications": "Abrir notificações",
+    "openCommandPalette": "Abrir paleta de comandos",
+    "cancelRecording": "Cancelar gravação",
+    "stopRecording": "Parar gravação",
+    "startRecording": "Iniciar gravação de áudio",
+    "attachFile": "Anexar arquivo",
+    "openEmojiPicker": "Abrir seletor de emoji",
+    "sendMessage": "Enviar mensagem",
+    "expandPanel": "Expandir painel",
+    "collapsePanel": "Recolher painel",
+    "searchMessages": "Buscar mensagens",
+    "closeDialog": "Fechar diálogo",
+    "removeItem": "Remover item",
+    "moreOptions": "Mais opções",
+    "editItem": "Editar item",
+    "deleteItem": "Excluir item",
+    "previousMonth": "Mês anterior",
+    "nextMonth": "Próximo mês",
+    "playAudio": "Reproduzir áudio",
+    "pauseAudio": "Pausar áudio",
+    "downloadFile": "Baixar arquivo",
+    "toggleView": "Alternar visualização"
+  },
   "nav": {
     "dashboard": "Painel",
     "inbox": "Caixa de entrada",
@@ -71,7 +96,17 @@
     "navigation": "Navegação",
     "quickActions": "Ações rápidas",
     "newDeal": "Criar novo negócio",
-    "newContact": "Adicionar novo contato"
+    "newContact": "Adicionar novo contato",
+    "searchResults": "Resultados da busca",
+    "contacts": "Contatos",
+    "deals": "Negócios",
+    "conversations": "Conversas",
+    "searching": "Buscando...",
+    "typeToSearch": "Digite para buscar contatos, negócios e conversas",
+    "recentSearches": "Buscas recentes",
+    "clearRecent": "Limpar histórico",
+    "createDealFor": "Criar negócio para",
+    "noSearchResults": "Nenhum resultado para"
   },
   "notifications": {
     "title": "Notificações",
@@ -83,9 +118,12 @@
     "title": "Log de auditoria",
     "subtitle": "Acompanhe todas as mudanças feitas nos dados do CRM",
     "empty": "Nenhum log de auditoria ainda. Mudanças em negócios, contatos e empresas aparecerão aqui.",
+    "noResults": "Nenhum resultado encontrado com os filtros aplicados.",
     "system": "Sistema",
     "unknownUser": "Usuário desconhecido",
     "by": "por",
+    "exportCsv": "Exportar CSV",
+    "showing": "Mostrando {{from}}-{{to}} de {{total}} registros",
     "table": {
       "timestamp": "Data/hora",
       "user": "Usuário",
@@ -93,10 +131,30 @@
       "entityType": "Tipo de entidade",
       "entityName": "Nome da entidade"
     },
+    "filters": {
+      "title": "Filtros",
+      "action": "Ação",
+      "entityType": "Tipo de entidade",
+      "user": "Usuário",
+      "dateFrom": "Data inicial",
+      "dateTo": "Data final",
+      "allActions": "Todas as ações",
+      "allEntities": "Todas as entidades",
+      "allUsers": "Todos os usuários",
+      "selectDate": "Selecionar",
+      "clear": "Limpar"
+    },
+    "pagination": {
+      "page": "Página {{current}} de {{total}}",
+      "previous": "Anterior",
+      "next": "Próxima"
+    },
     "actions": {
       "create": "Criado",
       "update": "Atualizado",
-      "delete": "Excluído"
+      "delete": "Excluído",
+      "lgpd_export": "Exportação LGPD",
+      "lgpd_delete": "Exclusão LGPD"
     },
     "entities": {
       "deal": "Negócio",
@@ -105,7 +163,9 @@
       "conversation": "Conversa",
       "activity": "Atividade",
       "pipeline": "Funil",
-      "email_template": "Modelo de e-mail"
+      "email_template": "Modelo de e-mail",
+      "file": "Arquivo",
+      "integration": "Integração"
     }
   },
   "entityHistory": {
@@ -159,7 +219,15 @@
       "saved": "Visão salva com sucesso",
       "saveError": "Falha ao salvar visão",
       "deleted": "Visão excluída"
-    }
+    },
+    "filter": "filtro",
+    "filtersCount": "filtros",
+    "source": "Origem",
+    "allSources": "Todas as origens",
+    "tags": "Tags",
+    "hasDeals": "Com negócios",
+    "withDeals": "Apenas com negócios",
+    "allContacts": "Todos os contatos"
   },
   "notFound": {
     "title": "404 - Página não encontrada",
@@ -604,6 +672,7 @@
     "lostReasonTitle": "Registrar Perda",
     "lostReasonDescription": "Por que este negócio foi perdido? Registrar o motivo ajuda a melhorar suas estratégias futuras.",
     "lostReasonPlaceholder": "Ex.: Preço alto, concorrente, falta de orçamento...",
+    "lostReasonRequired": "O motivo da perda é obrigatório para confirmar",
     "sourcePlaceholder": "Ex.: Indicação, Google Ads, Redes Sociais...",
     "noDeals": "Nenhum negócio neste estágio",
     "dragToMove": "Arraste para mover",
@@ -613,7 +682,9 @@
   "inbox": {
     "title": "Caixa de entrada",
     "reply": "Responder",
+    "replyTo": "Responder",
     "note": "Nota",
+    "internalNote": "Nota interna",
     "emojiSearch": "Pesquisar emoji...",
     "templates": "Modelos",
     "newConversation": "Nova Conversa",
@@ -639,6 +710,54 @@
       "open": "Aberto",
       "pending": "Pendente",
       "closed": "Fechado"
+    },
+    "contextPanel": {
+      "title": "Contexto",
+      "contact": "Contato",
+      "relatedDeal": "Negócio Relacionado",
+      "conversationInfo": "Info da Conversa",
+      "channel": "Canal",
+      "status": "Status"
+    },
+    "searchMessages": "Buscar mensagens",
+    "searchPlaceholder": "Digite para buscar mensagens...",
+    "searchMinChars": "Digite pelo menos 2 caracteres para buscar",
+    "searchResults": "{{count}} resultado(s) encontrado(s)",
+    "noSubject": "Sem assunto",
+    "messageActions": {
+      "edit": "Editar mensagem",
+      "delete": "Excluir mensagem",
+      "reply": "Responder",
+      "copy": "Copiar texto"
+    },
+    "editMessage": {
+      "title": "Editar mensagem",
+      "placeholder": "Digite o novo conteúdo...",
+      "save": "Salvar",
+      "cancel": "Cancelar",
+      "expired": "Não é possível editar esta mensagem. O prazo de 15 minutos expirou."
+    },
+    "deleteMessage": {
+      "title": "Excluir mensagem",
+      "confirm": "Tem certeza que deseja excluir esta mensagem?",
+      "deleted": "Esta mensagem foi excluída"
+    },
+    "edited": "editado",
+    "offlineQueue": {
+      "queued": "Mensagem enfileirada",
+      "willSync": "Será enviada quando a conexão for restaurada"
+    },
+    "offlineSync": {
+      "synced": "{{count}} mensagem(ns) sincronizada(s)",
+      "failed": "{{count}} mensagem(ns) falhou(aram) ao sincronizar"
+    },
+    "messageStatus": {
+      "queued": "Na fila",
+      "syncing": "Sincronizando...",
+      "sending": "Enviando...",
+      "sent": "Enviado",
+      "delivered": "Entregue",
+      "error": "Erro no envio"
     }
   },
   "contacts": {
@@ -675,7 +794,12 @@
     "toggleColumns": "Mostrar/ocultar colunas",
     "columnsHint": "Arraste para reordenar. Use a borda do cabeçalho para redimensionar.",
     "viewDetails": "Ver Detalhes",
-    "deleteConfirm": "Tem certeza que deseja excluir \"{{name}}\"?"
+    "deleteConfirm": "Tem certeza que deseja excluir \"{{name}}\"?",
+    "pagination": {
+      "showing": "Exibindo",
+      "of": "de {{total}} contatos",
+      "page": "Página {{current}} de {{total}}"
+    }
   },
   "activities": {
     "title": "Atividades",

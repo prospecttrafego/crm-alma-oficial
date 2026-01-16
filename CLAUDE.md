@@ -176,18 +176,24 @@ Todos os componentes Radix UI estao na versao ~1.1.x a ~2.1.x:
 
 ```
 CRM_Oficial/
+├── .storybook/              # Storybook (documentação de UI) + mocks de API
 ├── client/
 │   ├── public/                  # Assets publicos (favicon, logo, SW do Firebase)
 │   └── src/
 │       ├── components/          # Componentes (features) + UI (shadcn)
 │       │   └── ui/              # shadcn/ui (button, input, card, etc)
 │       ├── contexts/            # Contextos (ex.: idioma)
-│       ├── hooks/               # Hooks (auth, websocket, push, toast…)
-│       ├── lib/                 # Infra do frontend (query client, firebase, utils)
+│       ├── hooks/               # Hooks (auth, websocket, push, toast, desktop notifications…)
+│       ├── lib/                 # Infra do frontend (query client, firebase, utils, api clients)
 │       ├── locales/             # Traducoes (pt-BR/en)
 │       └── pages/               # Paginas (dashboard, pipeline, inbox, settings…)
-│           ├── inbox/           # UI/partes do Inbox (3 painéis)
-│           ├── reports/         # UI/partes de Reports (dashboard executivo)
+│           ├── inbox.tsx        # Entrada da rota + compose do Inbox
+│           ├── inbox/           # Componentes/handlers do Inbox (3 painéis)
+│           ├── pipeline/        # Kanban de deals (entrada + componentes)
+│           ├── contacts/        # Tabela de contatos (entrada + componentes)
+│           ├── audit-log/       # Auditoria (entrada + componentes)
+│           ├── reports.tsx      # Entrada da rota + compose de Reports
+│           ├── reports/         # Componentes/Charts de Reports (dashboard executivo)
 │           └── ...
 ├── server/
 │   ├── index.ts                 # Entry point, inicia servidor
@@ -207,6 +213,8 @@ CRM_Oficial/
 │   │   ├── pipelines.ts         # Pipelines/estágios
 │   │   ├── conversations.ts     # Inbox (conversas/mensagens)
 │   │   ├── files.ts             # Upload/download + transcrição
+│   │   ├── search.ts            # Busca global (contacts, deals, conversations)
+│   │   ├── auditLogs.ts         # Logs de auditoria (com filtros e paginação)
 │   │   ├── lgpd.ts              # LGPD compliance (export/delete)
 │   │   ├── jobs.ts              # Status de background jobs
 │   │   └── ...                  # Demais domínios (activities, notifications, etc.)
@@ -581,6 +589,18 @@ POST   /api/files/:id/transcribe        # Transcricao de arquivo de audio regist
 
 **Nota:** Prefer usar `GET /api/files/:id/signed-url` em vez de `GET /objects/:path` para melhor seguranca.
 
+### Busca Global
+
+```
+GET    /api/search?q=termo              # Busca global (contacts, deals, conversations)
+```
+
+Parametros de query:
+- `q` (obrigatorio): termo de busca (minimo 2 caracteres)
+- `limit` (opcional): limite de resultados por tipo (default: 5)
+
+Retorna resultados agrupados por tipo com score de relevancia.
+
 ### Notificacoes, Calendario, Auditoria e Relatorios
 
 ```
@@ -594,11 +614,22 @@ POST   /api/calendar-events             # Criar evento
 PATCH  /api/calendar-events/:id         # Atualizar evento
 DELETE /api/calendar-events/:id         # Excluir evento
 
-GET    /api/audit-logs                  # Logs de auditoria
+GET    /api/audit-logs                  # Logs de auditoria (com filtros e paginacao)
 GET    /api/audit-logs/entity/:entityType/:entityId # Auditoria por entidade
 
 GET    /api/reports                     # Relatorios
 ```
+
+**Parametros do `/api/audit-logs`:**
+- `page` (opcional): pagina atual (default: 1)
+- `limit` (opcional): registros por pagina (default: 50, max: 500)
+- `action` (opcional): filtrar por acao (create, update, delete, lgpd_export, lgpd_delete)
+- `entityType` (opcional): filtrar por tipo de entidade (contact, deal, user, pipeline, stage, etc.)
+- `userId` (opcional): filtrar por usuario que executou a acao
+- `dateFrom` (opcional): data inicial (ISO 8601)
+- `dateTo` (opcional): data final (ISO 8601)
+
+Retorna `{ data: AuditLog[], pagination: { page, limit, total, totalPages, hasMore } }`.
 
 ### Views salvas e Email templates
 
@@ -658,6 +689,10 @@ npm run check
 npm run lint
 # (Opcional) aplicar correcoes automaticas
 npm run lint:fix
+
+# Storybook (documentação de UI)
+npm run storybook
+npm run build-storybook
 ```
 
 ### Banco de Dados
@@ -761,6 +796,10 @@ VITE_FIREBASE_VAPID_KEY=sua-vapid-key-aqui
 
 EVOLUTION_API_URL=https://seu-evolution-api.com
 EVOLUTION_API_KEY=sua-api-key-aqui
+# Hosts extras permitidos para download de midia (SSRF hardening; CSV de hostnames)
+# Por padrao, o download de midia e permitido apenas do host de EVOLUTION_API_URL.
+# Ex.: evolution.seudominio.com,cdn.seudominio.com
+MEDIA_DOWNLOAD_ALLOWED_HOSTS=
 # Prefixo opcional (unico por deploy) para evitar colisao de instanceName quando multiplos CRMs usam a mesma Evolution API
 # Ex.: alma-crm-a, alma-crm-b
 EVOLUTION_INSTANCE_PREFIX=alma-crm-a
@@ -796,9 +835,13 @@ node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 
 ---
 
-## Deploy em Producao (Coolify + Docker)
+## Deploy em Producao (Coolify v4 + Docker)
 
-O deploy e feito usando **Coolify** com integracao GitHub e Dockerfile.
+Infra atual (sem expor IP/segredos): **Coolify v4** rodando em uma **VPS da Hostinger**.
+
+Guia passo a passo (bem didatico, incluindo “onde rodar comandos”, migrations e redeploy): `DEPLOY_COOLIFY_HOSTINGER.md`.
+
+O deploy e feito usando **Coolify** com integracao GitHub e build pack **Dockerfile**.
 
 ### Pre-requisitos
 
@@ -813,7 +856,7 @@ O deploy e feito usando **Coolify** com integracao GitHub e Dockerfile.
 1. Criar novo projeto no Coolify
 2. Conectar com GitHub (repositorio `prospecttrafego/crm-alma-oficial`)
 3. Selecionar branch (`staging` ou `main`)
-4. Coolify detectara automaticamente o `Dockerfile`
+4. Dentro do Project, usar **Create New Resource** e criar uma **Application** com **Build Pack: Dockerfile** (Base Directory `/`)
 
 #### 2. Configurar Variaveis de Ambiente
 
@@ -828,7 +871,7 @@ No painel do Coolify, adicionar todas as variaveis:
 - `DEFAULT_ORGANIZATION_ID`
 - Demais variaveis conforme `.env.example`
 
-**Variaveis de Build (Build Arguments):**
+**Variaveis de Build (Build Variable / build time):**
 - `VITE_ALLOW_REGISTRATION`
 - `VITE_FIREBASE_API_KEY`
 - `VITE_FIREBASE_AUTH_DOMAIN`
@@ -838,7 +881,7 @@ No painel do Coolify, adicionar todas as variaveis:
 - `VITE_FIREBASE_APP_ID`
 - `VITE_FIREBASE_VAPID_KEY`
 
-**Importante:** Variaveis `VITE_*` sao injetadas no build do frontend (Vite) e devem ser configuradas como Build Arguments no Coolify.
+**Importante:** Variaveis `VITE_*` sao injetadas no build do frontend (Vite) e devem estar marcadas como **Build Variable** no Coolify. Se voce mudar `VITE_*`, precisa fazer **Deploy** (rebuild), nao apenas Restart.
 
 #### 3. Deploy
 
@@ -851,17 +894,22 @@ No painel do Coolify, adicionar todas as variaveis:
 **IMPORTANTE:** Migrations devem ser rodadas manualmente apos cada deploy que inclua alteracoes de schema.
 
 ```bash
-# Conectar no terminal do container via Coolify ou SSH
-npm run db:migrate:prod
+# Conectar no terminal do container do app via Coolify (Terminal no painel)
+npm run db:migrate
+
+# (Opcional, apenas 1x) Se o banco ja existia antes de usar migrations e voce precisa "baseline":
+# npm run db:migrate -- --baseline
 ```
+
+Obs.: no Coolify v4 existe “Terminal Access” no servidor (aba Security). Se estiver desabilitado, nenhum terminal funciona ate reabilitar.
 
 #### 5. Criar Primeiro Usuario
 
-1. Configurar `VITE_ALLOW_REGISTRATION=true` como Build Argument
-2. Fazer redeploy
+1. Configurar `VITE_ALLOW_REGISTRATION=true` como **Build Variable** (build time)
+2. Fazer **Deploy** (rebuild)
 3. Acessar a aplicacao e criar conta
 4. Alterar `VITE_ALLOW_REGISTRATION=false`
-5. Fazer novo redeploy
+5. Fazer novo **Deploy** (rebuild)
 
 ### Dockerfile
 
@@ -883,12 +931,16 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
 Para atualizar a aplicacao:
 
 1. Push das alteracoes para o branch configurado (staging/main)
-2. Coolify detecta automaticamente (webhook) ou clicar em "Redeploy"
-3. **Se houver alteracoes de schema:** rodar migrations manualmente apos deploy
+2. Coolify detecta automaticamente (webhook) ou clique em **Deploy**
+3. **Se houver alteracoes de schema:** rodar migrations manualmente apos deploy (no terminal do container do app)
+4. **Se voce mudou `VITE_*`:** faca Deploy (rebuild). Se mudou apenas runtime vars, Restart costuma bastar.
 
 ```bash
 # Apos o container subir, conectar e rodar:
-npm run db:migrate:prod
+npm run db:migrate
+
+# (Opcional, apenas 1x) Se o banco ja existia antes de usar migrations e voce precisa "baseline":
+# npm run db:migrate -- --baseline
 ```
 
 ---
@@ -908,7 +960,7 @@ Verificar se DATABASE_URL esta correta e se o banco aceita conexoes externas.
 
 ### WebSocket nao conecta
 
-Verificar se Nginx esta configurado com os headers de upgrade.
+Verificar se o proxy do Coolify (Caddy/Traefik) esta encaminhando WebSocket corretamente (Upgrade/Connection). Em geral e automatico; confira tambem o dominio/HTTPS e os logs do container.
 
 ### Upload nao funciona
 
@@ -927,10 +979,10 @@ Verificar se SESSION_SECRET esta configurado corretamente.
 ### Atualizar Aplicacao
 
 1. Push para o branch configurado no Coolify (staging/main)
-2. Coolify detecta automaticamente via webhook ou clique em "Redeploy"
-3. Se houver alteracoes de schema, rodar migrations apos deploy:
+2. Coolify detecta automaticamente via webhook ou clique em **Deploy**
+3. Se houver alteracoes de schema, rodar migrations apos deploy (no terminal do container do app):
    ```bash
-   npm run db:migrate:prod
+   npm run db:migrate
    ```
 
 ### Backup do Banco

@@ -8,6 +8,7 @@ import { randomUUID } from "crypto";
 import { and, eq } from "drizzle-orm";
 import { files, users } from "@shared/schema";
 import { db } from "../../db";
+import { MAX_FILE_SIZE_BYTES } from "../../constants";
 import { getSingleTenantOrganizationId } from "../../tenant";
 import { createServiceLogger } from "../../logger";
 
@@ -39,6 +40,7 @@ function getSupabaseClient(): SupabaseClient {
 
 // Nome do bucket padrao para uploads
 const DEFAULT_BUCKET = "uploads";
+const DEFAULT_MEDIA_DOWNLOAD_TIMEOUT_MS = 15000;
 
 export class ObjectNotFoundError extends Error {
   constructor() {
@@ -300,21 +302,76 @@ export class ObjectStorageService {
     mimeType: string,
     fileName?: string,
     folder: string = "whatsapp-media"
-  ): Promise<{ objectPath: string; publicUrl: string }> {
+  ): Promise<{ objectPath: string; publicUrl: string; fileName: string }> {
     try {
+      const parsedUrl = new URL(sourceUrl);
+      if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
+        throw new Error(`Unsupported URL protocol: ${parsedUrl.protocol}`);
+      }
+
+      // SSRF hardening: only allow downloads from explicitly configured hosts.
+      // For WhatsApp media this should be the Evolution API host.
+      const allowedHosts = new Set<string>();
+      if (process.env.EVOLUTION_API_URL) {
+        try {
+          allowedHosts.add(new URL(process.env.EVOLUTION_API_URL).hostname);
+        } catch (_error) {
+          throw new Error("EVOLUTION_API_URL is invalid. Expected a full URL (e.g., https://evolution.example.com).");
+        }
+      }
+
+      const extraAllowedHosts = process.env.MEDIA_DOWNLOAD_ALLOWED_HOSTS;
+      if (extraAllowedHosts) {
+        extraAllowedHosts
+          .split(",")
+          .map((h) => h.trim())
+          .filter(Boolean)
+          .forEach((h) => allowedHosts.add(h));
+      }
+
+      if (allowedHosts.size === 0) {
+        throw new Error(
+          "Media download blocked: no allowed hosts configured (set EVOLUTION_API_URL or MEDIA_DOWNLOAD_ALLOWED_HOSTS)."
+        );
+      }
+
+      if (!allowedHosts.has(parsedUrl.hostname)) {
+        throw new Error(`Media download blocked: host not allowed (${parsedUrl.hostname})`);
+      }
+
       // Fetch the media from the source URL
-      const response = await fetch(sourceUrl, {
-        headers: {
-          'User-Agent': 'CRM-Alma/1.0',
-        },
-      });
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), DEFAULT_MEDIA_DOWNLOAD_TIMEOUT_MS);
+
+      let response: globalThis.Response;
+      try {
+        response = await fetch(sourceUrl, {
+          headers: {
+            'User-Agent': 'CRM-Alma/1.0',
+          },
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timeout);
+      }
 
       if (!response.ok) {
         throw new Error(`Failed to download media: ${response.status}`);
       }
 
+      const contentLength = response.headers.get("content-length");
+      if (contentLength) {
+        const size = Number(contentLength);
+        if (Number.isFinite(size) && size > MAX_FILE_SIZE_BYTES) {
+          throw new Error(`Media download blocked: file too large (${size} bytes)`);
+        }
+      }
+
       const arrayBuffer = await response.arrayBuffer();
       const buffer = Buffer.from(arrayBuffer);
+      if (buffer.length > MAX_FILE_SIZE_BYTES) {
+        throw new Error(`Media download blocked: file too large (${buffer.length} bytes)`);
+      }
 
       // Generate file name if not provided
       const extension = this.getExtensionFromMimeType(mimeType);
@@ -324,7 +381,7 @@ export class ObjectStorageService {
       const objectPath = await this.uploadFile(buffer, finalFileName, mimeType, folder);
       const publicUrl = this.getPublicUrl(objectPath);
 
-      return { objectPath, publicUrl };
+      return { objectPath, publicUrl, fileName: finalFileName };
     } catch (error) {
       storageLogger.error("Error downloading/uploading media", { error });
       throw error;

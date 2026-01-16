@@ -3,7 +3,7 @@
  * Handles WhatsApp integration operations via Evolution API
  */
 
-import { evolutionApi } from "../integrations/evolution/api";
+import { evolutionApi, REQUIRED_WEBHOOK_EVENTS } from "../integrations/evolution/api";
 import { storage } from "../storage";
 import { logger, whatsappLogger } from "../logger";
 import type { ChannelConfig } from "@shared/schema";
@@ -37,7 +37,24 @@ export function buildInstanceName(organizationId: number, channelConfigId: numbe
 }
 
 /**
+ * Build webhook URL with optional secret token
+ */
+function buildWebhookUrl(): string {
+  const appUrl = process.env.APP_URL || `http://localhost:${process.env.PORT || 3000}`;
+  const webhookSecret = process.env.EVOLUTION_WEBHOOK_SECRET;
+  const webhookUrl = new URL("/api/webhooks/evolution", appUrl);
+  if (webhookSecret) {
+    webhookUrl.searchParams.set("token", webhookSecret);
+  }
+  return webhookUrl.toString();
+}
+
+/**
  * Connect WhatsApp instance and get QR code for pairing
+ * Uses Evolution API v2.3.7 best practices:
+ * - Includes webhook in instance creation
+ * - Cleans corrupted instances before recreating
+ * - Returns immediately if already connected
  */
 export async function connectWhatsApp(
   config: ChannelConfig,
@@ -74,60 +91,99 @@ export async function connectWhatsApp(
     exists: !!existingInstance,
   });
 
-  if (!existingInstance) {
-    // Create new instance
-    whatsappLogger.info("[WhatsApp] Creating new instance...", { instanceName });
-    await evolutionApi.createInstance(instanceName);
-    whatsappLogger.info("[WhatsApp] Instance created successfully", { instanceName });
-  }
-
-  // Set (or refresh) webhook URL for this instance
-  const appUrl = process.env.APP_URL || `http://localhost:${process.env.PORT || 3000}`;
-  const webhookSecret = process.env.EVOLUTION_WEBHOOK_SECRET;
-  const webhookUrl = new URL("/api/webhooks/evolution", appUrl);
-  if (webhookSecret) {
-    webhookUrl.searchParams.set("token", webhookSecret);
-  }
-  // Log webhook URL without exposing the token
-  const logUrl = new URL(webhookUrl.toString());
+  // Build webhook URL
+  const webhookUrl = buildWebhookUrl();
+  const logUrl = new URL(webhookUrl);
   if (logUrl.searchParams.has("token")) {
     logUrl.searchParams.set("token", "***");
   }
-  whatsappLogger.info("[WhatsApp] Setting webhook", {
-    instanceName,
-    webhookUrl: logUrl.toString(),
-  });
-  await evolutionApi.setWebhook(instanceName, webhookUrl.toString());
-  whatsappLogger.info("[WhatsApp] Webhook set successfully");
+  whatsappLogger.info("[WhatsApp] Webhook URL", { webhookUrl: logUrl.toString() });
 
-  // Get QR code
-  whatsappLogger.info("[WhatsApp] Requesting QR code...", { instanceName });
-  const qrData = await evolutionApi.getQrCode(instanceName);
-  whatsappLogger.info("[WhatsApp] QR code response received", {
-    instanceName,
-    hasBase64: !!qrData?.base64,
-    hasCode: !!qrData?.code,
-    hasPairingCode: !!qrData?.pairingCode,
-    base64Length: qrData?.base64?.length || 0,
-    codeLength: qrData?.code?.length || 0,
-  });
+  let needsNewInstance = !existingInstance;
 
-  // Validate QR code response
-  if (!qrData || (!qrData.base64 && !qrData.code)) {
-    whatsappLogger.error("[WhatsApp] QR Code response is empty or invalid", {
+  // If instance exists, check its state
+  if (existingInstance) {
+    try {
+      const status = await evolutionApi.getConnectionStatus(instanceName);
+      whatsappLogger.info("[WhatsApp] Existing instance status", {
+        instanceName,
+        state: status.state,
+      });
+
+      // If already connected, return current status
+      if (status.state === "open") {
+        const whatsappConfig = (config.whatsappConfig || {}) as Record<string, unknown>;
+        whatsappConfig.connectionStatus = "connected";
+        whatsappConfig.instanceName = instanceName;
+        whatsappConfig.lastConnectedAt = new Date().toISOString();
+        await storage.updateChannelConfig(config.id, {
+          whatsappConfig: whatsappConfig as ChannelConfig["whatsappConfig"],
+        });
+        return {
+          instanceName,
+          status: "connected",
+        };
+      }
+
+      // Instance exists but not connected - just get QR code
+      whatsappLogger.info("[WhatsApp] Instance exists but not connected, refreshing QR code");
+    } catch (error) {
+      // Instance exists but in corrupted state - force clean and recreate
+      whatsappLogger.warn("[WhatsApp] Instance in corrupted state, cleaning...", {
+        instanceName,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      await evolutionApi.forceCleanInstance(instanceName);
+      needsNewInstance = true;
+    }
+  }
+
+  // Create new instance WITH webhook integrated (if instance doesn't exist or was cleaned)
+  let qrCode: string | undefined;
+  let pairingCode: string | undefined;
+
+  if (needsNewInstance) {
+    whatsappLogger.info("[WhatsApp] Creating new instance with integrated webhook...", { instanceName });
+    const instance = await evolutionApi.createInstance(instanceName, {
+      url: webhookUrl,
+      events: REQUIRED_WEBHOOK_EVENTS,
+    });
+    whatsappLogger.info("[WhatsApp] Instance created successfully", {
+      instanceName,
+      hasQrCode: !!instance.qrcode?.base64 || !!instance.qrcode?.code,
+      hasPairingCode: !!instance.qrcode?.pairingCode,
+    });
+
+    // QR code may come directly from creation
+    qrCode = instance.qrcode?.base64 || instance.qrcode?.code;
+    pairingCode = instance.qrcode?.pairingCode;
+  }
+
+  // If QR code not in creation response, get it via /connect endpoint
+  if (!qrCode) {
+    whatsappLogger.info("[WhatsApp] Requesting QR code...", { instanceName });
+    const qrData = await evolutionApi.getQrCode(instanceName);
+    whatsappLogger.info("[WhatsApp] QR code response received", {
       instanceName,
       hasBase64: !!qrData?.base64,
       hasCode: !!qrData?.code,
       hasPairingCode: !!qrData?.pairingCode,
-      // Don't log the actual QR data to avoid security risks
     });
+
+    qrCode = qrData.base64 || qrData.code;
+    pairingCode = qrData.pairingCode;
+  }
+
+  // Validate QR code response
+  if (!qrCode) {
+    whatsappLogger.error("[WhatsApp] QR Code response is empty or invalid", { instanceName });
     throw new Error("Failed to get QR Code from Evolution API - empty response");
   }
 
   // Update channel config with instance name and QR code
   const whatsappConfig = (config.whatsappConfig || {}) as Record<string, unknown>;
   whatsappConfig.instanceName = instanceName;
-  whatsappConfig.qrCode = qrData.base64 || qrData.code;
+  whatsappConfig.qrCode = qrCode;
   whatsappConfig.connectionStatus = "qr_pending";
 
   await storage.updateChannelConfig(config.id, {
@@ -154,8 +210,8 @@ export async function connectWhatsApp(
 
   return {
     instanceName,
-    qrCode: qrData.base64 || qrData.code,
-    pairingCode: qrData.pairingCode,
+    qrCode,
+    pairingCode,
     status: "qr_pending",
   };
 }

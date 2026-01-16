@@ -61,6 +61,16 @@ export const createDealSchema = baseInsertDealSchema
     organizationId: true,
     createdAt: true,
     updatedAt: true,
+  })
+  .superRefine((data, ctx) => {
+    if (data.status !== "lost") return;
+    if (typeof data.lostReason !== "string" || data.lostReason.trim().length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["lostReason"],
+        message: "lostReason is required when status is 'lost'",
+      });
+    }
   });
 
 export const updateDealSchema = baseUpdateDealSchema
@@ -68,12 +78,31 @@ export const updateDealSchema = baseUpdateDealSchema
     organizationId: true,
     createdAt: true,
     updatedAt: true,
+  })
+  .superRefine((data, ctx) => {
+    if (data.status !== "lost") return;
+    if (typeof data.lostReason !== "string" || data.lostReason.trim().length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["lostReason"],
+        message: "lostReason is required when status is 'lost'",
+      });
+    }
   });
 
 export const moveDealSchema = z.object({
   stageId: z.number().int().positive(),
   status: z.enum(["open", "won", "lost"]).optional(),
   lostReason: z.string().optional(),
+}).superRefine((data, ctx) => {
+  if (data.status !== "lost") return;
+  if (typeof data.lostReason !== "string" || data.lostReason.trim().length === 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["lostReason"],
+      message: "lostReason is required when status is 'lost'",
+    });
+  }
 });
 
 // ===== PIPELINES =====
@@ -140,9 +169,19 @@ export const createMessageSchema = baseInsertMessageSchema
     senderId: true,
     senderType: true,
     readBy: true,
-    externalId: true,
     createdAt: true,
+  })
+  .extend({
+    // externalId is optional for idempotency (client can send a UUID to prevent duplicates on retry)
+    externalId: baseInsertMessageSchema.shape.externalId.optional(),
+    // replyToId is optional for reply/quote feature
+    replyToId: baseInsertMessageSchema.shape.replyToId.optional(),
   });
+
+// Schema for editing a message (only content can be edited)
+export const updateMessageSchema = z.object({
+  content: z.string().min(1, "Content is required"),
+});
 
 // ===== ACTIVITIES =====
 
@@ -309,6 +348,7 @@ export type CreateConversationDTO = z.infer<typeof createConversationSchema>;
 export type UpdateConversationDTO = z.infer<typeof updateConversationSchema>;
 
 export type CreateMessageDTO = z.infer<typeof createMessageSchema>;
+export type UpdateMessageDTO = z.infer<typeof updateMessageSchema>;
 
 export type CreateActivityDTO = z.infer<typeof createActivitySchema>;
 export type UpdateActivityDTO = z.infer<typeof updateActivitySchema>;

@@ -49,6 +49,7 @@ import type {
 import type { PaginationParams, PaginatedResult } from "./storage/helpers";
 import type { UpdateUserProfileInput } from "./storage/users";
 import type { ContactWithStats } from "./storage/contacts";
+import type { AuditLogsFilters, PaginatedAuditLogsResult } from "./storage/auditLogs";
 
 import * as usersStorage from "./storage/users";
 import * as organizationsStorage from "./storage/organizations";
@@ -102,6 +103,10 @@ export interface IStorage {
     organizationId: number,
     params: PaginationParams,
   ): Promise<PaginatedResult<Contact>>;
+  getContactsPaginatedWithStats(
+    organizationId: number,
+    params: PaginationParams,
+  ): Promise<PaginatedResult<ContactWithStats>>;
   getContact(id: number): Promise<Contact | undefined>;
   getContactByPhone(phone: string, organizationId: number): Promise<Contact | undefined>;
   getContactByEmail(email: string, organizationId: number): Promise<Contact | undefined>;
@@ -167,6 +172,13 @@ export interface IStorage {
   getConversationsByContact(contactId: number): Promise<Conversation[]>;
   deleteMessagesByConversation(conversationId: number): Promise<number>;
   deleteConversationsByContact(contactId: number): Promise<number>;
+  searchMessages(
+    query: string,
+    options?: { conversationId?: number; limit?: number; offset?: number },
+  ): Promise<{ results: conversationsStorage.MessageSearchResult[]; total: number }>;
+  getMessage(id: number): Promise<Message | undefined>;
+  updateMessage(id: number, senderId: string, newContent: string): Promise<Message | undefined>;
+  softDeleteMessage(id: number, senderId: string): Promise<Message | undefined>;
 
   // Activities
   getActivities(organizationId: number): Promise<Activity[]>;
@@ -239,6 +251,7 @@ export interface IStorage {
 
   // Audit logs
   getAuditLogs(organizationId: number, limit?: number): Promise<AuditLog[]>;
+  getAuditLogsPaginated(filters: AuditLogsFilters, page?: number, limit?: number): Promise<PaginatedAuditLogsResult>;
   getAuditLogsByEntity(entityType: AuditLogEntityType, entityId: number): Promise<AuditLog[]>;
   createAuditLog(log: InsertAuditLog): Promise<AuditLog>;
 

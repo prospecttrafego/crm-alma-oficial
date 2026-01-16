@@ -16,7 +16,6 @@ import { cn } from "@/lib/utils";
 import {
   flexRender,
   getCoreRowModel,
-  getFilteredRowModel,
   getSortedRowModel,
   useReactTable,
   type ColumnOrderState,
@@ -24,8 +23,8 @@ import {
   type SortingState,
   type VisibilityState,
 } from "@tanstack/react-table";
-import { Columns, Search, User } from "lucide-react";
-import type { ContactWithStats } from "@/lib/api/contacts";
+import { Columns, Loader2, Search, User } from "lucide-react";
+import type { ContactWithStats, PaginationMeta } from "@/lib/api/contacts";
 import {
   CONTACTS_DEFAULT_COLUMN_ORDER,
   createContactsColumns,
@@ -33,6 +32,8 @@ import {
 } from "./contacts-columns";
 import { ContactsColumnsDialog } from "./contacts-columns-dialog";
 import { NewContactDialog } from "./new-contact-dialog";
+import { ContactsTableVirtualized } from "./contacts-table-virtualized";
+import { ContactsPaginationControls } from "./contacts-pagination-controls";
 
 const COLUMN_VISIBILITY_KEY = "contacts-column-visibility";
 const COLUMN_ORDER_KEY = "contacts-column-order";
@@ -62,18 +63,40 @@ function normalizeColumnOrder(order: string[]): ColumnOrderState {
 export function ContactsTable({
   contacts,
   isLoading,
+  isFetching,
+  pagination,
+  searchQuery,
   onSelectContact,
+  onPageChange,
+  onSearchChange,
+  onPageSizeChange,
 }: {
   contacts: ContactWithStats[];
   isLoading: boolean;
+  isFetching?: boolean;
+  pagination?: PaginationMeta;
+  searchQuery: string;
   onSelectContact: (contact: ContactWithStats) => void;
+  onPageChange: (page: number) => void;
+  onSearchChange: (search: string) => void;
+  onPageSizeChange: (limit: number) => void;
 }) {
   const { t, language } = useTranslation();
   const { deleteContact } = useContactMutations();
   const [columnsDialogOpen, setColumnsDialogOpen] = useState(false);
   const [newContactOpen, setNewContactOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [localSearch, setLocalSearch] = useState(searchQuery);
   const [sorting, setSorting] = useState<SortingState>([]);
+
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (localSearch !== searchQuery) {
+        onSearchChange(localSearch);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [localSearch, searchQuery, onSearchChange]);
 
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(() => {
     const saved = safeLoadJson<VisibilityState>(COLUMN_VISIBILITY_KEY);
@@ -142,21 +165,20 @@ export function ContactsTable({
     data: contacts,
     columns,
     enableColumnResizing: true,
+    manualPagination: true,
+    manualFiltering: true,
     state: {
       sorting,
       columnVisibility,
       columnOrder,
       columnSizing,
-      globalFilter: searchQuery,
     },
     onSortingChange: setSorting,
     onColumnVisibilityChange: setColumnVisibility,
     onColumnOrderChange: setColumnOrder,
     onColumnSizingChange: setColumnSizing,
-    onGlobalFilterChange: setSearchQuery,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
     columnResizeMode: "onChange",
   });
 
@@ -192,10 +214,13 @@ export function ContactsTable({
           <Input
             placeholder={t("common.search")}
             className="pl-9"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            value={localSearch}
+            onChange={(e) => setLocalSearch(e.target.value)}
             data-testid="input-search-contacts"
           />
+          {isFetching && (
+            <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-muted-foreground" />
+          )}
         </div>
 
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
@@ -211,44 +236,33 @@ export function ContactsTable({
         </div>
       </div>
 
-      <Table
-        containerClassName="flex-1 min-h-0 rounded-md border"
-        className="min-w-full"
-        style={{ width: table.getTotalSize() }}
-      >
-        <TableHeader>
-          {table.getHeaderGroups().map((headerGroup) => (
-            <TableRow key={headerGroup.id}>
-              {headerGroup.headers.map((header) => (
-                <TableHead
-                  key={header.id}
-                  style={{ width: header.getSize() }}
-                  className="relative group"
-                >
-                  <div className="flex min-w-0 items-center">
-                    {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
-                  </div>
-
-                  {header.column.getCanResize() ? (
-                    <div
-                      onMouseDown={header.getResizeHandler()}
-                      onTouchStart={header.getResizeHandler()}
-                      className={cn(
-                        "absolute right-0 top-0 h-full w-1 touch-none select-none opacity-0 group-hover:opacity-100",
-                        header.column.getIsResizing()
-                          ? "bg-primary"
-                          : "bg-border/40 hover:bg-border",
-                      )}
-                    />
-                  ) : null}
-                </TableHead>
-              ))}
-            </TableRow>
-          ))}
-        </TableHeader>
-        <TableBody>
-          {isLoading ? (
-            [...Array(6)].map((_, i) => (
+      {isLoading ? (
+        <Table containerClassName="flex-1 min-h-0 rounded-md border" className="min-w-full" style={{ width: table.getTotalSize() }}>
+          <TableHeader>
+            {table.getHeaderGroups().map((headerGroup) => (
+              <TableRow key={headerGroup.id}>
+                {headerGroup.headers.map((header) => (
+                  <TableHead key={header.id} style={{ width: header.getSize() }} className="relative group">
+                    <div className="flex min-w-0 items-center">
+                      {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
+                    </div>
+                    {header.column.getCanResize() ? (
+                      <div
+                        onMouseDown={header.getResizeHandler()}
+                        onTouchStart={header.getResizeHandler()}
+                        className={cn(
+                          "absolute right-0 top-0 h-full w-1 touch-none select-none opacity-0 group-hover:opacity-100",
+                          header.column.getIsResizing() ? "bg-primary" : "bg-border/40 hover:bg-border",
+                        )}
+                      />
+                    ) : null}
+                  </TableHead>
+                ))}
+              </TableRow>
+            ))}
+          </TableHeader>
+          <TableBody>
+            {[...Array(6)].map((_, i) => (
               <TableRow key={i}>
                 {table.getVisibleLeafColumns().map((col) => (
                   <TableCell key={col.id} style={{ width: col.getSize() }}>
@@ -256,23 +270,39 @@ export function ContactsTable({
                   </TableCell>
                 ))}
               </TableRow>
-            ))
-          ) : table.getRowModel().rows.length > 0 ? (
-            table.getRowModel().rows.map((row) => (
-              <TableRow
-                key={row.id}
-                className="cursor-pointer"
-                onClick={() => onSelectContact(row.original)}
-                data-testid={`row-contact-${row.original.id}`}
-              >
-                {row.getVisibleCells().map((cell) => (
-                  <TableCell key={cell.id} style={{ width: cell.column.getSize() }}>
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </TableCell>
+            ))}
+          </TableBody>
+        </Table>
+      ) : table.getRowModel().rows.length > 0 ? (
+        <div className="min-h-0 flex-1">
+          <ContactsTableVirtualized table={table} onSelectContact={onSelectContact} />
+        </div>
+      ) : (
+        <Table containerClassName="flex-1 min-h-0 rounded-md border" className="min-w-full" style={{ width: table.getTotalSize() }}>
+          <TableHeader>
+            {table.getHeaderGroups().map((headerGroup) => (
+              <TableRow key={headerGroup.id}>
+                {headerGroup.headers.map((header) => (
+                  <TableHead key={header.id} style={{ width: header.getSize() }} className="relative group">
+                    <div className="flex min-w-0 items-center">
+                      {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
+                    </div>
+                    {header.column.getCanResize() ? (
+                      <div
+                        onMouseDown={header.getResizeHandler()}
+                        onTouchStart={header.getResizeHandler()}
+                        className={cn(
+                          "absolute right-0 top-0 h-full w-1 touch-none select-none opacity-0 group-hover:opacity-100",
+                          header.column.getIsResizing() ? "bg-primary" : "bg-border/40 hover:bg-border",
+                        )}
+                      />
+                    ) : null}
+                  </TableHead>
                 ))}
               </TableRow>
-            ))
-          ) : (
+            ))}
+          </TableHeader>
+          <TableBody>
             <TableRow>
               <TableCell colSpan={table.getVisibleLeafColumns().length} className="h-32 text-center">
                 <div className="flex flex-col items-center justify-center text-muted-foreground">
@@ -282,9 +312,18 @@ export function ContactsTable({
                 </div>
               </TableCell>
             </TableRow>
-          )}
-        </TableBody>
-      </Table>
+          </TableBody>
+        </Table>
+      )}
+
+      {pagination && (
+        <ContactsPaginationControls
+          pagination={pagination}
+          isFetching={isFetching}
+          onPageChange={onPageChange}
+          onPageSizeChange={onPageSizeChange}
+        />
+      )}
 
       <ContactsColumnsDialog
         open={columnsDialogOpen}

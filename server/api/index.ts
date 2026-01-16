@@ -21,6 +21,7 @@ import { registerPipelineRoutes } from "./pipelines";
 import { registerPushTokenRoutes } from "./pushTokens";
 import { registerReportRoutes } from "./reports";
 import { registerSavedViewRoutes } from "./savedViews";
+import { registerSearchRoutes } from "./search";
 import { registerUserRoutes } from "./users";
 
 export function registerApiRoutes(app: Express) {
@@ -47,4 +48,5 @@ export function registerApiRoutes(app: Express) {
   registerObjectRoutes(app);
   registerLgpdRoutes(app);
   registerJobRoutes(app);
+  registerSearchRoutes(app);
 }

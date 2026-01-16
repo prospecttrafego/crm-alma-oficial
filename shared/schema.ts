@@ -8,6 +8,7 @@ import {
   boolean,
   jsonb,
   index,
+  foreignKey,
   decimal,
   check,
 } from "drizzle-orm/pg-core";
@@ -298,14 +299,34 @@ export const messages = pgTable(
     readBy: text("read_by").array(),
     // External ID for idempotency (e.g., WhatsApp message ID)
     externalId: varchar("external_id", { length: 255 }),
+    // Reply/Quote: references the message being replied to
+    replyToId: integer("reply_to_id"),
+    // Edit/Delete fields
+    editedAt: timestamp("edited_at"),
+    deletedAt: timestamp("deleted_at"),
+    originalContent: text("original_content"),
     createdAt: timestamp("created_at").defaultNow(),
   },
   (table) => [
+    // Self-referencing FK: reply_to_id -> messages.id (nullable, ON DELETE SET NULL)
+    foreignKey({
+      columns: [table.replyToId],
+      foreignColumns: [table.id],
+    }).onDelete("set null"),
     index("idx_messages_conversation").on(table.conversationId),
     index("idx_messages_created_at").on(table.createdAt),
     index("idx_messages_external_id").on(table.externalId),
     // Composite index for pagination queries
     index("idx_messages_conv_created").on(table.conversationId, table.createdAt),
+    // Index for reply lookups
+    index("idx_messages_reply_to").on(table.replyToId),
+    // Index for soft-delete filtering
+    index("idx_messages_deleted_at").on(table.deletedAt),
+    // Full-text search index (expression-based, no generated column required)
+    index("idx_messages_content_search").using(
+      "gin",
+      sql`to_tsvector('portuguese', coalesce(${table.content}, ''))`,
+    ),
   ]
 );
 
@@ -318,7 +339,7 @@ export const activityStatuses = ["pending", "completed", "cancelled"] as const;
 export type ActivityStatus = (typeof activityStatuses)[number];
 
 // Saved view types
-export const savedViewTypes = ["pipeline", "inbox", "contacts", "companies", "deals", "activities"] as const;
+export const savedViewTypes = ["pipeline", "inbox", "contacts", "companies", "deals", "activities", "auditLog"] as const;
 export type SavedViewType = (typeof savedViewTypes)[number];
 
 // Saved views table

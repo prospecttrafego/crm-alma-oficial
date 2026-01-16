@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
@@ -19,12 +19,14 @@ import {
   AtSign,
   UserPlus,
   Check,
+  BellRing,
 } from "lucide-react";
 import type { Notification } from "@shared/schema";
-import { formatDistanceToNow } from "date-fns";
-import { enUS, ptBR } from "date-fns/locale";
 import { useTranslation } from "@/contexts/LanguageContext";
 import { notificationsApi } from "@/lib/api/notifications";
+import { useToast } from "@/hooks/use-toast";
+import { useDesktopNotifications } from "@/hooks/useDesktopNotifications";
+import { formatRelativeTimeFromNow } from "@/lib/relativeTime";
 
 const notificationIcons: Record<string, typeof Bell> = {
   new_message: MessageSquare,
@@ -37,10 +39,35 @@ const notificationIcons: Record<string, typeof Bell> = {
   conversation_assigned: MessageSquare,
 };
 
+// Types that should show toast notifications
+const toastNotificationTypes = new Set([
+  "deal_won",
+  "deal_lost",
+  "mention",
+  "task_due",
+]);
+
+// Types that should show desktop notifications
+const desktopNotificationTypes = new Set([
+  "new_message",
+  "deal_won",
+  "deal_lost",
+  "mention",
+  "task_due",
+  "activity_assigned",
+]);
+
 export function NotificationBell() {
   const [open, setOpen] = useState(false);
   const { t, language } = useTranslation();
-  const locale = language === "pt-BR" ? ptBR : enUS;
+  const { toast } = useToast();
+  const intlLocale = language === "pt-BR" ? "pt-BR" : "en-US";
+  const {
+    isSupported: desktopNotificationsSupported,
+    permission: desktopPermission,
+    requestPermission,
+    showNotification: showDesktopNotification,
+  } = useDesktopNotifications();
 
   const { data: notifications, isLoading } = useQuery<Notification[]>({
     queryKey: ["/api/notifications"],
@@ -50,7 +77,8 @@ export function NotificationBell() {
   const { data: unreadData } = useQuery<{ count: number }>({
     queryKey: ["/api/notifications/unread-count"],
     queryFn: notificationsApi.unreadCount,
-    refetchInterval: 30000,
+    // WebSocket handles real-time updates, but keep a fallback interval for safety
+    refetchInterval: 60000,
   });
 
   const markReadMutation = useMutation({
@@ -76,6 +104,88 @@ export function NotificationBell() {
     return Icon;
   };
 
+  // Handle incoming WebSocket notifications
+  const handleNewNotification = useCallback(
+    (notification: { type: string; title: string; message?: string }) => {
+      // Show toast for important notifications
+      if (toastNotificationTypes.has(notification.type)) {
+        const Icon = notificationIcons[notification.type] || Bell;
+        toast({
+          title: notification.title,
+          description: notification.message,
+          action: (
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10">
+              <Icon className="h-4 w-4 text-primary" />
+            </div>
+          ),
+        });
+      }
+
+      // Show desktop notification if tab is not focused
+      if (
+        desktopNotificationsSupported &&
+        desktopPermission === "granted" &&
+        desktopNotificationTypes.has(notification.type)
+      ) {
+        showDesktopNotification({
+          title: notification.title,
+          body: notification.message,
+          tag: `notification-${Date.now()}`,
+          onClick: () => {
+            setOpen(true);
+          },
+        });
+      }
+
+      // Update unread count optimistically
+      queryClient.setQueryData<{ count: number }>(
+        ["/api/notifications/unread-count"],
+        (old) => ({
+          count: (old?.count || 0) + 1,
+        })
+      );
+    },
+    [toast, desktopNotificationsSupported, desktopPermission, showDesktopNotification]
+  );
+
+  const hasInitializedRef = useRef(false);
+  const seenNotificationIdsRef = useRef<Set<number>>(new Set());
+
+  // Show toast/desktop notifications when new notifications arrive.
+  // The WebSocket connection invalidates the query; we detect new rows on refetch.
+  useEffect(() => {
+    if (!notifications) return;
+
+    const currentIds = new Set(notifications.map((n) => n.id));
+
+    // First load: mark as initialized, don't notify for historical rows.
+    if (!hasInitializedRef.current) {
+      hasInitializedRef.current = true;
+      seenNotificationIdsRef.current = currentIds;
+      return;
+    }
+
+    const newNotifications = notifications.filter((n) => !seenNotificationIdsRef.current.has(n.id) && !n.isRead);
+    newNotifications.forEach((notification) => {
+      handleNewNotification({
+        type: notification.type,
+        title: notification.title,
+        message: notification.message || undefined,
+      });
+    });
+
+    seenNotificationIdsRef.current = currentIds;
+  }, [handleNewNotification, notifications]);
+
+  // Request desktop notification permission on first interaction
+  const handleBellClick = async () => {
+    setOpen(true);
+
+    if (desktopNotificationsSupported && desktopPermission === "default") {
+      await requestPermission();
+    }
+  };
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -84,8 +194,14 @@ export function NotificationBell() {
           size="icon"
           className="relative"
           data-testid="button-notifications"
+          aria-label={t("a11y.notifications")}
+          onClick={handleBellClick}
         >
-          <Bell className="h-5 w-5" />
+          {unreadCount > 0 ? (
+            <BellRing className="h-5 w-5 animate-pulse" aria-hidden="true" />
+          ) : (
+            <Bell className="h-5 w-5" aria-hidden="true" />
+          )}
           {unreadCount > 0 && (
             <Badge
               variant="destructive"
@@ -129,8 +245,8 @@ export function NotificationBell() {
                 return (
                   <div
                     key={notification.id}
-                    className={`flex cursor-pointer gap-3 px-4 py-3 hover-elevate ${
-                      !notification.isRead ? "bg-muted/50" : ""
+                    className={`flex cursor-pointer gap-3 px-4 py-3 transition-colors hover:bg-muted/50 ${
+                      !notification.isRead ? "bg-muted/30" : ""
                     }`}
                     onClick={() => {
                       if (!notification.isRead) {
@@ -153,9 +269,9 @@ export function NotificationBell() {
                       )}
                       <p className="text-xs text-muted-foreground">
                         {notification.createdAt
-                          ? formatDistanceToNow(new Date(notification.createdAt), {
-                              addSuffix: true,
-                              locale,
+                          ? formatRelativeTimeFromNow(notification.createdAt, {
+                              locale: intlLocale,
+                              justNow: t("notifications.justNow"),
                             })
                           : t("notifications.justNow")}
                       </p>

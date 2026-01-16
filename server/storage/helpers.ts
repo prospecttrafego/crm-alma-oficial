@@ -23,6 +23,13 @@ const DEFAULT_PAGE = 1;
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 100;
 
+/**
+ * Normalizes pagination params and returns `{ page, limit, offset }`.
+ *
+ * - `page` is clamped to 1+
+ * - `limit` is clamped to 1..MAX_LIMIT
+ * - `offset` is derived as `(page - 1) * limit`
+ */
 export function normalizePagination(
   params: PaginationParams,
 ): { page: number; limit: number; offset: number } {
@@ -42,6 +49,11 @@ export function normalizePhone(phone: string | null | undefined): string | null 
   return normalized.length > 0 ? normalized : null;
 }
 
+/**
+ * Returns the current tenant organization ID.
+ *
+ * This CRM runs in single-tenant mode per installation, so this resolves to `DEFAULT_ORGANIZATION_ID`.
+ */
 export async function getTenantOrganizationId(): Promise<number> {
   return getSingleTenantOrganizationId();
 }

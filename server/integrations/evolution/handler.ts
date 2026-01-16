@@ -7,6 +7,7 @@ import { storage } from '../../storage';
 import { whatsappLogger } from '../../logger';
 import { ObjectStorageService } from '../supabase/storage';
 import { autoCreateDealForContact } from '../../services/deal-auto-creator';
+import { broadcast as wsBroadcast } from '../../ws/index';
 
 // Evolution API webhook event types
 export interface EvolutionWebhookEvent {
@@ -70,6 +71,7 @@ export interface EvolutionQRCodeUpdate {
 
 // WebSocket broadcast function type
 type BroadcastFn = (organizationId: number, event: string, data: unknown) => void;
+type BroadcastToConversationFn = (conversationId: number, event: string, data: unknown) => void;
 
 // Attachment structure for messages
 interface MessageAttachment {
@@ -80,8 +82,16 @@ interface MessageAttachment {
   size?: number;
 }
 
+interface ProcessedMedia {
+  attachment: MessageAttachment;
+  objectPath: string;
+  fileName: string;
+  mimeType: string;
+}
+
 export class EvolutionMessageHandler {
   private broadcast: BroadcastFn | null = null;
+  private broadcastToConversation: BroadcastToConversationFn | null = null;
   private objectStorage: ObjectStorageService;
 
   constructor() {
@@ -93,6 +103,13 @@ export class EvolutionMessageHandler {
    */
   setBroadcast(fn: BroadcastFn) {
     this.broadcast = fn;
+  }
+
+  /**
+   * Set the broadcast function for conversation-specific WebSocket notifications
+   */
+  setBroadcastToConversation(fn: BroadcastToConversationFn) {
+    this.broadcastToConversation = fn;
   }
 
   /**
@@ -138,42 +155,28 @@ export class EvolutionMessageHandler {
    */
   private async processMedia(
     msg: EvolutionMessage,
-    organizationId: number
-  ): Promise<MessageAttachment | null> {
+  ): Promise<ProcessedMedia | null> {
     const mediaInfo = this.getMediaInfo(msg);
     if (!mediaInfo) return null;
 
     try {
       whatsappLogger.info(`[Evolution Handler] Downloading media: ${mediaInfo.mimeType}`);
 
-      const { objectPath, publicUrl } = await this.objectStorage.downloadAndUploadFromUrl(
+      const { objectPath, publicUrl, fileName: storedFileName } = await this.objectStorage.downloadAndUploadFromUrl(
         mediaInfo.url,
         mediaInfo.mimeType,
         mediaInfo.fileName
       );
 
-      // Register file in database
       const contentType = this.getContentType(msg);
-      const fileName = mediaInfo.fileName || `whatsapp_${contentType}_${Date.now()}`;
-
-      const file = await storage.createFile({
-        name: fileName,
-        objectPath: `/objects/${objectPath}`,
-        mimeType: mediaInfo.mimeType,
-        entityType: 'message',
-        entityId: 0, // Will be updated after message creation
-        organizationId,
-        uploadedBy: undefined, // Contact upload (no user)
-      });
-
-      whatsappLogger.info(`[Evolution Handler] Media stored: ${file.id}`);
-
-      return {
-        name: fileName,
+      const attachment: MessageAttachment = {
+        name: storedFileName,
         url: publicUrl,
         type: contentType,
         mimeType: mediaInfo.mimeType,
       };
+
+      return { attachment, objectPath, fileName: storedFileName, mimeType: mediaInfo.mimeType };
     } catch (error) {
       whatsappLogger.error('[Evolution Handler] Error processing media', {
         error: error instanceof Error ? error.message : String(error),
@@ -317,8 +320,8 @@ export class EvolutionMessageHandler {
         }
 
         // Process media if present
-        const mediaAttachment = await this.processMedia(msg, organizationId);
-        const attachments = mediaAttachment ? [mediaAttachment] : undefined;
+        const media = await this.processMedia(msg);
+        const attachments = media ? [media.attachment] : undefined;
 
         // Create message with external ID for idempotency
         const message = await storage.createMessage({
@@ -332,7 +335,21 @@ export class EvolutionMessageHandler {
           attachments: attachments as any,
         });
 
-        whatsappLogger.info(`[Evolution Handler] Created message: ${message.id}${mediaAttachment ? ' with media' : ''}`);
+        whatsappLogger.info(`[Evolution Handler] Created message: ${message.id}${media ? ' with media' : ''}`);
+
+        // Register file after we have the message ID (prevents orphan records with entityId=0)
+        if (media) {
+          const file = await storage.createFile({
+            name: media.fileName,
+            objectPath: `/objects/${media.objectPath}`,
+            mimeType: media.mimeType,
+            entityType: 'message',
+            entityId: message.id,
+            organizationId,
+            uploadedBy: undefined, // Contact upload (no user)
+          });
+          whatsappLogger.info(`[Evolution Handler] Media stored: ${file.id}`);
+        }
 
         // Queue new_message broadcast
         pendingBroadcasts.push({
@@ -343,6 +360,21 @@ export class EvolutionMessageHandler {
             contact,
           },
         });
+
+        // Broadcast direcionado para usuarios inscritos na conversa
+        if (this.broadcastToConversation) {
+          this.broadcastToConversation(conversation.id, 'message:created', message);
+        }
+
+        // Update conversation list (unreadCount/lastMessageAt) for all clients
+        const updatedConversation = await storage.getConversation(conversation.id);
+        if (updatedConversation) {
+          wsBroadcast("conversation:updated", {
+            conversationId: updatedConversation.id,
+            lastMessageAt: updatedConversation.lastMessageAt,
+            unreadCount: updatedConversation.unreadCount,
+          });
+        }
 
         // Send all broadcasts AFTER all DB operations completed successfully
         if (this.broadcast) {
