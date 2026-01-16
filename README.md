@@ -81,8 +81,8 @@ cp .env.example .env.production
 # Aplicar migrations no banco
 npm run db:migrate
 
-# (Somente dev/local) Sincronizar schema direto
-npm run db:push:dev
+# (Opcional, somente dev/local) Sincronizar schema direto (evite se voce estiver usando migrations)
+# npm run db:push:dev
 
 # Desenvolvimento (usa .env.staging quando APP_ENV=staging)
 APP_ENV=staging npm run dev
@@ -260,7 +260,10 @@ O deploy e feito usando **Coolify** com integracao GitHub e Dockerfile.
 4. **Apos o deploy, rodar migrations manualmente:**
    ```bash
    # Conectar no terminal do container ou servidor
-   npm run db:migrate:prod
+   npm run db:migrate
+
+   # (Opcional, apenas 1x) Se o banco ja existia antes de usar migrations e voce precisa "baseline":
+   # npm run db:migrate -- --baseline
    ```
 
 ### Dockerfile

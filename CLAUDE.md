@@ -891,7 +891,10 @@ No painel do Coolify, adicionar todas as variaveis:
 
 ```bash
 # Conectar no terminal do container via Coolify ou SSH
-npm run db:migrate:prod
+npm run db:migrate
+
+# (Opcional, apenas 1x) Se o banco ja existia antes de usar migrations e voce precisa "baseline":
+# npm run db:migrate -- --baseline
 ```
 
 #### 5. Criar Primeiro Usuario
@@ -927,7 +930,10 @@ Para atualizar a aplicacao:
 
 ```bash
 # Apos o container subir, conectar e rodar:
-npm run db:migrate:prod
+npm run db:migrate
+
+# (Opcional, apenas 1x) Se o banco ja existia antes de usar migrations e voce precisa "baseline":
+# npm run db:migrate -- --baseline
 ```
 
 ---
@@ -969,7 +975,7 @@ Verificar se SESSION_SECRET esta configurado corretamente.
 2. Coolify detecta automaticamente via webhook ou clique em "Redeploy"
 3. Se houver alteracoes de schema, rodar migrations apos deploy:
    ```bash
-   npm run db:migrate:prod
+   npm run db:migrate
    ```
 
 ### Backup do Banco
