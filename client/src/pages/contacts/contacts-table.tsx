@@ -5,13 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Table,
   TableBody,
   TableCell,
@@ -30,7 +23,7 @@ import {
   type SortingState,
   type VisibilityState,
 } from "@tanstack/react-table";
-import { ChevronLeft, ChevronRight, Columns, Loader2, Search, User } from "lucide-react";
+import { Columns, Loader2, Search, User } from "lucide-react";
 import type { ContactWithStats, PaginationMeta } from "@/lib/api/contacts";
 import {
   CONTACTS_DEFAULT_COLUMN_ORDER,
@@ -39,6 +32,8 @@ import {
 } from "./contacts-columns";
 import { ContactsColumnsDialog } from "./contacts-columns-dialog";
 import { NewContactDialog } from "./new-contact-dialog";
+import { ContactsTableVirtualized } from "./contacts-table-virtualized";
+import { ContactsPaginationControls } from "./contacts-pagination-controls";
 
 const COLUMN_VISIBILITY_KEY = "contacts-column-visibility";
 const COLUMN_ORDER_KEY = "contacts-column-order";
@@ -64,8 +59,6 @@ function normalizeColumnOrder(order: string[]): ColumnOrderState {
   ];
   return merged;
 }
-
-const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
 
 export function ContactsTable({
   contacts,
@@ -243,44 +236,33 @@ export function ContactsTable({
         </div>
       </div>
 
-      <Table
-        containerClassName="flex-1 min-h-0 rounded-md border"
-        className="min-w-full"
-        style={{ width: table.getTotalSize() }}
-      >
-        <TableHeader>
-          {table.getHeaderGroups().map((headerGroup) => (
-            <TableRow key={headerGroup.id}>
-              {headerGroup.headers.map((header) => (
-                <TableHead
-                  key={header.id}
-                  style={{ width: header.getSize() }}
-                  className="relative group"
-                >
-                  <div className="flex min-w-0 items-center">
-                    {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
-                  </div>
-
-                  {header.column.getCanResize() ? (
-                    <div
-                      onMouseDown={header.getResizeHandler()}
-                      onTouchStart={header.getResizeHandler()}
-                      className={cn(
-                        "absolute right-0 top-0 h-full w-1 touch-none select-none opacity-0 group-hover:opacity-100",
-                        header.column.getIsResizing()
-                          ? "bg-primary"
-                          : "bg-border/40 hover:bg-border",
-                      )}
-                    />
-                  ) : null}
-                </TableHead>
-              ))}
-            </TableRow>
-          ))}
-        </TableHeader>
-        <TableBody>
-          {isLoading ? (
-            [...Array(6)].map((_, i) => (
+      {isLoading ? (
+        <Table containerClassName="flex-1 min-h-0 rounded-md border" className="min-w-full" style={{ width: table.getTotalSize() }}>
+          <TableHeader>
+            {table.getHeaderGroups().map((headerGroup) => (
+              <TableRow key={headerGroup.id}>
+                {headerGroup.headers.map((header) => (
+                  <TableHead key={header.id} style={{ width: header.getSize() }} className="relative group">
+                    <div className="flex min-w-0 items-center">
+                      {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
+                    </div>
+                    {header.column.getCanResize() ? (
+                      <div
+                        onMouseDown={header.getResizeHandler()}
+                        onTouchStart={header.getResizeHandler()}
+                        className={cn(
+                          "absolute right-0 top-0 h-full w-1 touch-none select-none opacity-0 group-hover:opacity-100",
+                          header.column.getIsResizing() ? "bg-primary" : "bg-border/40 hover:bg-border",
+                        )}
+                      />
+                    ) : null}
+                  </TableHead>
+                ))}
+              </TableRow>
+            ))}
+          </TableHeader>
+          <TableBody>
+            {[...Array(6)].map((_, i) => (
               <TableRow key={i}>
                 {table.getVisibleLeafColumns().map((col) => (
                   <TableCell key={col.id} style={{ width: col.getSize() }}>
@@ -288,23 +270,39 @@ export function ContactsTable({
                   </TableCell>
                 ))}
               </TableRow>
-            ))
-          ) : table.getRowModel().rows.length > 0 ? (
-            table.getRowModel().rows.map((row) => (
-              <TableRow
-                key={row.id}
-                className="cursor-pointer"
-                onClick={() => onSelectContact(row.original)}
-                data-testid={`row-contact-${row.original.id}`}
-              >
-                {row.getVisibleCells().map((cell) => (
-                  <TableCell key={cell.id} style={{ width: cell.column.getSize() }}>
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </TableCell>
+            ))}
+          </TableBody>
+        </Table>
+      ) : table.getRowModel().rows.length > 0 ? (
+        <div className="min-h-0 flex-1">
+          <ContactsTableVirtualized table={table} onSelectContact={onSelectContact} />
+        </div>
+      ) : (
+        <Table containerClassName="flex-1 min-h-0 rounded-md border" className="min-w-full" style={{ width: table.getTotalSize() }}>
+          <TableHeader>
+            {table.getHeaderGroups().map((headerGroup) => (
+              <TableRow key={headerGroup.id}>
+                {headerGroup.headers.map((header) => (
+                  <TableHead key={header.id} style={{ width: header.getSize() }} className="relative group">
+                    <div className="flex min-w-0 items-center">
+                      {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
+                    </div>
+                    {header.column.getCanResize() ? (
+                      <div
+                        onMouseDown={header.getResizeHandler()}
+                        onTouchStart={header.getResizeHandler()}
+                        className={cn(
+                          "absolute right-0 top-0 h-full w-1 touch-none select-none opacity-0 group-hover:opacity-100",
+                          header.column.getIsResizing() ? "bg-primary" : "bg-border/40 hover:bg-border",
+                        )}
+                      />
+                    ) : null}
+                  </TableHead>
                 ))}
               </TableRow>
-            ))
-          ) : (
+            ))}
+          </TableHeader>
+          <TableBody>
             <TableRow>
               <TableCell colSpan={table.getVisibleLeafColumns().length} className="h-32 text-center">
                 <div className="flex flex-col items-center justify-center text-muted-foreground">
@@ -314,64 +312,17 @@ export function ContactsTable({
                 </div>
               </TableCell>
             </TableRow>
-          )}
-        </TableBody>
-      </Table>
+          </TableBody>
+        </Table>
+      )}
 
-      {/* Pagination Controls */}
       {pagination && (
-        <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <span>{t("contacts.pagination.showing")}</span>
-            <Select
-              value={String(pagination.limit)}
-              onValueChange={(value) => onPageSizeChange(Number(value))}
-            >
-              <SelectTrigger className="h-8 w-[70px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {PAGE_SIZE_OPTIONS.map((size) => (
-                  <SelectItem key={size} value={String(size)}>
-                    {size}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <span>
-              {t("contacts.pagination.of", { total: pagination.total })}
-            </span>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">
-              {t("contacts.pagination.page", {
-                current: pagination.page,
-                total: pagination.totalPages,
-              })}
-            </span>
-            <div className="flex items-center gap-1">
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-8 w-8"
-                onClick={() => onPageChange(pagination.page - 1)}
-                disabled={pagination.page <= 1 || isFetching}
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-8 w-8"
-                onClick={() => onPageChange(pagination.page + 1)}
-                disabled={!pagination.hasMore || isFetching}
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-        </div>
+        <ContactsPaginationControls
+          pagination={pagination}
+          isFetching={isFetching}
+          onPageChange={onPageChange}
+          onPageSizeChange={onPageSizeChange}
+        />
       )}
 
       <ContactsColumnsDialog
