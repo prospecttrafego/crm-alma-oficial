@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import EmojiPicker, { Theme as EmojiTheme, type EmojiClickData } from "emoji-picker-react";
+import type { EmojiClickData } from "emoji-picker-react";
 import {
   AtSign,
   ChevronDown,
@@ -31,6 +31,7 @@ import { useTranslation } from "@/contexts/LanguageContext";
 import { formatRecordingTime } from "@/pages/inbox/utils";
 import { ReplyPreview } from "./ReplyPreview";
 import { MentionAutocomplete } from "./MentionAutocomplete";
+import { LazyEmojiPicker } from "./LazyEmojiPicker";
 import { useMentionAutocomplete } from "@/hooks/useMentionAutocomplete";
 import type { PendingFile, InboxMessage } from "@/pages/inbox/types";
 import type { EmailTemplate } from "@shared/schema";
@@ -116,9 +117,9 @@ export function MessageComposer({
   } = useMentionAutocomplete();
 
   const resolvedEmojiTheme = useMemo(() => {
-    if (theme === "dark") return EmojiTheme.DARK;
-    if (theme === "light") return EmojiTheme.LIGHT;
-    return window.matchMedia("(prefers-color-scheme: dark)").matches ? EmojiTheme.DARK : EmojiTheme.LIGHT;
+    if (theme === "dark") return "dark" as const;
+    if (theme === "light") return "light" as const;
+    return window.matchMedia("(prefers-color-scheme: dark)").matches ? ("dark" as const) : ("light" as const);
   }, [theme]);
 
   const onEmojiClick = useCallback(
@@ -324,13 +325,10 @@ export function MessageComposer({
             >
               {showEmojiPicker && (
                 <div ref={emojiPickerRef} className="absolute bottom-14 left-0 z-50">
-                  <EmojiPicker
+                  <LazyEmojiPicker
                     onEmojiClick={onEmojiClick}
                     theme={resolvedEmojiTheme}
-                    width={320}
-                    height={400}
-                    searchPlaceHolder={t("inbox.emojiSearch")}
-                    previewConfig={{ showPreview: false }}
+                    searchPlaceholder={t("inbox.emojiSearch")}
                   />
                 </div>
               )}

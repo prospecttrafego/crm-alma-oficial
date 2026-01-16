@@ -2,8 +2,6 @@
 
 import { useEffect, useRef } from "react";
 import { Search, X, Loader2, MessageSquare } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
-import { ptBR, enUS } from "date-fns/locale";
 
 import {
   Dialog,
@@ -16,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useTranslation } from "@/contexts/LanguageContext";
 import { useMessageSearch } from "@/hooks/useMessageSearch";
+import { formatRelativeTimeFromNow } from "@/lib/relativeTime";
 import type { MessageSearchResult } from "@/lib/api/conversations";
 
 type Props = {
@@ -32,7 +31,7 @@ type Props = {
 export function MessageSearchModal({ open, onClose, conversationId, onSelectMessage }: Props) {
   const { t, language } = useTranslation();
   const inputRef = useRef<HTMLInputElement>(null);
-  const locale = language === "pt-BR" ? ptBR : enUS;
+  const intlLocale = language === "pt-BR" ? "pt-BR" : "en-US";
 
   const {
     query,
@@ -167,9 +166,9 @@ export function MessageSearchModal({ open, onClose, conversationId, onSelectMess
                       </span>
                       {result.createdAt && (
                         <span className="text-xs text-muted-foreground whitespace-nowrap">
-                          {formatDistanceToNow(new Date(result.createdAt), {
-                            addSuffix: true,
-                            locale,
+                          {formatRelativeTimeFromNow(result.createdAt, {
+                            locale: intlLocale,
+                            justNow: t("notifications.justNow"),
                           })}
                         </span>
                       )}

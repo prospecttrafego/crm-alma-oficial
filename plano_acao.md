@@ -407,22 +407,22 @@
 
 ## MILESTONE 8: Performance e Otimizacoes
 
-**Prioridade:** BAIXA | **Status:** Pendente
+**Prioridade:** BAIXA | **Status:** ✅ Parcial (8.1, 8.3) | 🔍 Pendente (8.2)
 
 ### 8.1 Lazy Loading de Graficos
 
-- [ ] Usar `React.lazy()` para componentes de graficos
-- [ ] Criar `ChartSkeleton.tsx` para fallback
-- [ ] Envolver graficos em `<Suspense>`
+- [x] Usar `React.lazy()` para componentes de graficos
+- [x] Criar `ChartSkeleton.tsx` para fallback
+- [x] Envolver graficos em `<Suspense>`
 - [ ] **Arquivos:**
   - `client/src/pages/reports.tsx`
   - `client/src/pages/reports/charts/*.tsx`
-  - `client/src/components/skeletons/ChartSkeleton.tsx` (novo)
+  - `client/src/pages/reports/components/ChartSkeleton.tsx` (novo)
 
 ### 8.2 Virtualization Melhorias
 
 - [ ] Contacts Table: implementar @tanstack/react-virtual
-- [ ] Pipeline: virtualizar colunas longas
+- [ ] Pipeline: virtualizar colunas longas (**depois** de refatorar `client/src/pages/pipeline/index.tsx` em componentes menores)
 - [ ] Audit Log: infinite scroll com virtualizacao
 - [ ] **Arquivos:**
   - `client/src/pages/contacts/contacts-table.tsx`
@@ -431,11 +431,11 @@
 
 ### 8.3 Bundle Size - Code Splitting
 
-- [ ] Configurar manualChunks no vite.config.ts
-- [ ] Lazy load de EmojiPicker
-- [ ] Lazy load de DatePicker/Calendar
-- [ ] Verificar tree shaking de date-fns
-- [ ] Separar vendor chunks (recharts, etc.)
+- [x] Configurar manualChunks no vite.config.ts
+- [x] Lazy load de EmojiPicker
+- [x] Lazy load de DatePicker/Calendar
+- [x] Verificar tree shaking de date-fns (evitar `date-fns/locale` no caminho critico)
+- [x] Separar vendor chunks (recharts, etc.)
 - [ ] **Arquivos:**
   - `vite.config.ts`
   - `client/src/App.tsx`

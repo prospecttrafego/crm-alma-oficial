@@ -41,9 +41,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { savedViewsApi } from "@/lib/api/savedViews";
 import { usersApi } from "@/lib/api/users";
-import { Calendar as CalendarComponent } from "@/components/ui/calendar";
-import { format } from "date-fns";
-import { enUS, ptBR } from "date-fns/locale";
+import { LazyCalendar } from "@/components/ui/lazy-calendar";
 import type { SavedView, PipelineStage } from "@shared/schema";
 import type { SafeUser } from "@shared/types";
 import type { CreateSavedViewDTO } from "@shared/types";
@@ -117,7 +115,7 @@ export function FilterPanel<T extends FilterType>({
 }: FilterPanelProps<T>) {
   const { toast } = useToast();
   const { t, language } = useTranslation();
-  const locale = language === "pt-BR" ? ptBR : enUS;
+  const intlLocale = language === "pt-BR" ? "pt-BR" : "en-US";
   const [isOpen, setIsOpen] = useState(false);
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const [viewName, setViewName] = useState("");
@@ -324,12 +322,14 @@ export function FilterPanel<T extends FilterType>({
                         >
                           <Calendar className="mr-2 h-4 w-4" />
                           {pipelineFilters.dateFrom
-                            ? format(new Date(pipelineFilters.dateFrom), "MMM dd", { locale })
+                            ? new Intl.DateTimeFormat(intlLocale, { month: "short", day: "2-digit" }).format(
+                                new Date(pipelineFilters.dateFrom),
+                              )
                             : t("filters.from")}
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent className="w-auto p-0" align="start">
-                        <CalendarComponent
+                        <LazyCalendar
                           mode="single"
                           selected={pipelineFilters.dateFrom ? new Date(pipelineFilters.dateFrom) : undefined}
                           onSelect={(date) =>
@@ -353,12 +353,14 @@ export function FilterPanel<T extends FilterType>({
                         >
                           <Calendar className="mr-2 h-4 w-4" />
                           {pipelineFilters.dateTo
-                            ? format(new Date(pipelineFilters.dateTo), "MMM dd", { locale })
+                            ? new Intl.DateTimeFormat(intlLocale, { month: "short", day: "2-digit" }).format(
+                                new Date(pipelineFilters.dateTo),
+                              )
                             : t("filters.to")}
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent className="w-auto p-0" align="start">
-                        <CalendarComponent
+                        <LazyCalendar
                           mode="single"
                           selected={pipelineFilters.dateTo ? new Date(pipelineFilters.dateTo) : undefined}
                           onSelect={(date) =>

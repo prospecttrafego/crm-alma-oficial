@@ -22,12 +22,11 @@ import {
   BellRing,
 } from "lucide-react";
 import type { Notification } from "@shared/schema";
-import { formatDistanceToNow } from "date-fns";
-import { enUS, ptBR } from "date-fns/locale";
 import { useTranslation } from "@/contexts/LanguageContext";
 import { notificationsApi } from "@/lib/api/notifications";
 import { useToast } from "@/hooks/use-toast";
 import { useDesktopNotifications } from "@/hooks/useDesktopNotifications";
+import { formatRelativeTimeFromNow } from "@/lib/relativeTime";
 
 const notificationIcons: Record<string, typeof Bell> = {
   new_message: MessageSquare,
@@ -62,7 +61,7 @@ export function NotificationBell() {
   const [open, setOpen] = useState(false);
   const { t, language } = useTranslation();
   const { toast } = useToast();
-  const locale = language === "pt-BR" ? ptBR : enUS;
+  const intlLocale = language === "pt-BR" ? "pt-BR" : "en-US";
   const {
     isSupported: desktopNotificationsSupported,
     permission: desktopPermission,
@@ -270,9 +269,9 @@ export function NotificationBell() {
                       )}
                       <p className="text-xs text-muted-foreground">
                         {notification.createdAt
-                          ? formatDistanceToNow(new Date(notification.createdAt), {
-                              addSuffix: true,
-                              locale,
+                          ? formatRelativeTimeFromNow(notification.createdAt, {
+                              locale: intlLocale,
+                              justNow: t("notifications.justNow"),
                             })
                           : t("notifications.justNow")}
                       </p>

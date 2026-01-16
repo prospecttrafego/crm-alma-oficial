@@ -19,6 +19,63 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes("node_modules")) return;
+
+          const normalizedId = id.replace(/\\/g, "/");
+          const nodeModulesIndex = normalizedId.lastIndexOf("/node_modules/");
+          if (nodeModulesIndex === -1) return;
+
+          const packagePath = normalizedId.slice(nodeModulesIndex + "/node_modules/".length);
+          const segments = packagePath.split("/");
+          const pkg = segments[0]?.startsWith("@") ? `${segments[0]}/${segments[1]}` : segments[0];
+          if (!pkg) return;
+
+          // Heavier libs we prefer to keep out of the main vendor chunk.
+          if (pkg === "emoji-picker-react") return "vendor-emoji";
+          if (pkg === "wavesurfer.js") return "vendor-audio";
+          if (pkg === "react-day-picker") return "vendor-day-picker";
+          if (pkg === "recharts") return "vendor-recharts";
+          if (pkg === "firebase" || pkg.startsWith("@firebase/")) return "vendor-firebase";
+          if (pkg === "date-fns") return "vendor-date";
+
+          // UI + state libs split for caching.
+          if (
+            pkg.startsWith("@radix-ui/") ||
+            pkg === "cmdk" ||
+            pkg === "vaul" ||
+            pkg === "react-resizable-panels" ||
+            pkg.startsWith("@floating-ui/") ||
+            pkg === "react-remove-scroll" ||
+            pkg === "react-remove-scroll-bar" ||
+            pkg === "react-style-singleton" ||
+            pkg === "use-callback-ref" ||
+            pkg === "use-sidecar" ||
+            pkg === "aria-hidden"
+          ) {
+            return "vendor-ui";
+          }
+
+          if (pkg.startsWith("@tanstack/")) return "vendor-tanstack";
+
+          if (pkg === "wouter") return "vendor-router";
+
+          if (pkg === "lucide-react") return "vendor-icons";
+
+          if (pkg === "react-hook-form" || pkg === "@hookform/resolvers" || pkg === "input-otp") {
+            return "vendor-forms";
+          }
+
+          if (pkg === "zod" || pkg === "zod-validation-error" || pkg.startsWith("@standard-schema/")) {
+            return "vendor-zod";
+          }
+
+          return "vendor";
+        },
+      },
+    },
   },
   server: {
     fs: {

@@ -12,8 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { formatDistanceToNow } from "date-fns";
-import { ptBR, enUS } from "date-fns/locale";
+import { formatRelativeTimeFromNow } from "@/lib/relativeTime";
 import type { ContactWithStats } from "@/lib/api/contacts";
 
 export const CONTACTS_DEFAULT_COLUMN_ORDER = [
@@ -89,9 +88,9 @@ export function createContactsColumns({
 
   const formatRelativeDate = (date: string | null) => {
     if (!date) return "-";
-    return formatDistanceToNow(new Date(date), {
-      addSuffix: true,
-      locale: language === "pt-BR" ? ptBR : enUS,
+    return formatRelativeTimeFromNow(date, {
+      locale: language === "pt-BR" ? "pt-BR" : "en-US",
+      justNow: t("notifications.justNow"),
     });
   };
 
