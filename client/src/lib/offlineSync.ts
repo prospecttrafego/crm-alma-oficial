@@ -198,9 +198,6 @@ export async function syncOfflineMessages(options: SyncOptions = {}): Promise<Sy
 export async function onWebSocketReconnect(): Promise<void> {
   console.log("[OfflineSync] WebSocket reconnected, checking for queued messages");
 
-  // Small delay to let connection stabilize
-  await new Promise((resolve) => setTimeout(resolve, 500));
-
   const hasMessages = await hasOfflineMessages();
   if (hasMessages) {
     console.log("[OfflineSync] Found queued messages, starting sync");

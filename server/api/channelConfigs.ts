@@ -38,6 +38,20 @@ import {
   sendWhatsAppMessage,
 } from "../services/whatsapp-config";
 
+const ACTIVE_WHATSAPP_STATUSES = new Set(["connected", "connecting", "qr_pending"]);
+
+function hasActiveWhatsappConfig(configs: ChannelConfig[], excludeId?: number): ChannelConfig | undefined {
+  return configs.find((config) => {
+    if (config.type !== "whatsapp") return false;
+    if (excludeId && config.id === excludeId) return false;
+    if (config.isActive === false) return false;
+
+    const whatsappConfig = (config.whatsappConfig || {}) as Record<string, unknown>;
+    const status = whatsappConfig.connectionStatus as string | undefined;
+    return status ? ACTIVE_WHATSAPP_STATUSES.has(status) : false;
+  });
+}
+
 /**
  * Redact sensitive fields from channel config before sending to client
  */
@@ -108,6 +122,19 @@ export function registerChannelConfigRoutes(app: Express) {
         return sendNotFound(res, "No organization");
       }
       const userId = req.user!.id;
+
+      if (req.validatedBody.type === "whatsapp") {
+        const existingConfigs = await storage.getChannelConfigs(org.id);
+        const active = hasActiveWhatsappConfig(existingConfigs);
+        if (active) {
+          return sendError(
+            res,
+            ErrorCodes.CONFLICT,
+            "Já existe uma instância de WhatsApp ativa. Desconecte antes de criar outra.",
+            409,
+          );
+        }
+      }
 
       const config = await storage.createChannelConfig({
         ...req.validatedBody,
@@ -352,6 +379,20 @@ export function registerChannelConfigRoutes(app: Express) {
       }
       if (config.type !== "whatsapp") {
         return sendError(res, ErrorCodes.INVALID_INPUT, "Not a WhatsApp channel", 400);
+      }
+
+      const org = await storage.getDefaultOrganization();
+      if (org) {
+        const existingConfigs = await storage.getChannelConfigs(org.id);
+        const active = hasActiveWhatsappConfig(existingConfigs, config.id);
+        if (active) {
+          return sendError(
+            res,
+            ErrorCodes.CONFLICT,
+            "Já existe uma instância de WhatsApp ativa. Desconecte antes de conectar outra.",
+            409,
+          );
+        }
       }
 
       try {

@@ -45,7 +45,19 @@ export function WhatsAppQRModal({
       return channelConfigsApi.connectWhatsApp(channelConfigId);
     },
     onSuccess: (data) => {
-      setQrCode(data.qrCode);
+      // Quando já está conectado, o backend pode retornar sem qrCode.
+      // Nesses casos, tratamos como sucesso imediato.
+      if (data.status === "connected") {
+        setIsConnecting(false);
+        setQrCode(null);
+        setPairingCode(null);
+        queryClient.invalidateQueries({ queryKey: ["/api/channel-configs"] });
+        onConnected?.();
+        return;
+      }
+
+      // Status de pareamento: precisamos de QR/pairingCode para continuar.
+      setQrCode(data.qrCode ?? null);
       setPairingCode(data.pairingCode || null);
       setIsConnecting(true);
       setRetryCount(0); // Reset retry count on success

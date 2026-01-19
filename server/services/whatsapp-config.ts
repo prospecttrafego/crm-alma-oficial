@@ -60,6 +60,30 @@ export async function connectWhatsApp(
   config: ChannelConfig,
   userId: string
 ): Promise<WhatsAppConnectionResult> {
+  // #region agent log (debug)
+  const log = (payload: { runId: string; hypothesisId: string; message: string; data?: Record<string, unknown> }) => {
+    fetch("http://127.0.0.1:7242/ingest/4c918a94-219d-47dd-b910-955f475d04dc", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sessionId: "debug-session",
+        runId: payload.runId,
+        hypothesisId: payload.hypothesisId,
+        location: "server/services/whatsapp-config.ts:connectWhatsApp",
+        message: payload.message,
+        data: payload.data,
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+  };
+  log({
+    runId: "pre-fix",
+    hypothesisId: "H1",
+    message: "connectWhatsApp entry",
+    data: { channelConfigId: config.id, organizationId: config.organizationId },
+  });
+  // #endregion agent log (debug)
+
   whatsappLogger.info("[WhatsApp] Starting connection process", {
     channelConfigId: config.id,
     organizationId: config.organizationId,
@@ -82,6 +106,14 @@ export async function connectWhatsApp(
   const organizationId = config.organizationId;
   const instanceName = buildInstanceName(organizationId, config.id);
   whatsappLogger.info("[WhatsApp] Instance name built", { instanceName });
+  // #region agent log (debug)
+  log({
+    runId: "pre-fix",
+    hypothesisId: "H1",
+    message: "instanceName built",
+    data: { instanceName },
+  });
+  // #endregion agent log (debug)
 
   // Check if instance already exists
   whatsappLogger.debug("[WhatsApp] Checking if instance exists...");
@@ -119,6 +151,14 @@ export async function connectWhatsApp(
         await storage.updateChannelConfig(config.id, {
           whatsappConfig: whatsappConfig as ChannelConfig["whatsappConfig"],
         });
+        // #region agent log (debug)
+        log({
+          runId: "pre-fix",
+          hypothesisId: "H1",
+          message: "existing instance already connected",
+          data: { instanceName, state: status.state },
+        });
+        // #endregion agent log (debug)
         return {
           instanceName,
           status: "connected",
@@ -177,6 +217,14 @@ export async function connectWhatsApp(
   // Validate QR code response
   if (!qrCode) {
     whatsappLogger.error("[WhatsApp] QR Code response is empty or invalid", { instanceName });
+    // #region agent log (debug)
+    log({
+      runId: "pre-fix",
+      hypothesisId: "H1",
+      message: "qrCode missing after create/connect",
+      data: { instanceName },
+    });
+    // #endregion agent log (debug)
     throw new Error("Failed to get QR Code from Evolution API - empty response");
   }
 

@@ -19,7 +19,6 @@ export function useDealMutations() {
     mutationFn: (data: CreateDealDTO) => dealsApi.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/deals'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/pipelines'] });
       toast({ title: t('toast.created') || 'Criado com sucesso' });
     },
     onError: handleError,
@@ -30,7 +29,6 @@ export function useDealMutations() {
       dealsApi.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/deals'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/pipelines'] });
       toast({ title: t('toast.updated') || 'Atualizado com sucesso' });
     },
     onError: handleError,
@@ -40,7 +38,6 @@ export function useDealMutations() {
     mutationFn: (id: number) => dealsApi.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/deals'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/pipelines'] });
       toast({ title: t('toast.deleted') || 'Excluído com sucesso' });
     },
     onError: handleError,
@@ -51,7 +48,6 @@ export function useDealMutations() {
       dealsApi.move(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/deals'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/pipelines'] });
       toast({ title: t('toast.updated') || 'Movido com sucesso' });
     },
     onError: handleError,

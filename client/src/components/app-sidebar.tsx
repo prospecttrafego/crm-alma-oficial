@@ -45,7 +45,7 @@ import { useTranslation } from "@/contexts/LanguageContext";
 import { queryClient } from "@/lib/queryClient";
 import { authApi } from "@/lib/api/auth";
 import { pipelinesApi } from "@/lib/api/pipelines";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import type { PipelineWithStages } from "@shared/types";
 
 export function AppSidebar() {
@@ -56,11 +56,13 @@ export function AppSidebar() {
   const isCollapsed = state === "collapsed";
 
   // Fetch pipelines for submenu
-  const { data: pipelines = [] } = useQuery<PipelineWithStages[]>({
+  const pipelinesQuery = useQuery<PipelineWithStages[]>({
     queryKey: ["/api/pipelines"],
     enabled: !!user,
     queryFn: pipelinesApi.list,
+    placeholderData: keepPreviousData,
   });
+  const pipelines = pipelinesQuery.data ?? [];
 
   const mainNavItems = [
     {
@@ -196,7 +198,7 @@ export function AppSidebar() {
                             )}
                           </Link>
                         ))}
-                        {pipelines.length === 0 && (
+                        {pipelines.length === 0 && !pipelinesQuery.isFetching && (
                           <span className="px-2 py-1.5 text-sm text-muted-foreground">
                             {t("settings.pipelines.noPipelines")}
                           </span>
@@ -241,6 +243,13 @@ export function AppSidebar() {
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
                         ))}
+                        {pipelines.length === 0 && !pipelinesQuery.isFetching && (
+                          <SidebarMenuSubItem>
+                            <span className="px-2 py-1.5 text-sm text-muted-foreground">
+                              {t("settings.pipelines.noPipelines")}
+                            </span>
+                          </SidebarMenuSubItem>
+                        )}
                       </SidebarMenuSub>
                     </CollapsibleContent>
                   </SidebarMenuItem>

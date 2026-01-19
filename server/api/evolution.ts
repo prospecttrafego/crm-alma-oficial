@@ -87,7 +87,11 @@ export function registerEvolutionRoutes(app: Express) {
 
       // Set broadcast functions for real-time updates
       evolutionHandler.setBroadcast((orgId, eventType, data) => {
-        broadcast(`whatsapp:${eventType}`, { organizationId: orgId, data });
+        // Mantemos apenas eventos estritamente necessários para o frontend (integração),
+        // sem namespace `whatsapp:*` para evitar drift de contrato e comportamento confuso.
+        // Observação: eventos canônicos de negócio (deal:created, conversation:updated, message:created)
+        // são emitidos diretamente no handler via wsBroadcast/broadcastToConversation.
+        broadcast(eventType, { organizationId: orgId, ...((data && typeof data === "object") ? (data as any) : { data }) });
       });
       evolutionHandler.setBroadcastToConversation((conversationId, eventType, data) => {
         broadcastToConversation(conversationId, eventType, data);

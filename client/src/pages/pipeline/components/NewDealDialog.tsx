@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useTranslation } from "@/contexts/LanguageContext";
-import type { Contact } from "@shared/schema";
+import type { Contact, PipelineStage } from "@shared/schema";
 
 type Props = {
   open: boolean;
@@ -22,6 +22,7 @@ type Props = {
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
   onCancel: () => void;
   contacts: Contact[];
+  stages: PipelineStage[];
   probabilityValue: number;
   onProbabilityValueChange: (value: number) => void;
   submitting: boolean;
@@ -33,6 +34,7 @@ export function NewDealDialog({
   onSubmit,
   onCancel,
   contacts,
+  stages,
   probabilityValue,
   onProbabilityValueChange,
   submitting,
@@ -55,6 +57,22 @@ export function NewDealDialog({
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
+              <Label htmlFor="stageId">Etapa inicial</Label>
+              <select
+                id="stageId"
+                name="stageId"
+                defaultValue={stages?.[0]?.id?.toString() || ""}
+                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                data-testid="select-deal-stage"
+              >
+                {stages.map((stage) => (
+                  <option key={stage.id} value={stage.id}>
+                    {stage.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="grid gap-2">
               <Label htmlFor="title">{t("pipeline.dealTitle")}</Label>
               <Input
                 id="title"
@@ -67,6 +85,24 @@ export function NewDealDialog({
             <div className="grid gap-2">
               <Label htmlFor="value">{t("pipeline.dealValue")} (R$)</Label>
               <Input id="value" name="value" type="number" placeholder="10000" data-testid="input-deal-value" />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="companyName">Nome da empresa</Label>
+              <Input
+                id="companyName"
+                name="companyName"
+                placeholder="Empresa"
+                data-testid="input-deal-companyName"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="marketSegment">Nicho/Segmento de mercado</Label>
+              <Input
+                id="marketSegment"
+                name="marketSegment"
+                placeholder="Segmento"
+                data-testid="input-deal-marketSegment"
+              />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="contactId">
@@ -103,10 +139,23 @@ export function NewDealDialog({
                   />
                   <span className="w-10 text-right text-sm text-muted-foreground">{probabilityValue}%</span>
                 </div>
+                <p className="text-xs text-muted-foreground">
+                  Probabilidade estimada de fechar o deal (forecast).
+                </p>
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="expectedCloseDate">{t("pipeline.expectedCloseDate")}</Label>
+                <Label htmlFor="expectedCloseDate">Data de contato inicial</Label>
                 <Input id="expectedCloseDate" name="expectedCloseDate" type="date" data-testid="input-deal-expectedCloseDate" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="dueDate">Data de vencimento</Label>
+                <Input id="dueDate" name="dueDate" type="date" data-testid="input-deal-dueDate" />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="meetingDate">Data de reunião</Label>
+                <Input id="meetingDate" name="meetingDate" type="date" data-testid="input-deal-meetingDate" />
               </div>
             </div>
             <div className="grid gap-2">

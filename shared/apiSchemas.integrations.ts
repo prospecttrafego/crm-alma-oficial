@@ -17,7 +17,9 @@ export type ChannelConfigTestResult = z.infer<typeof channelConfigTestResultSche
 export const whatsAppConnectResponseSchema = z
   .object({
     instanceName: z.string(),
-    qrCode: z.string(),
+    // Pode ser omitido quando o backend já detecta a instância como conectada
+    // e retorna apenas { status: "connected" }.
+    qrCode: z.string().optional(),
     pairingCode: z.string().optional(),
     status: z.string(),
   })

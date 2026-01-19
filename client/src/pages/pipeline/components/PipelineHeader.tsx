@@ -76,6 +76,7 @@ export function PipelineHeader({
           onSubmit={onCreateDeal}
           onCancel={() => onNewDealOpenChange(false)}
           contacts={contacts}
+          stages={stages || []}
           probabilityValue={probabilityValue}
           onProbabilityValueChange={onProbabilityValueChange}
           submitting={createDealPending}

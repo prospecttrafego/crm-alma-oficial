@@ -5,6 +5,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useInfiniteQuery, useMutation, useQuery } from "@tanstack/react-query";
+import type { ImperativePanelHandle } from "react-resizable-panels";
 
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -36,6 +37,7 @@ import { ThreadHeader } from "@/pages/inbox/components/ThreadHeader";
 import { TypingIndicator } from "@/pages/inbox/components/TypingIndicator";
 import type { PendingFile, TypingUser, InboxMessage } from "@/pages/inbox/types";
 import { formatInboxTime, getChannelLabel, getStatusLabel, substituteVariables } from "@/pages/inbox/utils";
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 
 // -----------------------------------------------------------------------------
 // Inner component that uses InboxContext
@@ -89,6 +91,8 @@ function InboxContent() {
 
   // WebSocket for real-time features (shared connection)
   const { sendTyping, getTypingUsers, isConnected: wsConnected, subscribe } = useWebSocketContext();
+  const listPanelRef = useRef<ImperativePanelHandle>(null);
+  const contextPanelRef = useRef<ImperativePanelHandle>(null);
 
   useEffect(() => {
     return subscribe((message) => {
@@ -121,6 +125,26 @@ function InboxContent() {
       }
     },
   });
+
+  useEffect(() => {
+    const panel = listPanelRef.current;
+    if (!panel) return;
+    if (listPanelCollapsed) {
+      panel.collapse();
+    } else {
+      panel.expand();
+    }
+  }, [listPanelCollapsed]);
+
+  useEffect(() => {
+    const panel = contextPanelRef.current;
+    if (!panel) return;
+    if (contextPanelCollapsed) {
+      panel.collapse();
+    } else {
+      panel.expand();
+    }
+  }, [contextPanelCollapsed]);
 
   // Inscrever na room da conversa selecionada para receber eventos direcionados
   // (mensagens, typing indicators, etc.) ao inves de broadcast global
@@ -812,30 +836,42 @@ function InboxContent() {
   const statusLabel = useCallback((status: string) => getStatusLabel(t, status), [t]);
 
   return (
-    <div className="flex h-full">
-      <div
-        className={`flex w-full flex-col border-r border-border bg-background transition-all duration-200 md:w-[350px] ${
-          selectedConversation ? "hidden md:flex" : "flex"
-        } ${listPanelCollapsed ? "lg:w-12" : "lg:w-[350px]"}`}
+    <div className="h-full">
+      <ResizablePanelGroup direction="horizontal" className="h-full">
+      <ResizablePanel
+        ref={listPanelRef}
+        defaultSize={28}
+        minSize={18}
+        maxSize={45}
+        collapsible
+        collapsedSize={6}
+        onCollapse={() => setListPanelCollapsed(true)}
+        onExpand={() => setListPanelCollapsed(false)}
+        className={`border-r border-border bg-background ${selectedConversation ? "hidden md:flex" : "flex"}`}
       >
-        <ConversationListPanel
-          collapsed={listPanelCollapsed}
-          conversationsLoading={conversationsLoading}
-          filteredConversations={filteredConversations}
-          onSelectConversation={setSelectedConversation}
-          selectedConversationId={selectedConversation?.id}
-          searchQuery={searchQuery}
-          onSearchQueryChange={setSearchQuery}
-          filters={filters}
-          onFiltersChange={setFilters}
-          formatTime={formatTime}
-          onExpandFromRail={() => setListPanelCollapsed(false)}
-        />
-      </div>
+        <div className="flex h-full w-full flex-col">
+          <ConversationListPanel
+            collapsed={listPanelCollapsed}
+            conversationsLoading={conversationsLoading}
+            filteredConversations={filteredConversations}
+            onSelectConversation={setSelectedConversation}
+            selectedConversationId={selectedConversation?.id}
+            searchQuery={searchQuery}
+            onSearchQueryChange={setSearchQuery}
+            filters={filters}
+            onFiltersChange={setFilters}
+            formatTime={formatTime}
+            onExpandFromRail={() => setListPanelCollapsed(false)}
+          />
+        </div>
+      </ResizablePanel>
 
-      {selectedConversation ? (
-        <>
-          <div className="flex flex-1 flex-col bg-background">
+      <ResizableHandle withHandle className="hidden md:flex" />
+
+      <ResizablePanel defaultSize={72} minSize={40} className="flex bg-background">
+        {selectedConversation ? (
+          <div className="flex h-full w-full">
+            <div className="flex flex-1 flex-col bg-background">
             <ThreadHeader
               conversation={selectedConversation}
               onBack={() => setSelectedConversation(null)}
@@ -891,23 +927,37 @@ function InboxContent() {
               onCancelReply={cancelReply}
             />
           </div>
-
-          <div
-            className={`hidden lg:flex flex-col border-l border-border bg-background transition-all duration-200 ${
-              contextPanelCollapsed ? "w-12" : "w-72"
-            }`}
-          >
-            <ContextPanel
-              conversation={selectedConversation}
-              collapsed={contextPanelCollapsed}
-              getChannelLabel={channelLabel}
-              getStatusLabel={statusLabel}
-            />
+            {selectedConversation && (
+              <>
+                <ResizableHandle withHandle className="hidden lg:flex" />
+                <ResizablePanel
+                  ref={contextPanelRef}
+                  defaultSize={25}
+                  minSize={18}
+                  maxSize={35}
+                  collapsible
+                  collapsedSize={6}
+                  onCollapse={() => setContextPanelCollapsed(true)}
+                  onExpand={() => setContextPanelCollapsed(false)}
+                  className="hidden lg:flex border-l border-border bg-background"
+                >
+                  <ContextPanel
+                    conversation={selectedConversation}
+                    collapsed={contextPanelCollapsed}
+                    getChannelLabel={channelLabel}
+                    getStatusLabel={statusLabel}
+                    onConversationUpdated={setSelectedConversation}
+                  />
+                </ResizablePanel>
+              </>
+            )}
           </div>
-        </>
-      ) : (
-        <EmptyState />
-      )}
+        ) : (
+          <EmptyState />
+        )}
+      </ResizablePanel>
+
+      </ResizablePanelGroup>
 
       {/* Message Search Modal */}
       <MessageSearchModal

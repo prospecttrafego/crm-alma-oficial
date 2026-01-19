@@ -15,6 +15,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { FileUploader } from "@/components/file-uploader";
 import {
   Select,
   SelectContent,
@@ -129,6 +130,7 @@ export function DealEditorDialog({ deal, open, onOpenChange, contacts }: DealEdi
           <TabsList className="w-full justify-start">
             <TabsTrigger value="details">{t("common.details")}</TabsTrigger>
             <TabsTrigger value="custom">{t("pipeline.customFields")}</TabsTrigger>
+            <TabsTrigger value="attachments">Anexos</TabsTrigger>
             <TabsTrigger value="history">{t("entityHistory.title")}</TabsTrigger>
           </TabsList>
 
@@ -192,7 +194,7 @@ export function DealEditorDialog({ deal, open, onOpenChange, contacts }: DealEdi
                 </div>
 
                 <div className="grid gap-2">
-                  <Label htmlFor="dealExpectedCloseDate">{t("pipeline.expectedCloseDate")}</Label>
+                  <Label htmlFor="dealExpectedCloseDate">Data de contato inicial</Label>
                   <Input
                     id="dealExpectedCloseDate"
                     type="date"
@@ -302,6 +304,16 @@ export function DealEditorDialog({ deal, open, onOpenChange, contacts }: DealEdi
                 {t("pipeline.addCustomField")}
               </Button>
             </div>
+          </TabsContent>
+
+          <TabsContent value="attachments">
+            {deal ? (
+              <FileUploader entityType="deal" entityId={deal.id} />
+            ) : (
+              <div className="text-sm text-muted-foreground">
+                Salve o deal para anexar arquivos.
+              </div>
+            )}
           </TabsContent>
 
           <TabsContent value="history">

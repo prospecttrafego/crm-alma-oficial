@@ -13,11 +13,10 @@ import {
   getQueuedMessages,
   getOfflineMessagesForConversation,
   removeOfflineMessage,
-  updateOfflineMessageStatus,
   getQueuedMessageCount,
   type OfflineMessage,
 } from "@/lib/offlineDb";
-import { conversationsApi } from "@/lib/api/conversations";
+import { syncEvents, syncOfflineMessages } from "@/lib/offlineSync";
 
 interface UseOfflineQueueOptions {
   onSyncComplete?: (successCount: number, failedCount: number) => void;
@@ -105,19 +104,38 @@ export function useOfflineQueue(options: UseOfflineQueueOptions = {}): UseOfflin
   }, [refreshQueue]);
 
   // ---------------------------------------------------------------------------
-  // Auto-sync when coming back online
+  // Sync events (driven by offlineSync + WebSocket reconnect)
   // ---------------------------------------------------------------------------
 
   useEffect(() => {
-    if (isOnline && queueCount > 0 && !isSyncing && !syncInProgressRef.current) {
-      // Small delay to let connection stabilize
-      const timeout = setTimeout(() => {
-        syncQueue();
-      }, 1000);
-      return () => clearTimeout(timeout);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOnline, queueCount]);
+    const unsubStart = syncEvents.on("sync:start", () => {
+      setIsSyncing(true);
+      onSyncStart?.();
+    });
+
+    const unsubMessage = syncEvents.on("message:synced", (data) => {
+      onMessageSynced?.(data.offlineId, data.serverId);
+    });
+
+    const unsubComplete = syncEvents.on("sync:complete", async (result) => {
+      setIsSyncing(false);
+      await refreshQueue();
+      onSyncComplete?.(result.success, result.failed);
+    });
+
+    const unsubError = syncEvents.on("sync:error", async (_data) => {
+      setIsSyncing(false);
+      await refreshQueue();
+      // Mantemos o estado da fila e deixamos o caller decidir UX via onSyncComplete/onError
+    });
+
+    return () => {
+      unsubStart();
+      unsubMessage();
+      unsubComplete();
+      unsubError();
+    };
+  }, [onMessageSynced, onSyncComplete, onSyncStart, refreshQueue]);
 
   // ---------------------------------------------------------------------------
   // Queue a message for later sync
@@ -142,62 +160,18 @@ export function useOfflineQueue(options: UseOfflineQueueOptions = {}): UseOfflin
   }, [refreshQueue]);
 
   // ---------------------------------------------------------------------------
-  // Sync all queued messages
+  // Manual sync trigger (engine lives in offlineSync)
   // ---------------------------------------------------------------------------
 
   const syncQueue = useCallback(async () => {
-    if (syncInProgressRef.current || !isOnline) return;
-
-    syncInProgressRef.current = true;
-    setIsSyncing(true);
-    onSyncStart?.();
-
-    let successCount = 0;
-    let failedCount = 0;
-
     try {
-      const queuedMessages = await getQueuedMessages();
-
-      for (const msg of queuedMessages) {
-        // Skip if exceeded max retries
-        if (msg.retryCount >= maxRetries) {
-          console.warn(`[OfflineQueue] Message ${msg.id} exceeded max retries, marking as failed`);
-          await updateOfflineMessageStatus(msg.id, "failed", "Max retries exceeded");
-          failedCount++;
-          continue;
-        }
-
-        try {
-          // Mark as syncing
-          await updateOfflineMessageStatus(msg.id, "syncing");
-
-          // Send to server
-          const serverMessage = await conversationsApi.sendMessage(msg.conversationId, {
-            content: msg.content,
-            isInternal: msg.isInternal,
-            replyToId: msg.replyToId ?? undefined,
-            externalId: msg.id, // Use offline ID for deduplication
-          });
-
-          // Remove from queue on success
-          await removeOfflineMessage(msg.id);
-          successCount++;
-          onMessageSynced?.(msg.id, serverMessage.id);
-        } catch (error) {
-          // Mark as queued again for retry
-          const errorMessage = error instanceof Error ? error.message : "Unknown error";
-          await updateOfflineMessageStatus(msg.id, "queued", errorMessage);
-          failedCount++;
-          console.error(`[OfflineQueue] Failed to sync message ${msg.id}:`, error);
-        }
-      }
+      if (syncInProgressRef.current || !isOnline) return;
+      syncInProgressRef.current = true;
+      await syncOfflineMessages({ maxRetries });
     } finally {
       syncInProgressRef.current = false;
-      setIsSyncing(false);
-      await refreshQueue();
-      onSyncComplete?.(successCount, failedCount);
     }
-  }, [isOnline, maxRetries, onSyncStart, onSyncComplete, onMessageSynced, refreshQueue]);
+  }, [isOnline, maxRetries]);
 
   // ---------------------------------------------------------------------------
   // Get messages for a specific conversation

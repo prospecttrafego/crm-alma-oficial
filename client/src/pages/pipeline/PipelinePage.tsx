@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useRoute } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import { Skeleton } from "@/components/ui/skeleton";
 import { pipelinesApi } from "@/lib/api/pipelines";
@@ -39,18 +39,31 @@ export default function PipelinePage() {
     }
   }, [urlPipelineId, selectedPipelineId]);
 
-  const { data: allPipelines } = useQuery<PipelineWithStages[]>({
+  const allPipelinesQuery = useQuery<PipelineWithStages[]>({
     queryKey: ["/api/pipelines"],
     queryFn: pipelinesApi.list,
+    placeholderData: keepPreviousData,
   });
 
-  const { data: pipeline, isLoading: pipelineLoading } = useQuery<PipelineWithStages>({
-    queryKey: ["/api/pipelines", selectedPipelineId || urlPipelineId],
+  const pipelineKey = selectedPipelineId ?? urlPipelineId ?? "default";
+  const pipelineQuery = useQuery<PipelineWithStages>({
+    queryKey: ["/api/pipelines", pipelineKey],
     queryFn: async () => {
-      const idToFetch = selectedPipelineId || urlPipelineId;
-      return idToFetch ? pipelinesApi.get(idToFetch) : pipelinesApi.getDefault();
+      // Importante: não deixar a página “sumir” em refetch/404. Em caso de erro (ex.: pipeline deletado),
+      // caímos para o pipeline default da organização.
+      try {
+        return typeof pipelineKey === "number"
+          ? await pipelinesApi.get(pipelineKey)
+          : await pipelinesApi.getDefault();
+      } catch (_error) {
+        return pipelinesApi.getDefault();
+      }
     },
+    placeholderData: keepPreviousData,
   });
+
+  const allPipelines = allPipelinesQuery.data;
+  const pipeline = pipelineQuery.data;
 
   useEffect(() => {
     if (pipeline && !urlPipelineId) {
@@ -59,17 +72,59 @@ export default function PipelinePage() {
     }
   }, [pipeline, urlPipelineId, setLocation]);
 
-  const { data: deals, isLoading: dealsLoading } = useQuery<DealWithRelations[]>({
+  const dealsQuery = useQuery<DealWithRelations[]>({
     queryKey: ["/api/deals"],
     queryFn: dealsApi.list,
+    placeholderData: keepPreviousData,
   });
 
-  const { data: contacts } = useQuery<Contact[]>({
+  const contactsQuery = useQuery<Contact[]>({
     queryKey: ["/api/contacts"],
     queryFn: contactsApi.list,
+    placeholderData: keepPreviousData,
   });
 
+  const deals = dealsQuery.data;
+  const contacts = contactsQuery.data;
+  const dealsLoading = dealsQuery.isPending && !dealsQuery.data;
+
   const { moveDeal, createDeal } = useDealMutations();
+
+  // #region agent log (debug)
+  useEffect(() => {
+    fetch("http://127.0.0.1:7242/ingest/4c918a94-219d-47dd-b910-955f475d04dc", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sessionId: "debug-session",
+        runId: "pre-fix",
+        hypothesisId: "H3",
+        location: "client/src/pages/pipeline/PipelinePage.tsx:state",
+        message: "pipeline query state",
+        data: {
+          pipelineKey,
+          pipelineId: pipeline?.id ?? null,
+          pipelinesCount: allPipelines?.length ?? null,
+          dealsCount: deals?.length ?? null,
+          pipelineIsFetching: pipelineQuery.isFetching,
+          pipelinesIsFetching: allPipelinesQuery.isFetching,
+          dealsIsFetching: dealsQuery.isFetching,
+          pipelineStatus: pipelineQuery.status,
+        },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+  }, [
+    pipelineKey,
+    pipeline?.id,
+    allPipelines?.length,
+    deals?.length,
+    pipelineQuery.isFetching,
+    allPipelinesQuery.isFetching,
+    dealsQuery.isFetching,
+    pipelineQuery.status,
+  ]);
+  // #endregion agent log (debug)
 
   const handleDragStart = useCallback((event: React.DragEvent, deal: DealWithRelations) => {
     setDraggedDeal(deal);
@@ -142,17 +197,31 @@ export default function PipelinePage() {
       if (!firstStage || !pipeline) return;
 
       const expectedCloseDateValue = formData.get("expectedCloseDate") as string;
+      const stageIdValue = formData.get("stageId") as string;
+      const companyName = (formData.get("companyName") as string) || "";
+      const marketSegment = (formData.get("marketSegment") as string) || "";
+      const dueDate = (formData.get("dueDate") as string) || "";
+      const meetingDate = (formData.get("meetingDate") as string) || "";
+
+      const customFields: Record<string, unknown> = {};
+      if (companyName.trim()) customFields.companyName = companyName.trim();
+      if (marketSegment.trim()) customFields.marketSegment = marketSegment.trim();
+      if (dueDate.trim()) customFields.dueDate = dueDate.trim();
+      if (meetingDate.trim()) customFields.meetingDate = meetingDate.trim();
+      if (expectedCloseDateValue?.trim()) customFields.firstContactDate = expectedCloseDateValue.trim();
+
       createDeal.mutate(
         {
           title: formData.get("title") as string,
           value: formData.get("value") as string,
           pipelineId: pipeline.id,
-          stageId: firstStage.id,
+          stageId: stageIdValue?.trim() ? Number(stageIdValue) : firstStage.id,
           contactId: formData.get("contactId") ? Number(formData.get("contactId")) : undefined,
           probability: Number(formData.get("probability")) || 10,
           expectedCloseDate: expectedCloseDateValue?.trim() ? new Date(expectedCloseDateValue) : null,
           source: (formData.get("source") as string) || undefined,
           notes: formData.get("notes") as string,
+          customFields: Object.keys(customFields).length > 0 ? customFields : null,
         },
         {
           onSuccess: () => {
@@ -206,6 +275,7 @@ export default function PipelinePage() {
     return valuesMap;
   }, [dealsByStage]);
 
+  const pipelineLoading = pipelineQuery.isPending && !pipelineQuery.data;
   if (pipelineLoading) {
     return (
       <div className="flex h-full items-center justify-center">
