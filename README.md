@@ -1,6 +1,6 @@
 # Alma CRM
 
-Sistema de CRM (Customer Relationship Management) desenvolvido para a agencia digital Alma. Plataforma SaaS com inbox unificado para comunicacoes multicanal e pipeline de vendas estilo Kanban.
+Sistema de Mensageria Omnichannel com Janela de Bate-papo (inbox) e Multiplos pipelines para Gestão e Controle de Leads e Vendas, estilo Kanban. CRM (Customer Relationship Management) desenvolvido para a agencia digital Alma com foco em atendimento comercial. Futuramente, virar uma plataforma SaaS com inbox unificado para comunicacoes multicanal e pipeline de vendas estilo Kanban.
 
 ## Funcionalidades Principais
 
