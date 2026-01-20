@@ -1,10 +1,24 @@
-# CLAUDE.md - Documentacao Tecnica Completa
+# CLAUDE.md - Instrucoes e Regras de Desenvolvimento
 
-Este documento contem todas as informacoes necessarias para entender, desenvolver e fazer deploy do Alma CRM.
+Este documento foca em **instrucoes obrigatorias** e **regras de desenvolvimento**. Detalhes tecnicos estao nos documentos especializados referenciados abaixo.
 
 ---
 
-## DIRETRIZES DE DESENVOLVIMENTO (OBRIGATORIO!)
+## Mapa de Documentacao
+
+| Documento | Consultar para |
+|-----------|---------------|
+| `README.md` | Visao geral, stack tecnologica, comandos npm, quick start |
+| `ESTRUTURA_DE_PASTAS.md` | Onde esta cada arquivo/pasta, responsabilidades de cada modulo |
+| `DESIGN_SYSTEM.md` | Tokens CSS, cores, componentes UI, padroes de layout |
+| `RODAR_LOCAL.md` | Configurar ambiente de desenvolvimento (Docker, .env.local) |
+| `DEPLOY_COOLIFY_HOSTINGER.md` | Deploy em producao (Coolify v4, variaveis, troubleshooting) |
+| `PLANO_DE_ACAO.md` | Melhorias arquiteturais planejadas |
+| `TESTES_A_REALIZAR.md` | Checklist de testes para validar mudancas |
+
+---
+
+## Diretrizes de Desenvolvimento (OBRIGATORIO)
 
 **Regras que DEVEM ser seguidas em TODA alteracao:**
 
@@ -21,262 +35,86 @@ Este documento contem todas as informacoes necessarias para entender, desenvolve
 
 5. **Arquivos pequenos e focados**: Limite sugerido de ~300 linhas por arquivo. Acima disso, considerar dividir.
 
-6. **Documentacao alinhada**: Sempre atualizar TODOS os arquivos .md relevantes (README, ESTRUTURA_DE_PASTAS, CLAUDE, DESIGN_SYSTEM) quando houver mudancas.
+6. **Documentacao alinhada**: Sempre atualizar TODOS os arquivos .md relevantes quando houver mudancas estruturais.
 
 7. **Contratos compartilhados (sem drift)**:
-   - Schema do banco e enums vivem em `shared/schema.ts` (entrypoint) + `shared/schema/` (módulos).
-   - Validacao de entrada (body/query/params) deve usar schemas derivados via `drizzle-zod` em `shared/contracts.ts` (consumidos via `server/validation/`).
-   - O frontend valida respostas usando schemas de `shared/apiSchemas*.ts` (via `client/src/lib/api/`), para evitar dessincronizacao silenciosa.
+   - Schema do banco e enums: `shared/schema.ts` (entrypoint) + `shared/schema/` (modulos)
+   - Validacao de entrada: schemas derivados via `drizzle-zod` em `shared/contracts.ts` (consumidos via `server/validation/`)
+   - Validacao de respostas: `shared/apiSchemas*.ts` (consumidos via `client/src/lib/api/`)
 
 ---
 
 ## Visao Geral do Projeto
 
-**Alma CRM** e uma aplicacao SaaS de gestao de relacionamento com clientes desenvolvida para a agencia digital Alma. O sistema combina duas funcionalidades principais:
-
-1. **Pipeline de Vendas (Kanban)**: Gestao visual de oportunidades de negocio
-2. **Inbox Unificado**: Central de comunicacoes multicanal
+**Alma CRM** e uma aplicacao SaaS de gestao de relacionamento com clientes para a agencia Alma, combinando:
+- **Pipeline de Vendas (Kanban)**: Gestao visual de oportunidades
+- **Inbox Unificado**: Central de comunicacoes multicanal (WhatsApp, email, interno)
 
 ### Caracteristicas Tecnicas
-- Monorepo: Frontend e Backend no mesmo repositorio
-- Type-safe: TypeScript em toda a stack
-- Real-time: WebSockets para atualizacoes ao vivo
-- Multi-tenant (parcial): schema suporta multiplas organizacoes, mas a implementacao atual roda em modo single-tenant por instalacao (via DEFAULT_ORGANIZATION_ID)
+- **Monorepo**: Frontend (React 19) e Backend (Express) no mesmo repositorio
+- **Type-safe**: TypeScript em toda a stack com Drizzle ORM
+- **Real-time**: WebSockets para atualizacoes ao vivo
+- **Single-tenant**: Schema suporta multi-org, mas roda em modo single-tenant por instalacao
+
+> Detalhes da stack e comandos: ver `README.md`
 
 ---
 
 ## Arquitetura do Sistema
 
-### Diagrama de Componentes
-
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                        FRONTEND (React 19)                       │
-├─────────────────────────────────────────────────────────────────┤
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────────────┐ │
-│  │  Pages   │  │Components│  │  Hooks   │  │  TanStack Query  │ │
-│  └──────────┘  └──────────┘  └──────────┘  └──────────────────┘ │
-│                                                                  │
-│  Wouter (Routing) │ shadcn/ui │ Tailwind CSS 4 │ Framer Motion  │
+│  Wouter │ TanStack Query │ shadcn/ui │ Tailwind CSS 4            │
 └─────────────────────────────────────────────────────────────────┘
                               │
                     HTTP/REST │ WebSocket
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                       BACKEND (Express)                          │
-├─────────────────────────────────────────────────────────────────┤
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────────────┐ │
-│  │  Routes  │  │   Auth   │  │ Storage  │  │    AI Scoring    │ │
-│  └──────────┘  └──────────┘  └──────────┘  └──────────────────┘ │
-│                                                                  │
-│  Passport.js │ express-session │ Drizzle ORM │ WebSocket (ws)   │
+│  Passport.js │ Drizzle ORM │ WebSocket (ws)                      │
 └─────────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                      SERVICOS EXTERNOS                           │
-├────────────────┬────────────────┬────────────────────────────────┤
-│   PostgreSQL   │    Supabase    │           OpenAI               │
-│   (Database)   │   (Storage)    │      (Lead Scoring)            │
-└────────────────┴────────────────┴────────────────────────────────┘
+│  PostgreSQL │ Supabase Storage │ OpenAI │ Evolution API (WA)     │
+│  Google Calendar │ Upstash Redis │ Firebase (FCM)                │
+└─────────────────────────────────────────────────────────────────┘
 ```
-
-Obs: alem do trio principal acima, o backend possui integracoes opcionais com:
-- **Evolution API** (WhatsApp)
-- **Google Calendar** (OAuth + sincronizacao)
-- **Upstash Redis** (presenca/online e base para cache/rate limit)
-- **Firebase Cloud Messaging (FCM)** (push notifications)
 
 ### Fluxo de Dados
+1. **HTTP**: Cliente → Express → Drizzle → PostgreSQL
+2. **Upload**: Cliente → Express → Supabase Storage
+3. **Real-time**: Express → WebSocket → Clientes conectados
+4. **AI Scoring**: Express → OpenAI API → Banco
+5. **WhatsApp**: Evolution API → Webhook → Express → Banco → WebSocket
+6. **Google Calendar**: OAuth → Google API → Banco → WebSocket
+7. **Push**: Express → Firebase → Dispositivo
 
-1. **Requisicao HTTP**: Cliente → Express → Drizzle → PostgreSQL
-2. **Upload de Arquivo**: Cliente → Express → Supabase Storage
-3. **Real-time**: Express → WebSocket → Todos os clientes conectados
-4. **AI Scoring**: Express → OpenAI API → Calculo de score → Banco
-5. **WhatsApp**: Evolution API → Webhook → Express → Banco → WebSocket → Auto-criacao de Deal
-6. **Google Calendar**: OAuth + Google API → Sincronizacao → Banco → WebSocket
-7. **Push**: Express → Firebase → Notificacao no dispositivo (quando usuario estiver offline)
+> Estrutura de pastas detalhada: ver `ESTRUTURA_DE_PASTAS.md`
 
-### Comportamentos Automatizados
+---
 
-#### Auto-criacao de Empresa (Contatos)
-Ao criar um contato via formulario, o usuario pode digitar o nome da empresa em um campo de texto livre. O backend:
-1. Busca empresa existente pelo nome (case-insensitive)
-2. Se nao existir, cria automaticamente uma nova empresa
-3. Vincula o contato a empresa encontrada ou criada
+## Comportamentos Automatizados
 
-#### Auto-criacao de Deal (WhatsApp)
-Quando uma mensagem chega via WhatsApp (Evolution API), o sistema automaticamente:
-1. Cria/atualiza o contato pelo numero de telefone
-2. Verifica se o contato possui deals abertos
-3. Se NAO houver deal aberto, cria um novo deal automaticamente:
-   - Usa o pipeline default da organizacao
-   - Se nao houver pipeline default, cria um "Pipeline Padrao" com stage "Novo Lead"
-   - Deal eh criado no primeiro stage (menor `order`)
+### Auto-criacao de Empresa (Contatos)
+Ao criar contato com `companyName`:
+1. Backend busca empresa existente pelo nome (case-insensitive)
+2. Se nao existir, cria automaticamente
+3. Vincula contato a empresa
+
+**Nota:** Empresas nao possuem rotas/paginas dedicadas - sao gerenciadas automaticamente.
+
+### Auto-criacao de Deal (WhatsApp)
+Quando mensagem chega via Evolution API:
+1. Cria/atualiza contato pelo telefone
+2. Verifica se contato possui deals abertos
+3. Se NAO houver deal aberto, cria automaticamente:
+   - Pipeline: default da org (ou cria "Pipeline Padrao")
+   - Stage: primeiro (menor `order`)
    - Titulo: "Lead WhatsApp: {nome ou telefone}"
    - Source: "whatsapp", Probability: 10%, Status: "open"
-
-#### Empresas (Companies) — uso interno
-- O modulo de empresas nao possui mais rotas ou paginas dedicadas.
-- Empresas sao criadas/atualizadas automaticamente via `companyName` ao criar contatos e usadas internamente em deals e conversas.
-
----
-
-## Versoes das Bibliotecas Principais
-
-### Frontend
-
-| Pacote | Versao | Funcao |
-|--------|--------|--------|
-| react | 19.2.3 | Framework UI |
-| react-dom | 19.2.3 | Renderizacao DOM |
-| vite | 7.3.0 | Build tool / Dev server |
-| typescript | 5.9.3 | Tipagem estatica |
-| tailwindcss | 4.1.18 | Estilizacao utility-first |
-| @tanstack/react-query | 5.60.5 | Gerenciamento de estado servidor |
-| wouter | 3.3.5 | Roteamento client-side |
-| framer-motion | 12.23.26 | Animacoes |
-| react-hook-form | 7.55.0 | Formularios |
-| lucide-react | 0.453.0 | Icones |
-| recharts | 2.15.2 | Graficos |
-| date-fns | 3.6.0 | Manipulacao de datas |
-
-### Backend
-
-| Pacote | Versao | Funcao |
-|--------|--------|--------|
-| express | 4.21.2 | Framework HTTP |
-| drizzle-orm | 0.39.3 | ORM type-safe |
-| drizzle-zod | 0.8.1 | Integracao Drizzle + Zod |
-| zod | 4.1.13 | Validacao de schemas |
-| passport | 0.7.0 | Autenticacao |
-| passport-local | 1.0.0 | Strategy email/senha |
-| bcryptjs | 3.0.3 | Hash de senhas |
-| express-session | 1.18.1 | Gestao de sessoes |
-| connect-pg-simple | 10.0.0 | Sessoes no PostgreSQL |
-| ws | 8.18.0 | WebSocket |
-| pg | 8.16.3 | Driver PostgreSQL |
-| @supabase/supabase-js | 2.87.3 | Cliente Supabase |
-| openai | 6.10.0 | API OpenAI |
-| googleapis | 169.0.0 | Google Calendar API |
-| firebase-admin | 13.6.0 | Push notifications (FCM) |
-| @upstash/redis | 1.35.8 | Redis (Upstash REST) |
-| @upstash/ratelimit | 2.0.7 | Rate limiting (opcional) |
-
-### UI Components (Radix UI)
-
-Todos os componentes Radix UI estao na versao ~1.1.x a ~2.1.x:
-- dialog, dropdown-menu, select, popover, tabs, toast
-- accordion, checkbox, radio-group, switch, slider
-- avatar, tooltip, hover-card, context-menu
-
----
-
-## Estrutura de Pastas Detalhada
-
-```
-CRM_Oficial/
-├── .storybook/              # Storybook (documentação de UI) + mocks de API
-├── client/
-│   ├── public/                  # Assets publicos (favicon, logo, SW do Firebase)
-│   └── src/
-│       ├── components/          # Componentes (features) + UI (shadcn, ui/sidebar)
-│       │   └── ui/              # shadcn/ui (button, input, card, etc)
-│       ├── contexts/            # Contextos (ex.: idioma)
-│       ├── hooks/               # Hooks (auth, websocket, push, toast, desktop notifications…)
-│       ├── lib/                 # Infra do frontend (query client, firebase, utils, api clients)
-│       ├── locales/             # Traducoes (pt-BR/en)
-│       └── pages/               # Paginas (dashboard, pipeline, inbox, settings…)
-│           ├── inbox.tsx        # Entrada da rota + compose do Inbox
-│           ├── inbox/           # Componentes/handlers do Inbox (3 painéis)
-│           ├── pipeline/        # Kanban de deals (entrada + componentes)
-│           ├── contacts/        # Tabela de contatos (entrada + componentes)
-│           ├── audit-log/       # Auditoria (entrada + componentes)
-│           ├── reports.tsx      # Entrada da rota + compose de Reports
-│           ├── reports/         # Componentes/Charts de Reports (dashboard executivo)
-│           └── ...
-├── server/
-│   ├── index.ts                 # Entry point, inicia servidor
-│   ├── env.ts                   # Loader de .env (staging/prod) com fallback
-│   ├── routes.ts                # Agregador (auth + rate limit + API + WebSocket)
-│   ├── middleware.ts            # Middlewares (asyncHandler, validate*, getCurrentUser)
-│   ├── response.ts              # Helpers de resposta (sendSuccess, sendError, toSafeUser)
-│   ├── validation/              # Schemas Zod centralizados (a partir de shared/contracts)
-│   │   ├── index.ts             # Re-exports
-│   │   └── schemas.ts           # Schemas de validação
-│   ├── types/                   # Type augmentations
-│   │   └── express.d.ts         # Express Request/User type extensions
-│   ├── api/                     # Rotas HTTP por domínio (módulos) - TODOS padronizados
-│   │   ├── index.ts             # Registra todos os módulos de API
-│   │   ├── contacts.ts          # Contatos
-│   │   ├── deals.ts             # Deals
-│   │   ├── pipelines.ts         # Pipelines/estágios
-│   │   ├── conversations/       # Inbox (conversas/mensagens)
-│   │   ├── files.ts             # Upload/download + transcrição
-│   │   ├── search.ts            # Busca global (contacts, deals, conversations)
-│   │   ├── auditLogs.ts         # Logs de auditoria (com filtros e paginação)
-│   │   ├── lgpd/                # LGPD compliance (export/delete)
-│   │   ├── jobs.ts              # Status de background jobs
-│   │   └── ...                  # Demais domínios (activities, notifications, etc.)
-│   ├── auth/                    # Auth modules (session, passport, rate limit, CSRF)
-│   ├── ws/                      # WebSocket (/ws) + broadcast
-│   │   └── index.ts             # Upgrade handler + presença + "typing"
-│   ├── services/                # Lógica de negócio reutilizável
-│   │   ├── index.ts             # Re-exports
-│   │   ├── deal-auto-creator.ts # Auto-criação de deal (WhatsApp/email)
-│   │   ├── whatsapp-config.ts   # Configuração WhatsApp (connect/disconnect/send)
-│   │   └── email-ingest.ts      # Processamento de emails recebidos
-│   ├── jobs/                    # Background jobs (tarefas assíncronas)
-│   │   ├── index.ts             # Exports do módulo
-│   │   ├── types.ts             # Tipos e interfaces (Job, JobStatus, etc.)
-│   │   ├── storage.ts           # Persistência Redis/in-memory
-│   │   ├── queue.ts             # Fila Redis (Upstash) com fallback em memoria
-│   │   ├── handlers.ts          # Handlers: transcricao, lead score, sync
-│   │   ├── dead-letter.ts       # Dead Letter Queue para jobs falhos
-│   │   └── file-cleanup.ts      # Cleanup de arquivos órfãos
-│   ├── integrations/            # Integrações externas
-│   │   ├── email/               # IMAP/SMTP
-│   │   ├── evolution/           # Evolution API (WhatsApp)
-│   │   ├── firebase/            # Push notifications (FCM)
-│   │   ├── google/              # Google APIs (Calendar)
-│   │   ├── openai/              # Scoring e transcrição
-│   │   └── supabase/            # Storage
-│   ├── storage/                 # DAL por dominio (inclui storage/conversations)
-│   ├── storage.ts               # Facade do storage (re-export dos modulos)
-│   ├── logger.ts                # Logs estruturados (requestId + loggers de integrações)
-│   ├── health.ts                # Health check (DB + integrações opcionais)
-│   ├── auth.ts                  # Bootstrap de auth (middlewares + routes)
-│   ├── db.ts                    # Drizzle + conexao Postgres (Pool)
-│   ├── tenant.ts                # Single-tenant (organizacao da instalacao)
-│   ├── redis.ts                 # Upstash Redis (presenca + base cache/rate-limit)
-│   ├── static.ts                # Servir frontend em producao (dist/public)
-│   └── vite.ts                  # Integracao Vite em dev
-├── shared/                      # Fonte unica de verdade (contratos e tipos)
-│   ├── schema.ts                # Schema Drizzle + enums + tipos inferidos
-│   ├── contracts.ts             # Zod schemas/DTOs (entrada) gerados do schema
-│   ├── apiSchemas.ts            # Zod schemas (respostas) - contrato runtime
-│   ├── apiSchemas.integrations.ts # Integrações (payloads/redactions)
-│   └── types/                   # Tipos compartilhados frontend/backend
-│       ├── api.ts               # ApiResponse, ErrorCodes, PaginationMeta
-│       └── dto.ts               # DTOs para transferencia de dados
-├── scripts/
-│   └── migrate-users.ts         # Script de migracao de usuarios
-├── script/
-│   └── build.ts                 # Script de build customizado
-├── migrations/                  # Migracoes Drizzle (se houver)
-├── dist/                        # Build de producao (gerado)
-├── eslint.config.js             # Lint (ESLint)
-├── package.json
-├── tsconfig.json
-├── vite.config.ts
-├── drizzle.config.ts
-├── components.json              # Configuracao shadcn/ui
-├── .env.example
-├── README.md
-├── DESIGN_SYSTEM.md             # Sistema de design (Frontend - fonte da verdade)
-├── ESTRUTURA_DE_PASTAS.md       # Documentacao: estrutura do repositorio
-└── CLAUDE.md                    # Este arquivo
-```
 
 ---
 
@@ -284,835 +122,184 @@ CRM_Oficial/
 
 ### Tabelas Principais
 
-#### users
-```typescript
-{
-  id: string (UUID, PK),
-  email: string (unique),
-  passwordHash: string,
-  firstName: string,
-  lastName: string,
-  profileImageUrl: string,
-  role: 'admin' | 'sales' | 'cs' | 'support',
-  organizationId: number (FK),
-  preferences: jsonb (ex.: { language: 'pt-BR' | 'en' }),
-  createdAt: timestamp,
-  updatedAt: timestamp
-}
-```
+**users**: id (UUID), email, passwordHash, firstName, lastName, role ('admin'|'sales'|'cs'|'support'), organizationId, preferences (jsonb)
 
-#### organizations
-```typescript
-{
-  id: number (PK, auto),
-  name: string,
-  domain: string,
-  logo: string,
-  createdAt: timestamp,
-  updatedAt: timestamp
-}
-```
+**organizations**: id, name, domain, logo
 
-#### contacts
-```typescript
-{
-  id: number (PK, auto),
-  firstName: string,
-  lastName: string,
-  email: string,
-  phone: string,
-  jobTitle: string,
-  companyId: number (FK),
-  organizationId: number (FK),
-  ownerId: string (FK users),
-  tags: string[],
-  source: string,
-  customFields: jsonb,
-  createdAt: timestamp,
-  updatedAt: timestamp
-}
-```
+**contacts**: id, firstName, lastName, email, phone, companyId, organizationId, ownerId, tags[], source, customFields
 
-#### companies
-```typescript
-{
-  id: number (PK, auto),
-  name: string,
-  domain: string,
-  website: string,
-  segment: string,
-  size: string,
-  industry: string,
-  organizationId: number (FK),
-  ownerId: string (FK users),
-  customFields: jsonb,
-  createdAt: timestamp,
-  updatedAt: timestamp
-}
-```
+**companies**: id, name, domain, website, segment, industry, organizationId
 
-#### pipelines
-```typescript
-{
-  id: number (PK, auto),
-  name: string,
-  organizationId: number (FK),
-  isDefault: boolean,
-  createdAt: timestamp,
-  updatedAt: timestamp
-}
-```
+**pipelines**: id, name, organizationId, isDefault
 
-#### pipeline_stages
-```typescript
-{
-  id: number (PK, auto),
-  name: string,
-  pipelineId: number (FK),
-  order: number,
-  color: string (#RRGGBB),
-  isWon: boolean,
-  isLost: boolean,
-  createdAt: timestamp
-}
-```
+**pipeline_stages**: id, name, pipelineId, order, color, isWon, isLost
 
-#### deals
-```typescript
-{
-  id: number (PK, auto),
-  title: string,
-  value: decimal(15,2),
-  currency: string (default 'BRL'),
-  pipelineId: number (FK),
-  stageId: number (FK),
-  contactId: number (FK),
-  companyId: number (FK),
-  organizationId: number (FK),
-  ownerId: string (FK users),
-  probability: number (0-100),
-  expectedCloseDate: timestamp,
-  status: 'open' | 'won' | 'lost',
-  lostReason: string,
-  source: string,
-  notes: text,
-  customFields: jsonb,
-  createdAt: timestamp,
-  updatedAt: timestamp
-}
-```
+**deals**: id, title, value, currency, pipelineId, stageId, contactId, companyId, organizationId, ownerId, probability, expectedCloseDate, status ('open'|'won'|'lost'), lostReason, source, notes
 
-#### conversations
-```typescript
-{
-  id: number (PK, auto),
-  subject: string,
-  channel: 'email' | 'whatsapp' | 'sms' | 'internal' | 'phone',
-  status: 'open' | 'closed' | 'pending',
-  contactId: number (FK),
-  dealId: number (FK),
-  organizationId: number (FK),
-  assignedToId: string (FK users),
-  lastMessageAt: timestamp,
-  unreadCount: number,
-  createdAt: timestamp,
-  updatedAt: timestamp
-}
-```
+**conversations**: id, subject, channel ('email'|'whatsapp'|'sms'|'internal'|'phone'), status ('open'|'closed'|'pending'), contactId, dealId, assignedToId, lastMessageAt, unreadCount
 
-#### messages
-```typescript
-{
-  id: number (PK, auto),
-  conversationId: number (FK),
-  senderId: string (FK users),
-  senderType: 'user' | 'contact' | 'system',
-  content: text,
-  contentType: 'text' | 'audio' | 'image' | 'file' | 'video',
-  isInternal: boolean,
-  attachments: jsonb[] (ex.: [{ name, url, type }]),
-  metadata: jsonb (ex.: { transcription, duration, waveform }),
-  mentions: string[],
-  readBy: string[],
-  createdAt: timestamp
-}
-```
+**messages**: id, conversationId, senderId, senderType ('user'|'contact'|'system'), content, contentType ('text'|'audio'|'image'|'file'|'video'), isInternal, attachments[], metadata, readBy[]
 
-#### activities
-```typescript
-{
-  id: number (PK, auto),
-  type: 'call' | 'email' | 'meeting' | 'note' | 'task',
-  title: string,
-  description: text,
-  contactId: number (FK),
-  dealId: number (FK),
-  organizationId: number (FK),
-  userId: string (FK users),
-  dueDate: timestamp,
-  completedAt: timestamp,
-  status: 'pending' | 'completed' | 'cancelled',
-  createdAt: timestamp,
-  updatedAt: timestamp
-}
-```
+**activities**: id, type ('call'|'email'|'meeting'|'note'|'task'), title, description, contactId, dealId, userId, dueDate, completedAt, status
 
 ### Tabelas Auxiliares
-
-- **sessions**: Armazenamento de sessoes (connect-pg-simple)
-- **notifications**: Notificacoes do sistema
-- **push_tokens**: Tokens para push notifications (FCM)
-- **saved_views**: Views salvas pelos usuarios
-- **email_templates**: Templates de email
-- **audit_logs**: Logs de auditoria
-- **files**: Metadados de arquivos
-- **lead_scores**: Historico de scores de IA
-- **calendar_events**: Eventos do calendario
-- **google_oauth_tokens**: Tokens OAuth (Google Calendar)
-- **channel_configs**: Configuracoes de canais (IMAP/SMTP, WhatsApp)
+sessions, notifications, push_tokens, saved_views, email_templates, audit_logs, files, lead_scores, calendar_events, google_oauth_tokens, channel_configs
 
 ---
 
 ## API Endpoints
 
-**Padrao de resposta:** endpoints JSON retornam `{ success, data }` (e erros padronizados). Respostas `204` nao possuem corpo.
+**Padrao de resposta:** `{ success, data }` para JSON, `204` sem corpo.
 
-### Autenticacao e Usuario
-
+### Autenticacao
 ```
-POST   /api/login          # Login com email/senha
-POST   /api/logout         # Encerrar sessao
-POST   /api/register       # Registro (se habilitado)
-GET    /api/auth/me        # Usuario atual
-GET    /api/auth/user      # Usuario atual (alias usado no frontend)
-PATCH  /api/users/me       # Atualizar perfil/preferencias do usuario atual
-GET    /api/users          # Listar usuarios (para dropdown/filtros; requer login)
+POST   /api/login, /api/logout, /api/register
+GET    /api/auth/me, /api/auth/user
+PATCH  /api/users/me
+GET    /api/users
 ```
 
-### Observabilidade
-
+### Health e Jobs
 ```
-GET    /api/healthz        # Liveness check (publico, sem DB)
-GET    /api/health         # Health check (DB + integrações opcionais; admin ou HEALTH_CHECK_SECRET)
-```
-
-### Regras de organizationId (single-tenant)
-
-- organizationId e gerenciado pelo backend (DEFAULT_ORGANIZATION_ID)
-- Requests de criacao nao devem enviar organizationId; o backend injeta automaticamente
-- Requests de atualizacao nao podem alterar organizationId; qualquer valor enviado e ignorado
-
-### Background Jobs
-
-```
-GET    /api/jobs/:id           # Status completo do job
-GET    /api/jobs/:id/status    # Status resumido (lightweight)
-GET    /api/jobs/stats         # Estatísticas da fila (admin)
-POST   /api/jobs/cleanup       # Limpar jobs antigos (admin)
+GET    /api/healthz (publico), /api/health (admin)
+GET    /api/jobs/:id, /api/jobs/:id/status, /api/jobs/stats
+POST   /api/jobs/cleanup
 ```
 
-Endpoints que suportam modo assíncrono (`?async=true`):
-- `POST /api/lead-scores/:entityType/:entityId/calculate?async=true`
-- `POST /api/audio/transcribe?async=true`
-- `POST /api/files/:id/transcribe?async=true`
-- `POST /api/integrations/google-calendar/sync?async=true`
-- `POST /api/channel-configs/:id/email/sync?async=true`
-
-### Contatos
-
+### CRUD Principal
 ```
-GET    /api/contacts                    # Listar contatos
-GET    /api/contacts?withStats=true     # Listar contatos com agregacoes (totalDealsValue, openDealsCount, lastActivityAt)
-POST   /api/contacts                    # Criar contato
-GET    /api/contacts/:id                # Detalhes do contato
-PATCH  /api/contacts/:id                # Atualizar contato
-DELETE /api/contacts/:id                # Excluir contato
-```
+# Contacts
+GET/POST /api/contacts | GET/PATCH/DELETE /api/contacts/:id
 
-### Empresas (interno)
+# Pipelines e Stages
+GET/POST /api/pipelines | PATCH/DELETE /api/pipelines/:id
+POST /api/pipelines/:id/set-default
+POST /api/pipelines/:id/stages | PATCH/DELETE /api/pipelines/:pipelineId/stages/:id
 
-O modulo de empresas nao possui endpoints publicos. Empresas sao geradas/atualizadas via `companyName` nos contatos.
+# Deals
+GET/POST /api/deals | GET/PATCH/DELETE /api/deals/:id
+PATCH /api/deals/:id/stage
 
-### Pipelines, Estagios e Deals
+# Conversations e Messages
+GET/POST /api/conversations | GET/PATCH /api/conversations/:id
+GET/POST /api/conversations/:id/messages
+POST /api/conversations/:id/read
 
-```
-GET    /api/pipelines                   # Listar pipelines
-POST   /api/pipelines                   # Criar pipeline
-PATCH  /api/pipelines/:id               # Atualizar pipeline
-DELETE /api/pipelines/:id               # Excluir pipeline
-POST   /api/pipelines/:id/set-default   # Definir pipeline default
-POST   /api/pipelines/:id/stages        # Criar estagio
-PATCH  /api/pipelines/:pipelineId/stages/:id  # Atualizar estagio
-DELETE /api/pipelines/:pipelineId/stages/:id  # Excluir estagio
-
-GET    /api/deals                       # Listar deals
-POST   /api/deals                       # Criar deal
-GET    /api/deals/:id                   # Detalhes do deal
-PATCH  /api/deals/:id                   # Atualizar deal
-DELETE /api/deals/:id                   # Excluir deal
-PATCH  /api/deals/:id/stage             # Mover deal de stage (aceita status e lostReason opcionais)
+# Activities
+GET/POST /api/activities | PATCH/DELETE /api/activities/:id
+GET /api/contacts/:id/activities
 ```
 
-### Conversas e Mensagens
-
+### Arquivos
 ```
-GET    /api/conversations               # Listar conversas
-POST   /api/conversations               # Criar conversa
-GET    /api/conversations/:id           # Detalhes da conversa
-PATCH  /api/conversations/:id           # Atualizar conversa
-
-GET    /api/conversations/:id/messages  # Listar mensagens (paginado)
-POST   /api/conversations/:id/messages  # Enviar mensagem
-POST   /api/conversations/:id/read      # Marcar mensagens como lidas
+POST /api/files/upload-url, /api/files
+GET  /api/files/:entityType/:entityId | DELETE /api/files/:id
+GET  /api/files/:id/signed-url
+POST /api/audio/transcribe, /api/files/:id/transcribe
 ```
 
-### Atividades
-
+### Outros
 ```
-GET    /api/activities                  # Listar atividades
-GET    /api/contacts/:id/activities     # Listar atividades por contato
-POST   /api/activities                  # Criar atividade
-PATCH  /api/activities/:id              # Atualizar atividade
-DELETE /api/activities/:id              # Excluir atividade
+GET /api/search?q=termo
+GET /api/notifications, /api/notifications/unread-count
+GET /api/calendar-events, /api/audit-logs, /api/reports
+GET /api/saved-views, /api/email-templates
 ```
 
-### Arquivos e Midia (Supabase Storage)
-
+### Integracoes
 ```
-POST   /api/files/upload-url            # Gerar URL de upload assinada
-POST   /api/files                       # Registrar arquivo enviado no banco (max 50MB)
-GET    /api/files/:entityType/:entityId # Listar arquivos de uma entidade
-DELETE /api/files/:id                   # Remover registro e tentar deletar do storage
-GET    /api/files/:id/signed-url        # Obter URL assinada temporaria (15 min expiracao)
-GET    /objects/:path                   # Baixar arquivo (rota protegida, deprecated)
-POST   /api/audio/transcribe            # Transcricao por URL (Whisper/OpenAI)
-POST   /api/files/:id/transcribe        # Transcricao de arquivo de audio registrado
-```
-
-**Nota:** Prefer usar `GET /api/files/:id/signed-url` em vez de `GET /objects/:path` para melhor seguranca.
-
-### Busca Global
-
-```
-GET    /api/search?q=termo              # Busca global (contacts, deals, conversations)
-```
-
-Parametros de query:
-- `q` (obrigatorio): termo de busca (minimo 2 caracteres)
-- `limit` (opcional): limite de resultados por tipo (default: 5)
-
-Retorna resultados agrupados por tipo com score de relevancia.
-
-### Notificacoes, Calendario, Auditoria e Relatorios
-
-```
-GET    /api/notifications               # Listar notificacoes
-GET    /api/notifications/unread-count  # Contagem de nao lidas
-PATCH  /api/notifications/:id/read      # Marcar notificacao como lida
-POST   /api/notifications/mark-all-read # Marcar todas como lidas
-
-GET    /api/calendar-events             # Listar eventos
-POST   /api/calendar-events             # Criar evento
-PATCH  /api/calendar-events/:id         # Atualizar evento
-DELETE /api/calendar-events/:id         # Excluir evento
-
-GET    /api/audit-logs                  # Logs de auditoria (com filtros e paginacao)
-GET    /api/audit-logs/entity/:entityType/:entityId # Auditoria por entidade
-
-GET    /api/reports                     # Relatorios
-```
-
-**Parametros do `/api/audit-logs`:**
-- `page` (opcional): pagina atual (default: 1)
-- `limit` (opcional): registros por pagina (default: 50, max: 500)
-- `action` (opcional): filtrar por acao (create, update, delete, lgpd_export, lgpd_delete)
-- `entityType` (opcional): filtrar por tipo de entidade (contact, deal, user, pipeline, stage, etc.)
-- `userId` (opcional): filtrar por usuario que executou a acao
-- `dateFrom` (opcional): data inicial (ISO 8601)
-- `dateTo` (opcional): data final (ISO 8601)
-
-Retorna `{ data: AuditLog[], pagination: { page, limit, total, totalPages, hasMore } }`.
-
-### Views salvas e Email templates
-
-```
-GET    /api/saved-views                 # Listar views salvas
-POST   /api/saved-views                 # Criar view salva
-PATCH  /api/saved-views/:id             # Atualizar view salva
-DELETE /api/saved-views/:id             # Excluir view salva
-
-GET    /api/email-templates             # Listar templates de email
-POST   /api/email-templates             # Criar template
-PATCH  /api/email-templates/:id         # Atualizar template
-DELETE /api/email-templates/:id         # Excluir template
-```
-
-### Integracoes (WhatsApp, Google Calendar, Push)
-
-```
-# Evolution API (WhatsApp)
-GET    /api/evolution/status
-POST   /api/channel-configs/:id/whatsapp/connect
-GET    /api/channel-configs/:id/whatsapp/status
-POST   /api/channel-configs/:id/whatsapp/disconnect
-POST   /api/channel-configs/:id/whatsapp/send
-POST   /api/webhooks/evolution                  # Webhook publico (usa Authorization Bearer quando EVOLUTION_WEBHOOK_SECRET configurado)
+# WhatsApp (Evolution)
+GET/POST /api/channel-configs/:id/whatsapp/*
+POST /api/webhooks/evolution
 
 # Google Calendar
-GET    /api/integrations/google-calendar/configured
-GET    /api/integrations/google-calendar/status
-GET    /api/auth/google/authorize
-GET    /api/auth/google/callback
-POST   /api/integrations/google-calendar/sync
-POST   /api/integrations/google-calendar/disconnect
-
-# Push tokens (Firebase)
-POST   /api/push-tokens
-DELETE /api/push-tokens
+GET /api/integrations/google-calendar/*
+GET /api/auth/google/*
 
 # WebSocket
-GET    /ws
+GET /ws
 ```
 
 ---
 
-## Comandos NPM
+## Variaveis de Ambiente
 
-### Desenvolvimento
-
+### Obrigatorias
 ```bash
-# Iniciar servidor de desenvolvimento (frontend + backend)
-npm run dev
-
-# Verificar tipos TypeScript
-npm run check
-
-# Rodar linter (ESLint)
-npm run lint
-# (Opcional) aplicar correcoes automaticas
-npm run lint:fix
-
-# Verificar logs de debug acidentais
-npm run guardrails
-
-# Storybook (documentação de UI)
-npm run storybook
-npm run build-storybook
-```
-
-Para rodar o CRM localmente (Postgres via Docker + `.env.local` + migrations + seed), veja `RODAR_LOCAL.md`.
-
-### Banco de Dados
-
-```bash
-# Aplicar migrations no banco (criar/atualizar tabelas)
-npm run db:migrate
-
-# Criar dados iniciais (organizacao + admin + pipeline)
-npm run db:seed
-
-# (Somente dev/local) Sincronizar schema direto
-npm run db:push:dev
-
-# Ajustes pontuais (dados legados PT-BR)
-npm run db:migrate-ptbr
-
-# Gerar migracoes (se necessario)
-npm run db:generate
-```
-
-### Producao
-
-```bash
-# Build de producao (frontend + backend)
-npm run build
-
-# Iniciar servidor de producao
-npm start
-# ou
-NODE_ENV=production node dist/index.cjs
-```
-
----
-
-## Configuracao de Ambiente
-
-### Arquivos .env (.env.staging / .env.production)
-
-O backend carrega primeiro `.env.{APP_ENV}` (ou `.env.{NODE_ENV}`) quando existir e depois `.env` como fallback.  
-Para staging, use `APP_ENV=staging`. Para produção, `NODE_ENV=production` já aponta para `.env.production`.  
-Se precisar forçar um arquivo, use `ENV_FILE=/caminho/para/.env`.
-
-```bash
-# ====== MINIMO PARA RODAR (OBRIGATORIAS) ======
-
-# Conexao com PostgreSQL (configuracao oficial: Supabase Postgres)
-# Dica: pegue a connection string em Supabase > Settings > Database > Connection string
-DATABASE_URL=postgresql://usuario:senha@host:5432/database
-
-# Chave para criptografia de sessoes (gerar com: openssl rand -base64 32)
-SESSION_SECRET=chave-secreta-de-pelo-menos-32-caracteres
-
-# Segredo para proteger o health check (x-health-check-secret ou Authorization Bearer)
-HEALTH_CHECK_SECRET=sua-health-check-secret-aqui
-
-# Ambiente
+DATABASE_URL=postgresql://...       # Conexao PostgreSQL
+SESSION_SECRET=...                   # Chave 32+ caracteres
 NODE_ENV=production
 PORT=3000
-
-# ====== RECOMENDADAS (SINGLE-TENANT) ======
-
-# URL publica da aplicacao (usada em webhooks e callbacks OAuth)
-APP_URL=https://crm.seudominio.com
-
-# ID da organizacao (single-tenant)
-DEFAULT_ORGANIZATION_ID=1
-
-# Permitir registro de novos usuarios
-ALLOW_REGISTRATION=false
-VITE_ALLOW_REGISTRATION=false
-
-# ====== SUPABASE (CONFIGURACAO OFICIAL) ======
-
-SUPABASE_URL=https://xxxxx.supabase.co
-# Opcional (nao usado diretamente hoje pelo backend, mas util para futuros fluxos/cliente)
-SUPABASE_ANON_KEY=sua-anon-key-aqui
-# Necessario para assinar uploads e acessar storage de forma administrativa
-SUPABASE_SERVICE_ROLE_KEY=sua-service-role-key-aqui
-
-# ====== OPENAI (IA) ======
-
-# Lead scoring (recomendacoes) e transcricao Whisper
-OPENAI_API_KEY=sk-...
-# Hosts extras permitidos para transcricao de audio por URL (SSRF hardening; CSV de hostnames)
-# Use apenas hostnames (sem https://). Ex.: storage.seudominio.com,cdn.seudominio.com
-AUDIO_TRANSCRIBE_ALLOWED_HOSTS=
-
-# ====== UPSTASH REDIS (OPCIONAL) ======
-
-UPSTASH_REDIS_REST_URL=https://xxx.upstash.io
-UPSTASH_REDIS_REST_TOKEN=xxx
-
-# ====== FIREBASE CLOUD MESSAGING (OPCIONAL) ======
-
-# Backend (Firebase Admin)
-FIREBASE_PROJECT_ID=seu-projeto-id
-FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
-FIREBASE_CLIENT_EMAIL=firebase-adminsdk-xxx@seu-projeto.iam.gserviceaccount.com
-
-# Frontend (Firebase Web SDK)
-VITE_FIREBASE_API_KEY=sua-api-key
-VITE_FIREBASE_AUTH_DOMAIN=seu-projeto.firebaseapp.com
-VITE_FIREBASE_PROJECT_ID=seu-projeto-id
-VITE_FIREBASE_STORAGE_BUCKET=seu-projeto.appspot.com
-VITE_FIREBASE_MESSAGING_SENDER_ID=123456789
-VITE_FIREBASE_APP_ID=1:123456789:web:abcdef123456
-VITE_FIREBASE_VAPID_KEY=sua-vapid-key-aqui
-
-# ====== EVOLUTION API (WHATSAPP) - OPCIONAL ======
-
-EVOLUTION_API_URL=https://seu-evolution-api.com
-EVOLUTION_API_KEY=sua-api-key-aqui
-# Hosts extras permitidos para download de midia (SSRF hardening; CSV de hostnames)
-# Por padrao, o download de midia e permitido apenas do host de EVOLUTION_API_URL.
-# Ex.: evolution.seudominio.com,cdn.seudominio.com
-MEDIA_DOWNLOAD_ALLOWED_HOSTS=
-# Prefixo opcional (unico por deploy) para evitar colisao de instanceName quando multiplos CRMs usam a mesma Evolution API
-# Ex.: alma-crm-a, alma-crm-b
-EVOLUTION_INSTANCE_PREFIX=alma-crm-a
-# Recomendado em producao (o backend valida o webhook quando setado)
-# A Evolution API envia este segredo no header `Authorization: Bearer <secret>` (configurado na criacao da instancia).
-EVOLUTION_WEBHOOK_SECRET=sua-webhook-secret-aqui
-
-# ====== GOOGLE CALENDAR OAUTH - OPCIONAL ======
-
-GOOGLE_CLIENT_ID=seu-google-client-id.apps.googleusercontent.com
-GOOGLE_CLIENT_SECRET=seu-google-client-secret
-GOOGLE_REDIRECT_URI=https://crm.seudominio.com/api/auth/google/callback
-# Chave base64 de 32 bytes para criptografar tokens (obrigatoria em producao)
-# (gerar com: openssl rand -base64 32)
-GOOGLE_TOKEN_ENCRYPTION_KEY=sua-chave-base64-aqui
-
-# ====== SENTRY (MONITORAMENTO) - OPCIONAL ======
-
-# DSN do projeto Sentry para rastreamento de erros
-SENTRY_DSN=https://xxx@xxx.ingest.sentry.io/xxx
-# Versao da aplicacao (para release tracking)
-APP_VERSION=1.0.0
-
-# Sentry (Frontend) - recomendada para telemetria no navegador
-# IMPORTANTE: como e VITE_*, isso e build time (Build Variable no Coolify)
-VITE_SENTRY_DSN=
-# (Opcional) Ajuda a separar ambientes no Sentry (ex.: staging/production)
-VITE_APP_ENV=staging
-# (Opcional) Release do frontend no Sentry (pode ser igual ao APP_VERSION)
-VITE_APP_VERSION=1.0.0
 ```
 
-### Gerando SESSION_SECRET
-
+### Recomendadas
 ```bash
-# Linux/Mac
-openssl rand -base64 32
-
-# Node.js
-node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+APP_URL=https://crm.seudominio.com  # URL publica
+DEFAULT_ORGANIZATION_ID=1            # Single-tenant
+SUPABASE_URL=...                     # Storage
+SUPABASE_SERVICE_ROLE_KEY=...
 ```
+
+> Configuracao completa: ver `RODAR_LOCAL.md` (dev) ou `DEPLOY_COOLIFY_HOSTINGER.md` (prod)
 
 ---
 
-## Deploy em Producao (Coolify v4 + Docker)
+## Estrategia Real-time (WebSocket)
 
-Infra atual (sem expor IP/segredos): **Coolify v4** rodando em uma **VPS da Hostinger**.
-
-Guia passo a passo (bem didatico, incluindo “onde rodar comandos”, migrations e redeploy): `DEPLOY_COOLIFY_HOSTINGER.md`.
-
-O deploy e feito usando **Coolify** com integracao GitHub e build pack **Dockerfile**.
-
-### Pre-requisitos
-
-- **Coolify**: Servidor configurado
-- **Supabase (configuracao oficial)**:
-  - **Postgres** (DATABASE_URL)
-  - **Storage** com bucket "uploads" (SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY)
-
-### Passo a Passo Completo
-
-#### 1. Configurar Projeto no Coolify
-
-1. Criar novo projeto no Coolify
-2. Conectar com GitHub (repositorio `prospecttrafego/crm-alma-oficial`)
-3. Selecionar branch (`staging` ou `main`)
-4. Dentro do Project, usar **Create New Resource** e criar uma **Application** com **Build Pack: Dockerfile** (Base Directory `/`)
-
-#### 2. Configurar Variaveis de Ambiente
-
-No painel do Coolify, adicionar todas as variaveis:
-
-**Variaveis de Runtime (Environment Variables):**
-- `DATABASE_URL`
-- `SESSION_SECRET`
-- `SUPABASE_URL`
-- `SUPABASE_SERVICE_ROLE_KEY`
-- `OPENAI_API_KEY` (opcional)
-- `DEFAULT_ORGANIZATION_ID`
-- Demais variaveis conforme `.env.example`
-
-**Variaveis de Build (Build Variable / build time):**
-- `VITE_ALLOW_REGISTRATION`
-- `VITE_FIREBASE_API_KEY`
-- `VITE_FIREBASE_AUTH_DOMAIN`
-- `VITE_FIREBASE_PROJECT_ID`
-- `VITE_FIREBASE_STORAGE_BUCKET`
-- `VITE_FIREBASE_MESSAGING_SENDER_ID`
-- `VITE_FIREBASE_APP_ID`
-- `VITE_FIREBASE_VAPID_KEY`
-
-**Importante:** Variaveis `VITE_*` sao injetadas no build do frontend (Vite) e devem estar marcadas como **Build Variable** no Coolify. Se voce mudar `VITE_*`, precisa fazer **Deploy** (rebuild), nao apenas Restart.
-
-#### 3. Deploy
-
-1. Clicar em "Deploy" no Coolify
-2. O Dockerfile executa build multi-stage automaticamente
-3. Health check configurado em `/api/healthz`
-
-#### 4. Apos o Deploy - Rodar Migrations
-
-**IMPORTANTE:** Migrations devem ser rodadas manualmente apos cada deploy que inclua alteracoes de schema.
-
-```bash
-# Conectar no terminal do container do app via Coolify (Terminal no painel)
-npm run db:migrate
-
-# (Opcional, apenas 1x) Se o banco ja existia antes de usar migrations e voce precisa "baseline":
-# npm run db:migrate -- --baseline
-```
-
-Obs.: no Coolify v4 existe “Terminal Access” no servidor (aba Security). Se estiver desabilitado, nenhum terminal funciona ate reabilitar.
-
-#### 5. Criar Primeiro Usuario
-
-1. Configurar `VITE_ALLOW_REGISTRATION=true` como **Build Variable** (build time)
-2. Fazer **Deploy** (rebuild)
-3. Acessar a aplicacao e criar conta
-4. Alterar `VITE_ALLOW_REGISTRATION=false`
-5. Fazer novo **Deploy** (rebuild)
-
-### Dockerfile
-
-O projeto inclui um Dockerfile otimizado:
-
-```dockerfile
-# Multi-stage build
-FROM node:20-bookworm-slim AS deps      # Dependencias de producao
-FROM node:20-bookworm-slim AS build     # Build (com variaveis VITE_*)
-FROM node:20-bookworm-slim AS runtime   # Imagem final slim
-
-# Health check automatico
-HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
-  CMD node -e "fetch('http://127.0.0.1:3000/api/healthz'...)
-```
-
-### Atualizacoes e Redeploy
-
-Para atualizar a aplicacao:
-
-1. Push das alteracoes para o branch configurado (staging/main)
-2. Coolify detecta automaticamente (webhook) ou clique em **Deploy**
-3. **Se houver alteracoes de schema:** rodar migrations manualmente apos deploy (no terminal do container do app)
-4. **Se voce mudou `VITE_*`:** faca Deploy (rebuild). Se mudou apenas runtime vars, Restart costuma bastar.
-
-```bash
-# Apos o container subir, conectar e rodar:
-npm run db:migrate
-
-# (Opcional, apenas 1x) Se o banco ja existia antes de usar migrations e voce precisa "baseline":
-# npm run db:migrate -- --baseline
-```
-
----
-
-## Troubleshooting
-
-### Erro: "Cannot find module"
-
-```bash
-rm -rf node_modules
-npm install
-```
-
-### Erro: "ECONNREFUSED" no banco
-
-Verificar se DATABASE_URL esta correta e se o banco aceita conexoes externas.
-
-### WebSocket nao conecta
-
-Verificar se o proxy do Coolify (Caddy/Traefik) esta encaminhando WebSocket corretamente (Upgrade/Connection). Em geral e automatico; confira tambem o dominio/HTTPS e os logs do container.
-
-### Upload nao funciona
-
-1. Verificar SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY
-2. Verificar se bucket "uploads" existe no Supabase
-3. Verificar politicas de acesso do bucket
-
-### Sessao expira rapido
-
-Verificar se SESSION_SECRET esta configurado corretamente.
-
----
-
-## Atualizacoes e Manutencao
-
-### Atualizar Aplicacao
-
-1. Push para o branch configurado no Coolify (staging/main)
-2. Coolify detecta automaticamente via webhook ou clique em **Deploy**
-3. Se houver alteracoes de schema, rodar migrations apos deploy (no terminal do container do app):
-   ```bash
-   npm run db:migrate
-   ```
-
-### Backup do Banco
-
-```bash
-pg_dump -U usuario -h host -d database > backup_$(date +%Y%m%d).sql
-```
-
-### Monitoramento
-
-- **Logs:** Acessar via painel do Coolify ou `docker logs`
-- **Health:** `GET /api/health` retorna status detalhado
-- **Metricas:** Coolify exibe uso de CPU/memoria do container
-- **WebSocket:** `/ws` roda em single-instance; para escala horizontal, usar pub/sub (ex.: Redis)
-
----
-
-## Consideracoes de Seguranca
-
-1. **SESSION_SECRET**: Use uma chave forte de pelo menos 32 caracteres
-2. **ALLOW_REGISTRATION**: Mantenha `false` em producao
-3. **HTTPS**: Sempre use SSL em producao
-4. **Firewall**: Libere apenas portas 80, 443 e SSH
-5. **Senhas**: bcrypt com cost 12 (padrao)
-6. **Sessoes**: Armazenadas no PostgreSQL, nao em memoria
-
----
-
-## Estrategia Real-time (WebSocket vs Polling)
-
-Esta secao documenta a estrategia oficial de atualizacoes em tempo real no Alma CRM.
-
-### Principio Geral
-
-**WebSocket e a fonte primaria de atualizacoes em tempo real.** Polling (`refetchInterval`) deve ser usado apenas como fallback quando WebSocket estiver desconectado.
+### Principio
+**WebSocket e a fonte primaria.** Polling (`refetchInterval`) apenas como fallback quando WS desconectado.
 
 ### Eventos WebSocket (Backend → Frontend)
 
-O backend emite os seguintes eventos via WebSocket (`server/ws/index.ts`):
+| Evento | Queries Invalidadas |
+|--------|---------------------|
+| `pipeline:*`, `pipeline:stage:*` | `/api/pipelines` |
+| `deal:*` | `/api/deals`, `/api/pipelines` |
+| `conversation:*` | `/api/conversations` |
+| `message:*` | Cache update direto |
+| `notification:new` | `/api/notifications` |
+| `calendar:event:*` | `/api/calendar-events` |
+| `channel:config:*` | `/api/channel-configs` |
+| `google_calendar:sync_complete` | `/api/calendar-events` |
+| `typing`, `user:online/offline` | Estado local apenas |
 
-| Evento | Payload | Queries Invalidadas |
-|--------|---------|---------------------|
-| `pipeline:created/updated/deleted` | Pipeline completo | `/api/pipelines` |
-| `pipeline:stage:created/updated/deleted` | Stage completo | `/api/pipelines` |
-| `deal:created/updated/moved/deleted` | Deal completo | `/api/deals`, `/api/pipelines` |
-| `conversation:created/updated` | Conversa completa ou parcial | `/api/conversations` |
-| `message:created/updated/deleted` | Mensagem completa | Cache update direto (sem refetch) |
-| `notification:new` | `{ unreadCount }` | `/api/notifications`, `/api/notifications/unread-count` |
-| `calendar:event:created/updated/deleted` | Evento completo | `/api/calendar-events` |
-| `channel:config:created/updated/deleted` | Config redacted | `/api/channel-configs` |
-| `google_calendar:sync_complete` | `{ userId, imported, updated, deleted }` | `/api/integrations/google-calendar/status`, `/api/calendar-events` |
-| `typing` | `{ conversationId, userId, userName }` | Nenhuma (estado local) |
-| `user:online/offline` | `{ userId, lastSeenAt }` | Nenhuma (estado local) |
+### Polling Permitido (somente fallback)
+- `notification-bell.tsx`: 60s quando WS desconectado
+- `whatsapp-qr-modal.tsx`: 3s durante pareamento QR
+- `calendar.tsx`, `channels/index.tsx`: 30s quando WS desconectado
 
-### Polling (refetchInterval) - Uso Oficial
+**Regra:** Novos componentes NAO devem usar `refetchInterval` fixo.
 
-| Componente | Intervalo | Condicao | Justificativa |
-|------------|-----------|----------|---------------|
-| `notification-bell.tsx` | 60s | Somente quando WS desconectado | Fallback de seguranca |
-| `whatsapp-qr-modal.tsx` | 3s | Somente durante `isConnecting` | Fluxo de pareamento QR |
-| `calendar.tsx` | 30s | Somente quando WS desconectado | Fallback para status sync |
-| `channels/index.tsx` | 30s | Somente quando WS desconectado | Fallback para status sync |
-
-**Regra:** Novos componentes NAO devem usar `refetchInterval` fixo. Use invalidacao via WebSocket.
-
-### Preferencias de Usuario (Idioma, Tema, etc.)
-
-**Fonte de verdade:**
-- Quando autenticado: `user.preferences` no backend
-- Pre-login: `localStorage` como cache/fallback
-
-**Fluxo:**
-1. Ao alterar preferencia, salvar em `localStorage` (UI instantanea)
-2. Se autenticado, persistir no backend via `usersApi.updateMe()`
-3. Ao fazer login, preferencias do backend sobrescrevem localStorage
-
-**Implementacao:** `LanguageContext.tsx` (nao usar `useLanguage.ts` - foi removido por duplicacao)
+### Preferencias de Usuario
+- **Autenticado**: `user.preferences` no backend (fonte de verdade)
+- **Pre-login**: `localStorage` como cache
+- Ao alterar: salva em localStorage (UI instantanea) + backend se autenticado
+- Ao login: backend sobrescreve localStorage
 
 ---
 
-## Debitos Tecnicos Conhecidos
+## Regras de organizationId (Single-tenant)
 
-Esta secao documenta funcionalidades planejadas mas ainda nao implementadas.
+- `organizationId` e gerenciado pelo backend (`DEFAULT_ORGANIZATION_ID`)
+- Requests de criacao NAO devem enviar organizationId
+- Requests de atualizacao NAO podem alterar organizationId
+
+---
+
+## Debitos Tecnicos
 
 ### Email de Reset de Senha
+**Status:** ADIADO
 
-**Status:** ADIADO (implementar em fase posterior)
-
-O fluxo de password reset gera token e armazena no banco, mas **nao envia email** automaticamente. Atualmente:
-- Token e gerado e armazenado via `createPasswordResetToken()`
-- Token expira em 15 minutos (configuravel em `server/constants.ts`)
-- O endpoint `/api/forgot-password` retorna sucesso mas nao envia email
-- Em producao, o admin deve criar mecanismo manual ou implementar servico de email
-
-**Para implementar:**
-1. Criar `server/services/email.ts` com provider SMTP ou servico (SendGrid, AWS SES, etc.)
-2. Criar template de email para reset de senha
-3. Conectar no fluxo de forgot-password em `server/auth.ts`
-4. Adicionar variaveis de ambiente para configuracao SMTP
+Token e gerado e armazenado, mas email NAO e enviado automaticamente. Para implementar:
+1. Criar `server/services/email.ts` com SMTP ou servico (SendGrid, SES)
+2. Criar template de email
+3. Conectar no fluxo de forgot-password
+4. Adicionar variaveis SMTP
 
 ---
 
-## Contato e Suporte
+## Contato
 
 - **Repositorio**: github.com/prospecttrafego/crm-alma-oficial
 - **Desenvolvido para**: Alma Digital Agency

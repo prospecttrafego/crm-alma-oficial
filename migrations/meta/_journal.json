@@ -57,6 +57,13 @@
       "when": 1768515910007,
       "tag": "0007_neat_freak",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1768916448050,
+      "tag": "0008_yummy_puff_adder",
+      "breakpoints": true
     }
   ]
 }
