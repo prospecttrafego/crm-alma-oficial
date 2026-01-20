@@ -1,12 +1,16 @@
 /**
  * Hook for playing notification sounds
  * Requires user interaction before playing sounds (browser policy)
+ * Syncs with backend user.preferences (soundEnabled)
  */
-import { useCallback, useRef, useEffect } from "react";
+import { useCallback, useRef, useEffect, useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/hooks/useAuth";
+import { usersApi } from "@/lib/api/users";
 
 export type SoundType = "message_received" | "message_sent" | "notification";
 
-// Sound settings stored in localStorage
+// Sound settings stored in localStorage (cache)
 const SOUND_ENABLED_KEY = "crm_notification_sound_enabled";
 
 // Base64 encoded short notification sounds (to avoid external dependencies)
@@ -80,22 +84,48 @@ async function playSound(type: SoundType, volume: number = 0.5): Promise<void> {
 export interface UseNotificationSoundResult {
   isEnabled: boolean;
   setEnabled: (enabled: boolean) => void;
+  isUpdating: boolean;
   playMessageReceived: () => void;
   playMessageSent: () => void;
   playNotification: () => void;
 }
 
 export function useNotificationSound(): UseNotificationSoundResult {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
   const isEnabledRef = useRef(true);
 
-  // Load preference from localStorage
-  useEffect(() => {
+  // Get initial value: user preferences > localStorage > default (true)
+  const getInitialEnabled = (): boolean => {
+    const userPrefs = user?.preferences as { soundEnabled?: boolean } | undefined;
+    if (typeof userPrefs?.soundEnabled === "boolean") {
+      return userPrefs.soundEnabled;
+    }
     const stored = localStorage.getItem(SOUND_ENABLED_KEY);
     if (stored !== null) {
-      isEnabledRef.current = stored === "true";
+      return stored === "true";
     }
+    return true; // default enabled
+  };
 
-    // Listen for user interaction to enable audio
+  const [isEnabled, setIsEnabledState] = useState(getInitialEnabled);
+
+  // Update when user preferences change
+  useEffect(() => {
+    const userPrefs = user?.preferences as { soundEnabled?: boolean } | undefined;
+    if (typeof userPrefs?.soundEnabled === "boolean") {
+      setIsEnabledState(userPrefs.soundEnabled);
+      isEnabledRef.current = userPrefs.soundEnabled;
+    }
+  }, [user?.preferences]);
+
+  // Keep ref in sync with state for callbacks
+  useEffect(() => {
+    isEnabledRef.current = isEnabled;
+  }, [isEnabled]);
+
+  // Listen for user interaction to enable audio
+  useEffect(() => {
     const handleInteraction = () => {
       markUserInteraction();
     };
@@ -111,10 +141,25 @@ export function useNotificationSound(): UseNotificationSoundResult {
     };
   }, []);
 
+  // Mutation to save preference
+  const updateSoundMutation = useMutation({
+    mutationFn: async (enabled: boolean) => {
+      localStorage.setItem(SOUND_ENABLED_KEY, String(enabled));
+      if (user) {
+        return usersApi.updateMe({ preferences: { soundEnabled: enabled } });
+      }
+      return null;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+    },
+  });
+
   const setEnabled = useCallback((enabled: boolean) => {
+    setIsEnabledState(enabled);
     isEnabledRef.current = enabled;
-    localStorage.setItem(SOUND_ENABLED_KEY, String(enabled));
-  }, []);
+    updateSoundMutation.mutate(enabled);
+  }, [updateSoundMutation]);
 
   const playMessageReceived = useCallback(() => {
     if (isEnabledRef.current) {
@@ -135,8 +180,9 @@ export function useNotificationSound(): UseNotificationSoundResult {
   }, []);
 
   return {
-    isEnabled: isEnabledRef.current,
+    isEnabled,
     setEnabled,
+    isUpdating: updateSoundMutation.isPending,
     playMessageReceived,
     playMessageSent,
     playNotification,

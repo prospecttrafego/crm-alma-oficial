@@ -251,17 +251,31 @@ SUPABASE_SERVICE_ROLE_KEY=...
 
 ### Eventos WebSocket (Backend → Frontend)
 
-| Evento | Queries Invalidadas |
-|--------|---------------------|
-| `pipeline:*`, `pipeline:stage:*` | `/api/pipelines` |
-| `deal:*` | `/api/deals`, `/api/pipelines` |
-| `conversation:*` | `/api/conversations` |
-| `message:*` | Cache update direto |
-| `notification:new` | `/api/notifications` |
-| `calendar:event:*` | `/api/calendar-events` |
-| `channel:config:*` | `/api/channel-configs` |
-| `google_calendar:sync_complete` | `/api/calendar-events` |
-| `typing`, `user:online/offline` | Estado local apenas |
+| Evento | Estrategia | Descricao |
+|--------|------------|-----------|
+| `pipeline:*` | **setQueryData** | Atualiza cache diretamente (sem refetch) |
+| `pipeline:stage:*` | **setQueryData** | Atualiza stages dentro do pipeline no cache |
+| `deal:*` | **setQueryData** | Atualiza cache diretamente (sem refetch) |
+| `channel:config:*` | **setQueryData** | Atualiza cache diretamente (sem refetch) |
+| `message:created/updated/deleted` | **setQueryData** | Append/update/mark no cache de mensagens |
+| `conversation:created` | **invalidate** | Invalida lista de conversas |
+| `conversation:updated` | **setQueryData** | Atualiza lastMessageAt/unreadCount no cache |
+| `notification:new` | **setQueryData + invalidate** | Atualiza unreadCount direto, invalida lista |
+| `calendar:event:*` | **invalidate** | Invalida `/api/calendar-events` |
+| `google_calendar:sync_complete` | **invalidate** | Invalida status e eventos |
+| `typing`, `user:online/offline` | **estado local** | Nao afeta cache do React Query |
+
+### Mutations com Updates Otimistas (onMutate)
+
+Os hooks de mutation usam `onMutate` para updates otimistas com rollback automatico em caso de erro:
+
+| Hook | Mutations Otimistas |
+|------|---------------------|
+| `usePipelineMutations` | update, delete, setDefault |
+| `useDealMutations` | update, delete, move |
+| `useChannelConfigMutations` | update, delete, disconnect |
+
+**Beneficio:** UI atualiza instantaneamente, sem esperar resposta do servidor.
 
 ### Polling Permitido (somente fallback)
 - `notification-bell.tsx`: 60s quando WS desconectado
@@ -270,11 +284,24 @@ SUPABASE_SERVICE_ROLE_KEY=...
 
 **Regra:** Novos componentes NAO devem usar `refetchInterval` fixo.
 
+### Configuracao de Cache (React Query)
+
+```typescript
+// client/src/lib/queryClient.ts
+staleTime: 5 * 60 * 1000,  // 5 minutos - dados ficam "fresh" por mais tempo
+gcTime: 30 * 60 * 1000,    // 30 minutos - dados permanecem em cache
+```
+
 ### Preferencias de Usuario
-- **Autenticado**: `user.preferences` no backend (fonte de verdade)
-- **Pre-login**: `localStorage` como cache
-- Ao alterar: salva em localStorage (UI instantanea) + backend se autenticado
-- Ao login: backend sobrescreve localStorage
+- **Backend** (`user.preferences`): fonte de verdade quando autenticado
+- **localStorage**: cache para UI instantanea e fallback pre-login
+- **Fluxo**: Ao alterar, salva em localStorage (UI instantanea) + PATCH `/api/users/me` se autenticado
+- **Ao login**: backend sobrescreve localStorage
+
+**Preferencias sincronizadas:**
+- `language`: "pt-BR" | "en"
+- `theme`: "light" | "dark" | "system"
+- `soundEnabled`: boolean
 
 ---
 

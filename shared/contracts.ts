@@ -294,6 +294,8 @@ export const updateUserProfileSchema = baseUpdateUserSchema
     preferences: z
       .object({
         language: z.enum(["pt-BR", "en"]).optional(),
+        theme: z.enum(["light", "dark", "system"]).optional(),
+        soundEnabled: z.boolean().optional(),
       })
       .optional(),
   });

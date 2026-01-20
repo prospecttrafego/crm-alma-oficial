@@ -3,11 +3,17 @@ import { db } from "../db";
 import { and, eq } from "drizzle-orm";
 import { getTenantOrganizationId } from "./helpers";
 
+export type UserPreferences = {
+  language?: "pt-BR" | "en";
+  theme?: "light" | "dark" | "system";
+  soundEnabled?: boolean;
+};
+
 export type UpdateUserProfileInput = {
   firstName?: string;
   lastName?: string;
   profileImageUrl?: string;
-  preferences?: { language?: "pt-BR" | "en" };
+  preferences?: UserPreferences;
 };
 
 export async function getUser(id: string): Promise<User | undefined> {

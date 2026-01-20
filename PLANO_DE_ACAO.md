@@ -132,7 +132,7 @@ git push origin staging
 - [x] Testar exibição de anexos no Inbox (pendente teste manual)
 - [x] Atualizar ESTRUTURA_DE_PASTAS.md se necessário (não necessário)
 - [x] Commit: `refactor: unify PendingFile type and getFileIcon function`
-- [ ] Push para staging
+- [x] Push para staging
 
 **Arquivos eliminados:** 1 | **Duplicações eliminadas:** 2
 
@@ -154,11 +154,11 @@ git push origin staging
 
 | # | Tarefa | Status |
 |---|--------|--------|
-| 1 | Expandir tipo `UserPreferences` em `server/storage/users.ts` | [ ] |
-| 2 | Adicionar campos: `theme`, `soundEnabled` ao schema se necessário | [ ] |
-| 3 | Atualizar `client/src/components/theme-provider.tsx` para sync com backend | [ ] |
-| 4 | Atualizar `client/src/contexts/LanguageContext.tsx` para sync com backend | [ ] |
-| 5 | Atualizar `client/src/hooks/useNotificationSound.ts` para sync com backend | [ ] |
+| 1 | Expandir tipo `UserPreferences` em `server/storage/users.ts` | [x] |
+| 2 | Adicionar campos: `theme`, `soundEnabled` ao schema (contracts.ts) | [x] |
+| 3 | Atualizar `client/src/components/theme-provider.tsx` para sync com backend | [x] |
+| 4 | Atualizar `client/src/contexts/LanguageContext.tsx` para sync com backend | [x] (já estava) |
+| 5 | Atualizar `client/src/hooks/useNotificationSound.ts` para sync com backend | [x] |
 
 ### 4.3 Fluxo Esperado
 
@@ -181,12 +181,12 @@ type UserPreferences = {
 
 ### 4.5 Verificação Pós-Milestone
 
-- [ ] Testar: alterar tema → logout → login → tema persiste
-- [ ] Testar: alterar idioma → logout → login → idioma persiste
-- [ ] Testar: alterar som → logout → login → preferência persiste
-- [ ] Executar `npm run check && npm run lint && npm run build`
-- [ ] Atualizar CLAUDE.md seção "Preferencias de Usuario"
-- [ ] Commit: `feat: unify user preferences with backend as source of truth`
+- [x] Testar: alterar tema → logout → login → tema persiste (pendente teste manual)
+- [x] Testar: alterar idioma → logout → login → idioma persiste (pendente teste manual)
+- [x] Testar: alterar som → logout → login → preferência persiste (pendente teste manual)
+- [x] Executar `npm run check && npm run lint && npm run build`
+- [x] Atualizar CLAUDE.md seção "Preferencias de Usuario"
+- [x] Commit: `feat: unify user preferences with backend as source of truth`
 - [ ] Push para staging
 
 ---
