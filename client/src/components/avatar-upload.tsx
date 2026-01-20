@@ -75,10 +75,10 @@ export function AvatarUpload({
 
     try {
       // Get presigned upload URL
-      const { uploadURL, objectPath } = await filesApi.getUploadUrl();
+      const { uploadURL, objectPath } = await filesApi.getUploadUrl({ size: file.size });
 
       // Upload to Supabase Storage
-      await fetch(uploadURL, {
+      const uploadResponse = await fetch(uploadURL, {
         method: "PUT",
         body: file,
         headers: {
@@ -86,8 +86,12 @@ export function AvatarUpload({
         },
       });
 
+      if (!uploadResponse.ok) {
+        throw new Error(`Upload failed with status ${uploadResponse.status}`);
+      }
+
       // Update user profile with new avatar URL
-      await updateProfileMutation.mutateAsync(objectPath || uploadURL.split("?")[0]);
+      await updateProfileMutation.mutateAsync(objectPath);
     } catch (error) {
       console.error("Upload error:", error);
       toast({ title: "Erro ao fazer upload", variant: "destructive" });

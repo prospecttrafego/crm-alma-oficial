@@ -218,6 +218,18 @@ export const uploadUrlSchema = z
   .object({
     uploadURL: z.string().url(),
     objectPath: z.string(),
+    maxSizeBytes: z.number().int().positive().optional(),
+    maxSizeMB: z.number().int().positive().optional(),
+  })
+  .strict();
+
+export const signedUrlSchema = z
+  .object({
+    signedUrl: z.string().url(),
+    expiresIn: z.number().int().positive(),
+    fileName: z.string(),
+    mimeType: z.string().nullable().optional(),
+    size: z.number().int().nullable().optional(),
   })
   .strict();
 

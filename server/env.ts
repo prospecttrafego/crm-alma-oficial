@@ -57,6 +57,7 @@ const envSchema = z
     ),
     APP_URL: optionalUrl(),
     APP_VERSION: optionalString(),
+    HEALTH_CHECK_SECRET: optionalString(),
     DEFAULT_ORGANIZATION_ID: z.preprocess(emptyToUndefined, z.coerce.number().int().positive().optional()),
     ALLOW_REGISTRATION: optionalBooleanString(),
     VITE_ALLOW_REGISTRATION: optionalBooleanString(),

@@ -4,6 +4,7 @@
  */
 import OpenAI from "openai";
 import { openaiLogger } from "../../logger";
+import { MAX_FILE_SIZE_BYTES } from "../../constants";
 
 // Timeout para download de audio (60 segundos - arquivos podem ser grandes)
 const AUDIO_FETCH_TIMEOUT_MS = 60000;
@@ -20,6 +21,88 @@ export interface TranscriptionResult {
   text: string;
   language?: string;
   duration?: number;
+}
+
+function getAllowedHosts(): Set<string> {
+  const allowed = new Set<string>();
+  const supabaseUrl = process.env.SUPABASE_URL;
+  if (supabaseUrl) {
+    try {
+      allowed.add(new URL(supabaseUrl).hostname);
+    } catch (_error) {
+      // Ignore invalid SUPABASE_URL; env validation should catch this.
+    }
+  }
+
+  const extraHosts = process.env.AUDIO_TRANSCRIBE_ALLOWED_HOSTS;
+  if (extraHosts) {
+    extraHosts
+      .split(",")
+      .map((host) => host.trim())
+      .filter(Boolean)
+      .forEach((host) => allowed.add(host));
+  }
+
+  return allowed;
+}
+
+function assertAllowedAudioUrl(audioUrl: string): URL {
+  const parsed = new URL(audioUrl);
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new Error(`Unsupported URL protocol: ${parsed.protocol}`);
+  }
+
+  const allowedHosts = getAllowedHosts();
+  if (allowedHosts.size === 0) {
+    throw new Error("Audio transcription blocked: no allowed hosts configured");
+  }
+
+  if (!allowedHosts.has(parsed.hostname)) {
+    throw new Error(`Audio transcription blocked: host not allowed (${parsed.hostname})`);
+  }
+
+  return parsed;
+}
+
+async function readResponseWithLimit(response: Response, maxBytes: number): Promise<Buffer> {
+  const contentLength = response.headers.get("content-length");
+  if (contentLength) {
+    const size = Number(contentLength);
+    if (Number.isFinite(size) && size > maxBytes) {
+      throw new Error(`Audio file too large (${size} bytes)`);
+    }
+  }
+
+  if (!response.body) {
+    const fallback = Buffer.from(await response.arrayBuffer());
+    if (fallback.length > maxBytes) {
+      throw new Error(`Audio file too large (${fallback.length} bytes)`);
+    }
+    return fallback;
+  }
+
+  const reader = response.body.getReader();
+  const chunks: Buffer[] = [];
+  let total = 0;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (value) {
+      total += value.byteLength;
+      if (total > maxBytes) {
+        await reader.cancel();
+        throw new Error(`Audio file too large (> ${maxBytes} bytes)`);
+      }
+      chunks.push(Buffer.from(value));
+    }
+  }
+
+  return Buffer.concat(chunks);
+}
+
+function toSafeUrlForLog(url: URL): string {
+  return `${url.protocol}//${url.host}${url.pathname}`;
 }
 
 /**
@@ -40,9 +123,10 @@ export async function transcribeAudio(
 
   try {
     // Fetch the audio file from the URL with timeout
-    openaiLogger.info("Fetching audio for transcription", { audioUrl: audioUrl.substring(0, 100) });
+    const parsedUrl = assertAllowedAudioUrl(audioUrl);
+    openaiLogger.info("Fetching audio for transcription", { audioUrl: toSafeUrlForLog(parsedUrl) });
 
-    const response = await fetch(audioUrl, {
+    const response = await fetch(parsedUrl.toString(), {
       signal: AbortSignal.timeout(AUDIO_FETCH_TIMEOUT_MS),
     });
 
@@ -50,8 +134,8 @@ export async function transcribeAudio(
       throw new Error(`Failed to fetch audio: ${response.statusText}`);
     }
 
-    const audioBuffer = await response.arrayBuffer();
-    const audioBlob = new Blob([audioBuffer], { type: "audio/webm" });
+    const audioBuffer = await readResponseWithLimit(response, MAX_FILE_SIZE_BYTES);
+    const audioBlob = new Blob([new Uint8Array(audioBuffer)], { type: "audio/webm" });
 
     // Convert Blob to File for OpenAI API
     const audioFile = new File([audioBlob], "audio.webm", { type: "audio/webm" });

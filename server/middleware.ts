@@ -9,7 +9,7 @@ import { sendValidationError, sendError, sendNotFound, ErrorCodes, type ErrorCod
 import { logger } from "./logger";
 
 // Re-export existing middlewares
-export { isAuthenticated, requireRole, rateLimitMiddleware } from "./auth";
+export { isAuthenticated, requireRole, rateLimitMiddleware, csrfProtection } from "./auth";
 export { requestIdMiddleware, requestLoggingMiddleware } from "./logger";
 
 export const securityHeaders: RequestHandler = (_req, res, next) => {

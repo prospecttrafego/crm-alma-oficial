@@ -7,11 +7,11 @@ import { redis } from "../../redis";
 import { Ratelimit } from "@upstash/ratelimit";
 import { openaiLogger } from "../../logger";
 import { getErrorStatusCode } from "../../lib/circuit-breaker";
+import { OPENAI_RPM_LIMIT } from "../../constants";
 
 // ==================== CONFIGURATION ====================
 
 // Rate limits (per minute)
-const OPENAI_RPM_LIMIT = 20; // requests per minute
 const OPENAI_RPM_WINDOW = "1 m";
 
 // Daily limits (cost control)

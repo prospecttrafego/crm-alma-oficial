@@ -20,9 +20,10 @@ Estrutura atual (nível alto):
   client/
   server/
     api/            # Rotas HTTP por domínio
+    auth/           # Autenticacao (session, passport, rate limit, CSRF)
     ws/             # WebSocket
     validation/     # Schemas Zod centralizados (shared/contracts)
-    storage/        # DAL por domínio (contacts, deals, etc.)
+    storage/        # DAL por domínio (inclui storage/conversations)
     integrations/   # Integrações externas
     services/       # Lógica de negócio reutilizável
     jobs/           # Background jobs
@@ -137,9 +138,10 @@ O que você encontra (pastas e arquivos principais):
 ```
 server/
   api/                # Rotas HTTP por domínio
+  auth/               # Autenticacao (session, passport, rate limit, CSRF)
   ws/                 # WebSocket
   validation/         # Schemas Zod centralizados (a partir de shared/contracts)
-  storage/            # DAL por domínio (contacts, deals, etc.)
+  storage/            # DAL por domínio (inclui storage/conversations)
   integrations/       # Integrações externas
   services/           # Serviços de negócio (deal-auto-creator, whatsapp-config, email-ingest)
   jobs/               # Background jobs (queue, handlers, DLQ, storage)
@@ -148,6 +150,7 @@ server/
   constants.ts        # Constantes centralizadas (limites, TTLs, timeouts)
   middleware.ts       # Middlewares (asyncHandler, validate*, getCurrentUser)
   response.ts         # Helpers de resposta (sendSuccess, sendError, toSafeUser)
+  auth.ts             # Bootstrap de auth (middlewares + routes)
 ```
 
 E também existem arquivos importantes "soltos" dentro de `server/` (por exemplo: autenticação, banco, storage/DAL e `server/env.ts` para carregar `.env.staging`/`.env.production`).
@@ -156,6 +159,8 @@ E também existem arquivos importantes "soltos" dentro de `server/` (por exemplo
 
 - `server/middleware.ts`: Middlewares padronizados como `asyncHandler` (captura erros automaticamente), `validateBody`, `validateParams`, `validateQuery` (validação Zod), e `getCurrentUser` (helper type-safe para acessar usuário autenticado).
 - `server/response.ts`: Funções helper para respostas HTTP padronizadas (`sendSuccess`, `sendError`, `sendNotFound`, `sendValidationError`, `toSafeUser`, etc.).
+- `server/auth/`: Módulos de autenticação (session, passport, rate limit, CSRF).
+- `server/auth.ts`: Bootstrap dos middlewares e rotas de autenticação.
 - `server/validation/`: Pasta com schemas Zod centralizados para validação de entrada (importa de `shared/contracts`).
 - `server/storage.ts`: Facade que re-exporta os módulos do `server/storage/` (DAL por domínio).
 - `server/types/`: Type augmentations para Express (Request interface com validatedBody/Query/Params e User).
@@ -168,10 +173,11 @@ E também existem arquivos importantes "soltos" dentro de `server/` (por exemplo
 O que você encontra aqui (exemplos reais):
 - `server/api/contacts.ts`: tudo de contatos (`/api/contacts`)
 - `server/api/deals.ts`: deals (`/api/deals`)
-- `server/api/conversations.ts`: inbox (conversas/mensagens)
+- `server/api/conversations/`: inbox (conversas/mensagens)
 - `server/api/files.ts`: arquivos (upload/download/transcrição)
 - `server/api/search.ts`: busca global (contacts, deals, conversations)
 - `server/api/auditLogs.ts`: logs de auditoria (com filtros e paginação)
+- `server/api/lgpd/`: LGPD (export/delete)
 - `server/api/channelConfigs.ts`: configurações de canais (email/whatsapp)
 - `server/api/googleCalendar.ts`: rotas da integração do Google Calendar
 - `server/api/evolution.ts`: status + webhook do WhatsApp (Evolution API)
@@ -350,7 +356,8 @@ O que evitar:
 
 ```
 shared/
-  schema.ts                   # Drizzle schema + enums + tipos inferidos
+  schema.ts                   # Barrel/re-export do schema (compat + drizzle.config.ts)
+  schema/                     # Schema modular (tabelas/enums/relations/zod)
   contracts.ts                # Zod schemas/DTOs derivados do schema (validação de entrada)
   apiSchemas.ts               # Zod schemas de resposta (entidades e payloads compostos)
   apiSchemas.integrations.ts  # Zod schemas de integrações (payloads/redactions)
@@ -362,9 +369,14 @@ shared/
 - O que é: a **fonte única de verdade** para tipos, enums e schema do banco.
 - Por que existe: evita duplicação de definições entre frontend e backend, reduz bugs e garante consistência.
 
-### `shared/schema.ts`
-- Contém todas as tabelas Drizzle (users, contacts, deals, etc.)
-- Contém todos os **enums** do sistema (channelTypes, activityTypes, savedViewTypes, etc.)
+### `shared/schema.ts` + `shared/schema/`
+- `shared/schema.ts` é o **entrypoint estável** (compatibilidade) para imports e para o `drizzle.config.ts`.
+- `shared/schema/` contém o schema modularizado:
+  - `tables/` (tabelas por domínio)
+  - `enums.ts` (enums + tipos auxiliares)
+  - `relations.ts` (Drizzle relations)
+  - `zod.ts` (schemas derivados via drizzle-zod + tipos)
+  - `index.ts` (barrel interno)
 - Exporta tipos inferidos (Contact, InsertContact, Deal, etc.)
 
 ### `shared/contracts.ts`
@@ -379,7 +391,7 @@ shared/
 - `api.ts`: Tipos de resposta da API (`ApiResponse`, `PaginatedResponse`, `ErrorCodes`, `PaginationMeta`)
 - `dto.ts`: DTOs (Data Transfer Objects) para transferência entre frontend e backend
 
-O que pode mudar: quando você cria/altera tabelas/campos, isso normalmente passa por `shared/schema.ts`.
+O que pode mudar: quando você cria/altera tabelas/campos, isso passa por `shared/schema.ts` (entrypoint) e/ou `shared/schema/` (módulos).
 O que evitar: mudanças sem atualizar o banco (migração/push), porque o backend vai tentar usar algo que não existe.
 
 ---

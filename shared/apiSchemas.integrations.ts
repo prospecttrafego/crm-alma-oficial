@@ -22,6 +22,7 @@ export const whatsAppConnectResponseSchema = z
     qrCode: z.string().optional(),
     pairingCode: z.string().optional(),
     status: z.string(),
+    message: z.string().optional(),
   })
   .strict();
 export type WhatsAppConnectResponse = z.infer<typeof whatsAppConnectResponseSchema>;
@@ -31,10 +32,11 @@ export const whatsAppStatusResponseSchema = z
     status: z.string(),
     instanceName: z.string().nullable(),
     lastConnectedAt: z.string().optional(),
+    requiresReconnect: z.boolean().optional(),
+    reconnectReason: z.string().optional(),
   })
   .strict();
 export type WhatsAppStatusResponse = z.infer<typeof whatsAppStatusResponseSchema>;
 
 export const successMessageSchema = z.object({ success: z.boolean(), message: z.string() }).strict();
 export type SuccessMessage = z.infer<typeof successMessageSchema>;
-

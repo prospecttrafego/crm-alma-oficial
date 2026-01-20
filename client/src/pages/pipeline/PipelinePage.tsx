@@ -90,42 +90,6 @@ export default function PipelinePage() {
 
   const { moveDeal, createDeal } = useDealMutations();
 
-  // #region agent log (debug)
-  useEffect(() => {
-    fetch("http://127.0.0.1:7242/ingest/4c918a94-219d-47dd-b910-955f475d04dc", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        sessionId: "debug-session",
-        runId: "pre-fix",
-        hypothesisId: "H3",
-        location: "client/src/pages/pipeline/PipelinePage.tsx:state",
-        message: "pipeline query state",
-        data: {
-          pipelineKey,
-          pipelineId: pipeline?.id ?? null,
-          pipelinesCount: allPipelines?.length ?? null,
-          dealsCount: deals?.length ?? null,
-          pipelineIsFetching: pipelineQuery.isFetching,
-          pipelinesIsFetching: allPipelinesQuery.isFetching,
-          dealsIsFetching: dealsQuery.isFetching,
-          pipelineStatus: pipelineQuery.status,
-        },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-  }, [
-    pipelineKey,
-    pipeline?.id,
-    allPipelines?.length,
-    deals?.length,
-    pipelineQuery.isFetching,
-    allPipelinesQuery.isFetching,
-    dealsQuery.isFetching,
-    pipelineQuery.status,
-  ]);
-  // #endregion agent log (debug)
-
   const handleDragStart = useCallback((event: React.DragEvent, deal: DealWithRelations) => {
     setDraggedDeal(deal);
     event.dataTransfer.effectAllowed = "move";

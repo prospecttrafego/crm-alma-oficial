@@ -3,7 +3,7 @@ import type { MessagesResponse } from "@/lib/api/conversations";
 export interface PendingFile {
   id: string;
   file: globalThis.File;
-  uploadURL?: string;
+  objectPath?: string;
   status: "pending" | "uploading" | "uploaded" | "error";
 }
 
@@ -37,4 +37,3 @@ export type TypingUser = {
   userId: string;
   userName?: string | null;
 };
-

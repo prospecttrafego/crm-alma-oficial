@@ -70,6 +70,10 @@ export interface EvolutionInstanceInfo {
 export interface WebhookConfig {
   url: string;
   events?: string[];
+  headers?: {
+    authorization?: string;
+    "Content-Type"?: string;
+  };
 }
 
 /**
@@ -248,6 +252,10 @@ export class EvolutionApiService {
         base64: false,
         events: webhookConfig.events || REQUIRED_WEBHOOK_EVENTS,
       };
+
+      if (webhookConfig.headers && Object.keys(webhookConfig.headers).length > 0) {
+        (payload.webhook as any).headers = webhookConfig.headers;
+      }
     }
 
     const result = await this.request<{

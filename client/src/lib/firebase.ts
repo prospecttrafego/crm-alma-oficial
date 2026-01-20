@@ -6,6 +6,35 @@ import { initializeApp, getApps, getApp } from "firebase/app";
 import { getMessaging, getToken, onMessage, Messaging, MessagePayload } from "firebase/messaging";
 import { pushTokensApi } from "./api/pushTokens";
 
+const FCM_TOKEN_STORAGE_KEY = "crm_fcm_token";
+
+export function getStoredFcmToken(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.localStorage.getItem(FCM_TOKEN_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function setStoredFcmToken(token: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(FCM_TOKEN_STORAGE_KEY, token);
+  } catch {
+    // Ignore storage errors
+  }
+}
+
+export function clearStoredFcmToken(): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(FCM_TOKEN_STORAGE_KEY);
+  } catch {
+    // Ignore storage errors
+  }
+}
+
 // Firebase configuration from environment variables
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -95,6 +124,13 @@ export async function requestNotificationPermission(): Promise<string | null> {
     const registration = await navigator.serviceWorker.register("/firebase-messaging-sw.js");
     console.log("[Firebase] Service worker registered:", registration.scope);
 
+    // Ensure SW receives config for background messages
+    const readyRegistration = await navigator.serviceWorker.ready;
+    const activeWorker = readyRegistration.active || registration.active || registration.waiting;
+    if (activeWorker) {
+      activeWorker.postMessage({ type: "firebase-config", config: firebaseConfig });
+    }
+
     // Get FCM token
     const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY;
     const token = await getToken(messagingInstance, {
@@ -106,6 +142,7 @@ export async function requestNotificationPermission(): Promise<string | null> {
       console.log("[Firebase] FCM token obtained");
       // Save token to server
       await saveTokenToServer(token);
+      setStoredFcmToken(token);
       return token;
     } else {
       console.log("[Firebase] No token available");

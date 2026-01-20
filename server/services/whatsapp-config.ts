@@ -13,12 +13,15 @@ export interface WhatsAppConnectionResult {
   qrCode?: string;
   pairingCode?: string;
   status: string;
+  message?: string;
 }
 
 export interface WhatsAppStatusResult {
   status: string;
   instanceName: string | null;
   lastConnectedAt?: string;
+  requiresReconnect?: boolean;
+  reconnectReason?: string;
 }
 
 export interface WhatsAppSendResult {
@@ -37,15 +40,11 @@ export function buildInstanceName(organizationId: number, channelConfigId: numbe
 }
 
 /**
- * Build webhook URL with optional secret token
+ * Build webhook URL
  */
 function buildWebhookUrl(): string {
   const appUrl = process.env.APP_URL || `http://localhost:${process.env.PORT || 3000}`;
-  const webhookSecret = process.env.EVOLUTION_WEBHOOK_SECRET;
   const webhookUrl = new URL("/api/webhooks/evolution", appUrl);
-  if (webhookSecret) {
-    webhookUrl.searchParams.set("token", webhookSecret);
-  }
   return webhookUrl.toString();
 }
 
@@ -60,30 +59,6 @@ export async function connectWhatsApp(
   config: ChannelConfig,
   userId: string
 ): Promise<WhatsAppConnectionResult> {
-  // #region agent log (debug)
-  const log = (payload: { runId: string; hypothesisId: string; message: string; data?: Record<string, unknown> }) => {
-    fetch("http://127.0.0.1:7242/ingest/4c918a94-219d-47dd-b910-955f475d04dc", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        sessionId: "debug-session",
-        runId: payload.runId,
-        hypothesisId: payload.hypothesisId,
-        location: "server/services/whatsapp-config.ts:connectWhatsApp",
-        message: payload.message,
-        data: payload.data,
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-  };
-  log({
-    runId: "pre-fix",
-    hypothesisId: "H1",
-    message: "connectWhatsApp entry",
-    data: { channelConfigId: config.id, organizationId: config.organizationId },
-  });
-  // #endregion agent log (debug)
-
   whatsappLogger.info("[WhatsApp] Starting connection process", {
     channelConfigId: config.id,
     organizationId: config.organizationId,
@@ -106,14 +81,11 @@ export async function connectWhatsApp(
   const organizationId = config.organizationId;
   const instanceName = buildInstanceName(organizationId, config.id);
   whatsappLogger.info("[WhatsApp] Instance name built", { instanceName });
-  // #region agent log (debug)
-  log({
-    runId: "pre-fix",
-    hypothesisId: "H1",
-    message: "instanceName built",
-    data: { instanceName },
-  });
-  // #endregion agent log (debug)
+
+  const whatsappConfig = (config.whatsappConfig || {}) as Record<string, unknown>;
+  const requiresWebhookAuth = !!process.env.EVOLUTION_WEBHOOK_SECRET;
+  const isWebhookAuthConfigured =
+    !requiresWebhookAuth || whatsappConfig.webhookAuthMode === "authorization";
 
   // Check if instance already exists
   whatsappLogger.debug("[WhatsApp] Checking if instance exists...");
@@ -132,9 +104,23 @@ export async function connectWhatsApp(
   whatsappLogger.info("[WhatsApp] Webhook URL", { webhookUrl: logUrl.toString() });
 
   let needsNewInstance = !existingInstance;
+  let message: string | undefined;
+
+  // Legacy instance: Evolution API v2.x only supports webhook headers at instance creation.
+  // If the instance was created before we started sending Authorization headers,
+  // we must recreate it so the webhook can authenticate against this CRM.
+  if (existingInstance && !isWebhookAuthConfigured) {
+    whatsappLogger.warn("[WhatsApp] Legacy instance detected (missing webhook auth headers). Recreating instance...", {
+      instanceName,
+      channelConfigId: config.id,
+    });
+    await evolutionApi.forceCleanInstance(instanceName);
+    needsNewInstance = true;
+    message = "Reconexão necessária: esta integração foi criada em uma versão antiga e precisa ser reconectada para aplicar segurança de webhook.";
+  }
 
   // If instance exists, check its state
-  if (existingInstance) {
+  if (existingInstance && !needsNewInstance) {
     try {
       const status = await evolutionApi.getConnectionStatus(instanceName);
       whatsappLogger.info("[WhatsApp] Existing instance status", {
@@ -144,24 +130,20 @@ export async function connectWhatsApp(
 
       // If already connected, return current status
       if (status.state === "open") {
-        const whatsappConfig = (config.whatsappConfig || {}) as Record<string, unknown>;
         whatsappConfig.connectionStatus = "connected";
         whatsappConfig.instanceName = instanceName;
         whatsappConfig.lastConnectedAt = new Date().toISOString();
+        if (requiresWebhookAuth) {
+          whatsappConfig.webhookAuthMode = "authorization";
+          whatsappConfig.webhookAuthConfiguredAt = new Date().toISOString();
+        }
         await storage.updateChannelConfig(config.id, {
           whatsappConfig: whatsappConfig as ChannelConfig["whatsappConfig"],
         });
-        // #region agent log (debug)
-        log({
-          runId: "pre-fix",
-          hypothesisId: "H1",
-          message: "existing instance already connected",
-          data: { instanceName, state: status.state },
-        });
-        // #endregion agent log (debug)
         return {
           instanceName,
           status: "connected",
+          message,
         };
       }
 
@@ -184,9 +166,13 @@ export async function connectWhatsApp(
 
   if (needsNewInstance) {
     whatsappLogger.info("[WhatsApp] Creating new instance with integrated webhook...", { instanceName });
+    const webhookHeaders = process.env.EVOLUTION_WEBHOOK_SECRET
+      ? { authorization: `Bearer ${process.env.EVOLUTION_WEBHOOK_SECRET}` }
+      : undefined;
     const instance = await evolutionApi.createInstance(instanceName, {
       url: webhookUrl,
       events: REQUIRED_WEBHOOK_EVENTS,
+      headers: webhookHeaders,
     });
     whatsappLogger.info("[WhatsApp] Instance created successfully", {
       instanceName,
@@ -217,22 +203,17 @@ export async function connectWhatsApp(
   // Validate QR code response
   if (!qrCode) {
     whatsappLogger.error("[WhatsApp] QR Code response is empty or invalid", { instanceName });
-    // #region agent log (debug)
-    log({
-      runId: "pre-fix",
-      hypothesisId: "H1",
-      message: "qrCode missing after create/connect",
-      data: { instanceName },
-    });
-    // #endregion agent log (debug)
     throw new Error("Failed to get QR Code from Evolution API - empty response");
   }
 
   // Update channel config with instance name and QR code
-  const whatsappConfig = (config.whatsappConfig || {}) as Record<string, unknown>;
   whatsappConfig.instanceName = instanceName;
   whatsappConfig.qrCode = qrCode;
   whatsappConfig.connectionStatus = "qr_pending";
+  if (requiresWebhookAuth) {
+    whatsappConfig.webhookAuthMode = "authorization";
+    whatsappConfig.webhookAuthConfiguredAt = new Date().toISOString();
+  }
 
   await storage.updateChannelConfig(config.id, {
     whatsappConfig: whatsappConfig as ChannelConfig["whatsappConfig"],
@@ -252,6 +233,7 @@ export async function connectWhatsApp(
         instanceName,
         status: "qr_pending",
         initiatedAt: new Date().toISOString(),
+        recreatedFromLegacy: !!message,
       },
     },
   });
@@ -261,6 +243,7 @@ export async function connectWhatsApp(
     qrCode,
     pairingCode,
     status: "qr_pending",
+    message,
   };
 }
 
@@ -270,11 +253,15 @@ export async function connectWhatsApp(
 export async function getWhatsAppStatus(config: ChannelConfig): Promise<WhatsAppStatusResult> {
   const whatsappConfig = (config.whatsappConfig || {}) as Record<string, unknown>;
   const instanceName = whatsappConfig.instanceName as string | undefined;
+  const requiresWebhookAuth = !!process.env.EVOLUTION_WEBHOOK_SECRET;
+  const isWebhookAuthConfigured =
+    !requiresWebhookAuth || whatsappConfig.webhookAuthMode === "authorization";
 
   if (!instanceName) {
     return {
       status: "disconnected",
       instanceName: null,
+      requiresReconnect: false,
     };
   }
 
@@ -310,12 +297,22 @@ export async function getWhatsAppStatus(config: ChannelConfig): Promise<WhatsApp
       status,
       instanceName,
       lastConnectedAt: whatsappConfig.lastConnectedAt as string | undefined,
+      requiresReconnect: requiresWebhookAuth && !isWebhookAuthConfigured,
+      reconnectReason:
+        requiresWebhookAuth && !isWebhookAuthConfigured
+          ? "Reconexão necessária: instância criada em versão antiga sem headers de autenticação de webhook."
+          : undefined,
     };
   } catch {
     // Instance might not exist or is disconnected
     return {
       status: "disconnected",
       instanceName,
+      requiresReconnect: requiresWebhookAuth && !isWebhookAuthConfigured,
+      reconnectReason:
+        requiresWebhookAuth && !isWebhookAuthConfigured
+          ? "Reconexão necessária: instância criada em versão antiga sem headers de autenticação de webhook."
+          : undefined,
     };
   }
 }

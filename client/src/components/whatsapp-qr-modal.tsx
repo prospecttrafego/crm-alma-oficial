@@ -38,6 +38,7 @@ export function WhatsAppQRModal({
   const [isConnecting, setIsConnecting] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   const [isRetrying, setIsRetrying] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
 
   // Connect mutation - creates instance and gets QR code
   const connectMutation = useMutation({
@@ -45,6 +46,7 @@ export function WhatsAppQRModal({
       return channelConfigsApi.connectWhatsApp(channelConfigId);
     },
     onSuccess: (data) => {
+      setNotice(data.message ?? null);
       // Quando já está conectado, o backend pode retornar sem qrCode.
       // Nesses casos, tratamos como sucesso imediato.
       if (data.status === "connected") {
@@ -116,6 +118,7 @@ export function WhatsAppQRModal({
       setIsConnecting(false);
       setRetryCount(0);
       setIsRetrying(false);
+      setNotice(null);
     }
   }, [open]);
 
@@ -145,6 +148,11 @@ export function WhatsAppQRModal({
           <DialogDescription>
             {t("whatsappQr.subtitle")}
           </DialogDescription>
+          {notice && (
+            <p className="text-xs text-amber-700 dark:text-amber-300">
+              {notice}
+            </p>
+          )}
         </DialogHeader>
 
         <div className="flex flex-col items-center justify-center py-6 space-y-4">

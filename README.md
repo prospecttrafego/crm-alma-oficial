@@ -112,7 +112,7 @@ Obs.:
 ├── client/                  # Frontend React
 │   ├── public/              # Assets publicos (favicon, logo, SW do Firebase)
 │   └── src/
-│       ├── components/      # Componentes reutilizaveis
+│       ├── components/      # Componentes reutilizaveis (ex.: file-uploader/, ui/sidebar/)
 │       │   └── ui/          # shadcn/ui components
 │       ├── contexts/        # Contextos (ex.: idioma)
 │       ├── locales/         # Traducoes (pt-BR/en)
@@ -126,7 +126,8 @@ Obs.:
 │   ├── response.ts          # Helpers de resposta (sendSuccess, sendError, etc)
 │   ├── constants.ts         # Constantes centralizadas (limites, TTLs, etc)
 │   ├── validation/          # Schemas Zod para validacao de entrada (shared/contracts)
-│   ├── api/                 # Rotas HTTP por dominio (contacts, deals, files, etc)
+│   ├── api/                 # Rotas HTTP por dominio (ex.: conversations/, lgpd/, files)
+│   ├── auth/                # Auth modules (session, passport, rate limit, CSRF)
 │   ├── ws/                  # WebSocket (/ws) + broadcast + presenca
 │   ├── jobs/                # Background jobs (Redis/fallback memoria + DLQ)
 │   ├── services/            # Logica de negocio (deal-auto-creator, email-ingest)
@@ -140,10 +141,10 @@ Obs.:
 │   │   ├── supabase/        # Storage (uploads)
 │   │   ├── firebase/        # Push notifications (FCM)
 │   │   └── email/           # IMAP/SMTP
-│   ├── storage/             # DAL por dominio (contacts, deals, etc.)
+│   ├── storage/             # DAL por dominio (inclui storage/conversations)
 │   ├── logger.ts            # Logs estruturados (requestId)
 │   ├── health.ts            # Health check (DB, jobs, circuit breakers)
-│   ├── auth.ts              # Autenticacao Passport.js
+│   ├── auth.ts              # Bootstrap de auth (middlewares + routes)
 │   ├── db.ts                # Drizzle + conexao Postgres
 │   ├── redis.ts             # Redis (Upstash)
 │   ├── static.ts            # Servir frontend em producao
@@ -164,7 +165,7 @@ Obs.:
 ```
 
 Notas importantes:
-- `shared/schema.ts` e `shared/contracts.ts` sao a fonte unica de verdade para schema do banco, enums e validação de entrada (DTOs).
+- `shared/schema.ts` (entrypoint) + `shared/schema/` (módulos) e `shared/contracts.ts` sao a fonte unica de verdade para schema do banco, enums e validação de entrada (DTOs).
 - `shared/apiSchemas*.ts` define o contrato de resposta (runtime) consumido pelo frontend.
 - O frontend valida respostas via Zod (evita drift silencioso e quebra rapida com erro `INVALID_RESPONSE`).
 
@@ -174,10 +175,12 @@ Notas importantes:
 |----------|-------------|-----------|
 | `DATABASE_URL` | Sim | URL de conexao PostgreSQL (Supabase Postgres - configuracao oficial) |
 | `SESSION_SECRET` | Sim | Chave para criptografia de sessoes |
+| `HEALTH_CHECK_SECRET` | Nao | Segredo para proteger o endpoint `/api/health` (header `x-health-check-secret` ou Bearer) |
 | `SUPABASE_URL` | Sim | URL do projeto Supabase |
 | `SUPABASE_ANON_KEY` | Nao | Anon key do Supabase (nao usada diretamente hoje pelo backend) |
 | `SUPABASE_SERVICE_ROLE_KEY` | Sim | Service role key do Supabase |
 | `OPENAI_API_KEY` | Nao | API key OpenAI (para lead scoring) |
+| `AUDIO_TRANSCRIBE_ALLOWED_HOSTS` | Nao | Hosts extras permitidos para transcricao de audio por URL (SSRF hardening; CSV de hostnames, sem `https://`) |
 | `ALLOW_REGISTRATION` | Nao | Permitir registro publico (default: false) |
 | `VITE_ALLOW_REGISTRATION` | Nao | Permitir registro (flag no frontend) |
 | `DEFAULT_ORGANIZATION_ID` | Nao | ID da organizacao padrao (modo single-tenant) |
@@ -204,7 +207,7 @@ Notas importantes:
 | `EVOLUTION_API_URL` | Nao | URL base da Evolution API V2 |
 | `EVOLUTION_API_KEY` | Nao | API key da Evolution API |
 | `EVOLUTION_INSTANCE_PREFIX` | Nao | Prefixo unico por deploy para evitar colisao de instancias (quando varios CRMs compartilham a mesma Evolution API) |
-| `EVOLUTION_WEBHOOK_SECRET` | Nao | Segredo para validar webhooks da Evolution API |
+| `EVOLUTION_WEBHOOK_SECRET` | Nao | Segredo para validar webhooks da Evolution API (header `Authorization: Bearer <secret>`) |
 | `MEDIA_DOWNLOAD_ALLOWED_HOSTS` | Nao | Hosts extras permitidos para download de midia (SSRF hardening; CSV de hostnames, sem `https://` — ex.: `cdn.seudominio.com`) |
 | `SENTRY_DSN` | Nao | DSN do Sentry para rastreamento de erros |
 | `APP_VERSION` | Nao | Versao da aplicacao (usado pelo Sentry para release tracking) |
@@ -222,6 +225,7 @@ npm run check     # Verifica tipos TypeScript
 npm run test      # Alias para verificacao de tipos
 npm run lint      # Lint (ESLint)
 npm run lint:fix  # Lint + autofix (opcional)
+npm run guardrails # Verifica logs de debug acidentais
 npm run storybook # Storybook (UI docs) em http://localhost:6006
 npm run build-storybook # Build estatico do Storybook
 npm run db:migrate   # Aplica migrations no banco
@@ -235,11 +239,17 @@ Nota: o Storybook usa mocks de API em `.storybook/apiMock.ts` para renderizar co
 
 ## Health check
 
+- `GET /api/healthz` e um liveness check simples (publico, sem DB).
+- `GET /api/health` requer admin autenticado ou `HEALTH_CHECK_SECRET` via header `x-health-check-secret` (ou Bearer).
 - `GET /api/health` retorna status de:
   - Banco de dados (PostgreSQL) - status da conexao e uso do pool
   - Fila de jobs (Redis) - status do worker e backlog
   - Circuit breakers - estado dos circuit breakers de integracoes
   - Integracoes opcionais (Redis/Supabase/Evolution API) quando configuradas
+
+## Observacoes de infraestrutura
+
+- WebSocket (/ws) roda em single-instance; para escalar horizontalmente, precisa pub/sub (ex.: Redis).
 
 ## Padrao de Resposta da API
 

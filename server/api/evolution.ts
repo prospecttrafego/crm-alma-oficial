@@ -37,11 +37,21 @@ export function registerEvolutionRoutes(app: Express) {
 
       // Validate token if configured
       if (expectedToken) {
-        const providedToken =
-          (req.query?.token as string | undefined) ||
-          (req.headers["x-evolution-webhook-secret"] as string | undefined);
-        if (!providedToken || providedToken !== expectedToken) {
-          whatsappLogger.warn("[Evolution Webhook] Invalid or missing token", { ip: clientIp, hasToken: !!providedToken });
+        const providedToken = req.headers["x-evolution-webhook-secret"] as string | undefined;
+        const authHeader = req.headers.authorization as string | undefined;
+        const bearerToken = authHeader?.startsWith("Bearer ") ? authHeader.slice("Bearer ".length) : undefined;
+
+        const hasValidToken =
+          providedToken === expectedToken ||
+          authHeader === expectedToken ||
+          bearerToken === expectedToken;
+
+        if (!hasValidToken) {
+          whatsappLogger.warn("[Evolution Webhook] Invalid or missing token", {
+            ip: clientIp,
+            hasXEvolutionSecret: !!providedToken,
+            hasAuthorization: !!authHeader,
+          });
           return res.status(401).json({ error: "Unauthorized" });
         }
       }

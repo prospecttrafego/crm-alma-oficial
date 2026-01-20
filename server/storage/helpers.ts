@@ -1,4 +1,5 @@
 import { getSingleTenantOrganizationId } from "../tenant";
+import { DEFAULT_PAGE_LIMIT, MAX_PAGE_LIMIT } from "../constants";
 
 export interface PaginationParams {
   page?: number;
@@ -20,8 +21,6 @@ export interface PaginatedResult<T> {
 }
 
 const DEFAULT_PAGE = 1;
-const DEFAULT_LIMIT = 20;
-const MAX_LIMIT = 100;
 
 /**
  * Normalizes pagination params and returns `{ page, limit, offset }`.
@@ -34,7 +33,7 @@ export function normalizePagination(
   params: PaginationParams,
 ): { page: number; limit: number; offset: number } {
   const page = Math.max(1, params.page || DEFAULT_PAGE);
-  const limit = Math.min(MAX_LIMIT, Math.max(1, params.limit || DEFAULT_LIMIT));
+  const limit = Math.min(MAX_PAGE_LIMIT, Math.max(1, params.limit || DEFAULT_PAGE_LIMIT));
   const offset = (page - 1) * limit;
   return { page, limit, offset };
 }

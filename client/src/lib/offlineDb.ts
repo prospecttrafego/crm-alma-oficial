@@ -26,7 +26,7 @@ export interface OfflineAttachment {
   name: string;
   mimeType: string;
   size: number;
-  uploadURL?: string;
+  objectPath?: string;
   blob?: Blob;
 }
 

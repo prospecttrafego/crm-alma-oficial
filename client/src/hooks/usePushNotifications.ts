@@ -12,7 +12,10 @@ import {
   requestNotificationPermission,
   onForegroundMessage,
   getNotificationPermissionStatus,
+  getStoredFcmToken,
+  clearStoredFcmToken,
 } from "@/lib/firebase";
+import { pushTokensApi } from "@/lib/api/pushTokens";
 
 export interface UsePushNotificationsResult {
   isSupported: boolean;
@@ -99,6 +102,16 @@ export function usePushNotifications(): UsePushNotificationsResult {
   const disableNotifications = useCallback(async (): Promise<void> => {
     // Note: We can't actually revoke notification permission programmatically
     // The user needs to do it in browser settings
+    const token = getStoredFcmToken();
+    if (token) {
+      try {
+        await pushTokensApi.unregister(token);
+      } catch {
+        // Best-effort cleanup
+      } finally {
+        clearStoredFcmToken();
+      }
+    }
     toast({
       title: "Desativar notificações",
       description: "Para desativar, vá nas configurações do navegador > Notificações.",

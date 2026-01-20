@@ -7,9 +7,10 @@
 importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging-compat.js');
 
-// Firebase configuration - these will be injected at runtime
-// For now, use placeholder values that will be overwritten when the SW is registered
-const firebaseConfig = {
+let firebaseInitialized = false;
+
+// Firebase configuration - injected at runtime via postMessage
+const defaultConfig = {
   apiKey: self.FIREBASE_API_KEY || '',
   authDomain: self.FIREBASE_AUTH_DOMAIN || '',
   projectId: self.FIREBASE_PROJECT_ID || '',
@@ -18,9 +19,11 @@ const firebaseConfig = {
   appId: self.FIREBASE_APP_ID || '',
 };
 
-// Initialize Firebase only if configured
-if (firebaseConfig.apiKey && firebaseConfig.projectId) {
-  firebase.initializeApp(firebaseConfig);
+function initializeFirebase(config) {
+  if (firebaseInitialized) return;
+  if (!config?.apiKey || !config?.projectId) return;
+
+  firebase.initializeApp(config);
   const messaging = firebase.messaging();
 
   // Handle background messages
@@ -42,7 +45,19 @@ if (firebaseConfig.apiKey && firebaseConfig.projectId) {
 
     self.registration.showNotification(notificationTitle, notificationOptions);
   });
+
+  firebaseInitialized = true;
 }
+
+// Initialize if default config is present (fallback)
+initializeFirebase(defaultConfig);
+
+// Receive runtime config from client
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'firebase-config') {
+    initializeFirebase(event.data.config || {});
+  }
+});
 
 // Handle notification click
 self.addEventListener('notificationclick', (event) => {

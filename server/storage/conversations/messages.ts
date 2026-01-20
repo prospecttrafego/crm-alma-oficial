@@ -1,177 +1,18 @@
 import {
   conversations,
-  contacts,
-  deals,
   messages,
   users,
-  type Conversation,
-  type InsertConversation,
   type Message,
   type InsertMessage,
 } from "@shared/schema";
-import { db } from "../db";
-import {
-  and,
-  count,
-  desc,
-  eq,
-  ilike,
-  lt,
-  not,
-  sql,
-} from "drizzle-orm";
+import { db } from "../../db";
 import { alias } from "drizzle-orm/pg-core";
-import {
-  getTenantOrganizationId,
-  normalizePagination,
-  type PaginationParams,
-  type PaginatedResult,
-} from "./helpers";
+import { and, desc, eq, lt, not, sql } from "drizzle-orm";
+import { getTenantOrganizationId } from "../helpers";
 import type { MessageWithSender, QuotedMessage } from "@shared/apiSchemas";
 
-export async function getConversations(_organizationId: number): Promise<Conversation[]> {
-  const tenantOrganizationId = await getTenantOrganizationId();
-  return await db
-    .select()
-    .from(conversations)
-    .where(eq(conversations.organizationId, tenantOrganizationId))
-    .orderBy(desc(conversations.lastMessageAt));
-}
-
-export async function getConversationsPaginated(
-  _organizationId: number,
-  params: PaginationParams & { status?: string; channel?: string; assignedToId?: string },
-): Promise<PaginatedResult<Conversation>> {
-  const tenantOrganizationId = await getTenantOrganizationId();
-  const { page, limit, offset } = normalizePagination(params);
-
-  // Build conditions
-  const conditions = [eq(conversations.organizationId, tenantOrganizationId)];
-
-  if (params.search) {
-    conditions.push(ilike(conversations.subject, `%${params.search}%`));
-  }
-  if (params.status) {
-    conditions.push(eq(conversations.status, params.status as "open" | "closed" | "pending"));
-  }
-  if (params.channel) {
-    conditions.push(
-      eq(conversations.channel, params.channel as "email" | "whatsapp" | "sms" | "internal" | "phone"),
-    );
-  }
-  if (params.assignedToId) {
-    conditions.push(eq(conversations.assignedToId, params.assignedToId));
-  }
-
-  const whereCondition = and(...conditions);
-
-  // Get total count
-  const [countResult] = await db
-    .select({ count: count() })
-    .from(conversations)
-    .where(whereCondition);
-  const total = Number(countResult?.count || 0);
-
-  // Get paginated data (ordered by lastMessageAt)
-  const data = await db
-    .select()
-    .from(conversations)
-    .where(whereCondition)
-    .orderBy(desc(conversations.lastMessageAt))
-    .limit(limit)
-    .offset(offset);
-
-  const totalPages = Math.ceil(total / limit);
-
-  return {
-    data,
-    pagination: {
-      page,
-      limit,
-      total,
-      totalPages,
-      hasMore: page < totalPages,
-    },
-  };
-}
-
-export async function getConversation(id: number): Promise<Conversation | undefined> {
-  const tenantOrganizationId = await getTenantOrganizationId();
-  const [conversation] = await db
-    .select()
-    .from(conversations)
-    .where(and(eq(conversations.id, id), eq(conversations.organizationId, tenantOrganizationId)));
-  return conversation;
-}
-
-/**
- * Find conversation by contact ID and channel (optimized for WhatsApp handler)
- */
-export async function getConversationByContactAndChannel(
-  contactId: number,
-  channel: string,
-  _organizationId: number,
-): Promise<Conversation | undefined> {
-  const tenantOrganizationId = await getTenantOrganizationId();
-  const [conversation] = await db
-    .select()
-    .from(conversations)
-    .where(
-      and(
-        eq(conversations.organizationId, tenantOrganizationId),
-        eq(conversations.contactId, contactId),
-        eq(conversations.channel, channel as any),
-      ),
-    )
-    .orderBy(desc(conversations.lastMessageAt))
-    .limit(1);
-  return conversation;
-}
-
-export async function createConversation(
-  conversation: InsertConversation,
-): Promise<Conversation> {
-  const tenantOrganizationId = await getTenantOrganizationId();
-
-  if (conversation.contactId) {
-    const [contact] = await db
-      .select({ id: contacts.id })
-      .from(contacts)
-      .where(and(eq(contacts.id, conversation.contactId), eq(contacts.organizationId, tenantOrganizationId)))
-      .limit(1);
-    if (!contact) throw new Error("Contact not found");
-  }
-
-  if (conversation.dealId) {
-    const [deal] = await db
-      .select({ id: deals.id })
-      .from(deals)
-      .where(and(eq(deals.id, conversation.dealId), eq(deals.organizationId, tenantOrganizationId)))
-      .limit(1);
-    if (!deal) throw new Error("Deal not found");
-  }
-
-  const [created] = await db
-    .insert(conversations)
-    .values({ ...conversation, organizationId: tenantOrganizationId })
-    .returning();
-  return created;
-}
-
-export async function updateConversation(
-  id: number,
-  conversation: Partial<InsertConversation>,
-): Promise<Conversation | undefined> {
-  const tenantOrganizationId = await getTenantOrganizationId();
-  const { organizationId: _organizationId, ...updateData } = conversation as Partial<
-    InsertConversation & { organizationId?: number }
-  >;
-  const [updated] = await db
-    .update(conversations)
-    .set({ ...updateData, updatedAt: new Date() })
-    .where(and(eq(conversations.id, id), eq(conversations.organizationId, tenantOrganizationId)))
-    .returning();
-  return updated;
+function isUniqueViolation(error: unknown): boolean {
+  return typeof error === "object" && error !== null && (error as any).code === "23505";
 }
 
 export async function getMessages(
@@ -339,12 +180,14 @@ export async function getMessages(
  * Check if a message with the given externalId already exists (for idempotency)
  */
 export async function getMessageByExternalId(externalId: string): Promise<Message | undefined> {
-  const [message] = await db
-    .select()
+  const tenantOrganizationId = await getTenantOrganizationId();
+  const [result] = await db
+    .select({ message: messages })
     .from(messages)
-    .where(eq(messages.externalId, externalId))
+    .innerJoin(conversations, eq(messages.conversationId, conversations.id))
+    .where(and(eq(messages.externalId, externalId), eq(conversations.organizationId, tenantOrganizationId)))
     .limit(1);
-  return message;
+  return result?.message;
 }
 
 export async function createMessage(message: InsertMessage): Promise<Message> {
@@ -359,16 +202,6 @@ export async function createMessage(message: InsertMessage): Promise<Message> {
     throw new Error("Conversation not found");
   }
 
-  // Deduplication: if externalId is provided, check if message already exists
-  // This prevents duplicate messages on reconnection or retry scenarios
-  if (message.externalId) {
-    const existing = await getMessageByExternalId(message.externalId);
-    if (existing) {
-      // Return existing message instead of creating duplicate
-      return existing;
-    }
-  }
-
   // If message is from a user, pre-populate readBy with the sender
   // This prevents the sender's own message from counting as unread for them
   const messageData = { ...message };
@@ -376,7 +209,24 @@ export async function createMessage(message: InsertMessage): Promise<Message> {
     messageData.readBy = [message.senderId];
   }
 
-  const [created] = await db.insert(messages).values(messageData).returning();
+  let created: Message | undefined;
+
+  try {
+    const result = await db.insert(messages).values(messageData).returning();
+    created = result[0];
+  } catch (error) {
+    if (message.externalId && isUniqueViolation(error)) {
+      const existing = await getMessageByExternalId(message.externalId);
+      if (existing) {
+        return existing;
+      }
+    }
+    throw error;
+  }
+
+  if (!created) {
+    throw new Error("Failed to create message");
+  }
 
   // Only increment unreadCount for messages from contacts (not from users)
   // This ensures user-sent messages don't inflate the unread counter
@@ -436,17 +286,6 @@ export async function markMessagesAsRead(conversationId: number, userId: string)
 }
 
 /**
- * Get all conversations for a contact
- */
-export async function getConversationsByContact(contactId: number): Promise<Conversation[]> {
-  const tenantOrganizationId = await getTenantOrganizationId();
-  return await db
-    .select()
-    .from(conversations)
-    .where(and(eq(conversations.contactId, contactId), eq(conversations.organizationId, tenantOrganizationId)));
-}
-
-/**
  * Delete all messages in a conversation
  */
 export async function deleteMessagesByConversation(conversationId: number): Promise<number> {
@@ -455,105 +294,6 @@ export async function deleteMessagesByConversation(conversationId: number): Prom
     .where(eq(messages.conversationId, conversationId))
     .returning({ id: messages.id });
   return result.length;
-}
-
-/**
- * Delete all conversations for a contact
- */
-export async function deleteConversationsByContact(contactId: number): Promise<number> {
-  const tenantOrganizationId = await getTenantOrganizationId();
-  const result = await db
-    .delete(conversations)
-    .where(and(eq(conversations.contactId, contactId), eq(conversations.organizationId, tenantOrganizationId)))
-    .returning({ id: conversations.id });
-  return result.length;
-}
-
-/**
- * Search result type for message search
- */
-export interface MessageSearchResult {
-  id: number;
-  conversationId: number;
-  content: string;
-  createdAt: Date | null;
-  senderId: string | null;
-  senderType: string | null;
-  senderName: string | null;
-  conversationSubject: string | null;
-  rank: number;
-}
-
-/**
- * Search messages by content using PostgreSQL full-text search
- * Returns messages matching the query with relevance ranking
- */
-export async function searchMessages(
-  query: string,
-  options?: {
-    conversationId?: number;
-    limit?: number;
-    offset?: number;
-  }
-): Promise<{ results: MessageSearchResult[]; total: number }> {
-  const tenantOrganizationId = await getTenantOrganizationId();
-  const limit = options?.limit || 20;
-  const offset = options?.offset || 0;
-
-  // Sanitize query for PostgreSQL full-text search
-  const sanitizedQuery = query.trim().replace(/[^\w\s]/g, "").split(/\s+/).filter(Boolean).join(" & ");
-
-  if (!sanitizedQuery) {
-    return { results: [], total: 0 };
-  }
-
-  // Build conditions
-  const conditions = [eq(conversations.organizationId, tenantOrganizationId)];
-
-  if (options?.conversationId) {
-    conditions.push(eq(messages.conversationId, options.conversationId));
-  }
-
-  // Use raw SQL for full-text search with ts_rank
-  const searchCondition = sql`to_tsvector('portuguese', coalesce(${messages.content}, '')) @@ plainto_tsquery('portuguese', ${sanitizedQuery})`;
-
-  // Get total count
-  const [countResult] = await db
-    .select({ count: count() })
-    .from(messages)
-    .innerJoin(conversations, eq(messages.conversationId, conversations.id))
-    .where(and(...conditions, searchCondition));
-
-  const total = Number(countResult?.count || 0);
-
-  // Get search results with ranking
-  const results = await db
-    .select({
-      id: messages.id,
-      conversationId: messages.conversationId,
-      content: messages.content,
-      createdAt: messages.createdAt,
-      senderId: messages.senderId,
-      senderType: messages.senderType,
-      senderName: sql<string | null>`
-        CASE
-          WHEN ${messages.senderType} = 'user' THEN COALESCE(${users.firstName} || ' ' || ${users.lastName}, ${users.email})
-          WHEN ${messages.senderType} = 'contact' THEN 'Contact'
-          ELSE 'System'
-        END
-      `,
-      conversationSubject: conversations.subject,
-      rank: sql<number>`ts_rank(to_tsvector('portuguese', coalesce(${messages.content}, '')), plainto_tsquery('portuguese', ${sanitizedQuery}))`,
-    })
-    .from(messages)
-    .innerJoin(conversations, eq(messages.conversationId, conversations.id))
-    .leftJoin(users, eq(messages.senderId, users.id))
-    .where(and(...conditions, searchCondition))
-    .orderBy(sql`ts_rank(to_tsvector('portuguese', coalesce(${messages.content}, '')), plainto_tsquery('portuguese', ${sanitizedQuery})) DESC`)
-    .limit(limit)
-    .offset(offset);
-
-  return { results, total };
 }
 
 /** Edit window in milliseconds (15 minutes) */
@@ -591,7 +331,7 @@ export async function getMessage(id: number): Promise<Message | undefined> {
 
 /**
  * Update a message's content
- * Only allowed within 15-minute edit window and by the original sender
+ * Only allowed within 15-minute window and by the original sender
  * Stores original content and sets editedAt timestamp
  */
 export async function updateMessage(

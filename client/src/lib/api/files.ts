@@ -3,7 +3,7 @@
  */
 
 import { api } from "./client";
-import { fileSchema, uploadUrlSchema, transcriptionResultSchema } from "@shared/apiSchemas";
+import { fileSchema, uploadUrlSchema, signedUrlSchema, transcriptionResultSchema } from "@shared/apiSchemas";
 import type { File as FileRecord } from "@shared/schema";
 import type { CreateFileDTO, TranscriptionResult } from "@shared/types";
 import { z } from "zod";
@@ -11,8 +11,12 @@ import { z } from "zod";
 export type RegisterFilePayload = CreateFileDTO;
 
 export const filesApi = {
-  getUploadUrl: () =>
-    api.post<{ uploadURL: string; objectPath: string }>("/api/files/upload-url", {}, uploadUrlSchema),
+  getUploadUrl: (data?: { size?: number }) =>
+    api.post<{ uploadURL: string; objectPath: string }>(
+      "/api/files/upload-url",
+      data ?? {},
+      uploadUrlSchema
+    ),
 
   register: (data: RegisterFilePayload) =>
     api.post<FileRecord>("/api/files", data, fileSchema),
@@ -21,6 +25,12 @@ export const filesApi = {
     api.get<FileRecord[]>(`/api/files/${entityType}/${entityId}`, z.array(fileSchema)),
 
   delete: (id: number) => api.delete<void>(`/api/files/${id}`),
+
+  getSignedUrl: (id: number) =>
+    api.get<{ signedUrl: string; expiresIn: number; fileName: string; mimeType?: string | null; size?: number | null }>(
+      `/api/files/${id}/signed-url`,
+      signedUrlSchema
+    ),
 
   transcribeFile: (id: number) =>
     api.post<TranscriptionResult>(`/api/files/${id}/transcribe`, {}, transcriptionResultSchema),

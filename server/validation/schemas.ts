@@ -6,6 +6,7 @@
  */
 
 import { z } from "zod";
+import { MAX_PAGE_LIMIT } from "../constants";
 import {
   createActivitySchema,
   createCalendarEventSchema,
@@ -86,7 +87,7 @@ export const idParamSchema = z.object({
  */
 export const paginationQuerySchema = z.object({
   page: z.coerce.number().int().positive().optional(),
-  limit: z.coerce.number().int().positive().max(100).optional(),
+  limit: z.coerce.number().int().positive().max(MAX_PAGE_LIMIT).optional(),
   search: z.string().optional(),
   sortBy: z.string().optional(),
   sortOrder: z.enum(["asc", "desc"]).optional(),

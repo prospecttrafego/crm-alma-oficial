@@ -24,7 +24,7 @@ Este documento contem todas as informacoes necessarias para entender, desenvolve
 6. **Documentacao alinhada**: Sempre atualizar TODOS os arquivos .md relevantes (README, ESTRUTURA_DE_PASTAS, CLAUDE, DESIGN_SYSTEM) quando houver mudancas.
 
 7. **Contratos compartilhados (sem drift)**:
-   - Schema do banco e enums vivem em `shared/schema.ts`.
+   - Schema do banco e enums vivem em `shared/schema.ts` (entrypoint) + `shared/schema/` (módulos).
    - Validacao de entrada (body/query/params) deve usar schemas derivados via `drizzle-zod` em `shared/contracts.ts` (consumidos via `server/validation/`).
    - O frontend valida respostas usando schemas de `shared/apiSchemas*.ts` (via `client/src/lib/api/`), para evitar dessincronizacao silenciosa.
 
@@ -180,7 +180,7 @@ CRM_Oficial/
 ├── client/
 │   ├── public/                  # Assets publicos (favicon, logo, SW do Firebase)
 │   └── src/
-│       ├── components/          # Componentes (features) + UI (shadcn)
+│       ├── components/          # Componentes (features) + UI (shadcn, ui/sidebar)
 │       │   └── ui/              # shadcn/ui (button, input, card, etc)
 │       ├── contexts/            # Contextos (ex.: idioma)
 │       ├── hooks/               # Hooks (auth, websocket, push, toast, desktop notifications…)
@@ -211,13 +211,14 @@ CRM_Oficial/
 │   │   ├── contacts.ts          # Contatos
 │   │   ├── deals.ts             # Deals
 │   │   ├── pipelines.ts         # Pipelines/estágios
-│   │   ├── conversations.ts     # Inbox (conversas/mensagens)
+│   │   ├── conversations/       # Inbox (conversas/mensagens)
 │   │   ├── files.ts             # Upload/download + transcrição
 │   │   ├── search.ts            # Busca global (contacts, deals, conversations)
 │   │   ├── auditLogs.ts         # Logs de auditoria (com filtros e paginação)
-│   │   ├── lgpd.ts              # LGPD compliance (export/delete)
+│   │   ├── lgpd/                # LGPD compliance (export/delete)
 │   │   ├── jobs.ts              # Status de background jobs
 │   │   └── ...                  # Demais domínios (activities, notifications, etc.)
+│   ├── auth/                    # Auth modules (session, passport, rate limit, CSRF)
 │   ├── ws/                      # WebSocket (/ws) + broadcast
 │   │   └── index.ts             # Upgrade handler + presença + "typing"
 │   ├── services/                # Lógica de negócio reutilizável
@@ -240,11 +241,11 @@ CRM_Oficial/
 │   │   ├── google/              # Google APIs (Calendar)
 │   │   ├── openai/              # Scoring e transcrição
 │   │   └── supabase/            # Storage
-│   ├── storage/                 # DAL por dominio (contacts, deals, etc.)
+│   ├── storage/                 # DAL por dominio (inclui storage/conversations)
 │   ├── storage.ts               # Facade do storage (re-export dos modulos)
 │   ├── logger.ts                # Logs estruturados (requestId + loggers de integrações)
 │   ├── health.ts                # Health check (DB + integrações opcionais)
-│   ├── auth.ts                  # Passport.js + sessoes
+│   ├── auth.ts                  # Bootstrap de auth (middlewares + routes)
 │   ├── db.ts                    # Drizzle + conexao Postgres (Pool)
 │   ├── tenant.ts                # Single-tenant (organizacao da instalacao)
 │   ├── redis.ts                 # Upstash Redis (presenca + base cache/rate-limit)
@@ -491,7 +492,8 @@ GET    /api/users          # Listar usuarios (para dropdown/filtros; requer logi
 ### Observabilidade
 
 ```
-GET    /api/health         # Health check (DB + integrações opcionais)
+GET    /api/healthz        # Liveness check (publico, sem DB)
+GET    /api/health         # Health check (DB + integrações opcionais; admin ou HEALTH_CHECK_SECRET)
 ```
 
 ### Regras de organizationId (single-tenant)
@@ -654,7 +656,7 @@ POST   /api/channel-configs/:id/whatsapp/connect
 GET    /api/channel-configs/:id/whatsapp/status
 POST   /api/channel-configs/:id/whatsapp/disconnect
 POST   /api/channel-configs/:id/whatsapp/send
-POST   /api/webhooks/evolution                  # Webhook publico (sem auth)
+POST   /api/webhooks/evolution                  # Webhook publico (usa Authorization Bearer quando EVOLUTION_WEBHOOK_SECRET configurado)
 
 # Google Calendar
 GET    /api/integrations/google-calendar/configured
@@ -689,6 +691,9 @@ npm run check
 npm run lint
 # (Opcional) aplicar correcoes automaticas
 npm run lint:fix
+
+# Verificar logs de debug acidentais
+npm run guardrails
 
 # Storybook (documentação de UI)
 npm run storybook
@@ -748,6 +753,9 @@ DATABASE_URL=postgresql://usuario:senha@host:5432/database
 # Chave para criptografia de sessoes (gerar com: openssl rand -base64 32)
 SESSION_SECRET=chave-secreta-de-pelo-menos-32-caracteres
 
+# Segredo para proteger o health check (x-health-check-secret ou Authorization Bearer)
+HEALTH_CHECK_SECRET=sua-health-check-secret-aqui
+
 # Ambiente
 NODE_ENV=production
 PORT=3000
@@ -776,6 +784,9 @@ SUPABASE_SERVICE_ROLE_KEY=sua-service-role-key-aqui
 
 # Lead scoring (recomendacoes) e transcricao Whisper
 OPENAI_API_KEY=sk-...
+# Hosts extras permitidos para transcricao de audio por URL (SSRF hardening; CSV de hostnames)
+# Use apenas hostnames (sem https://). Ex.: storage.seudominio.com,cdn.seudominio.com
+AUDIO_TRANSCRIBE_ALLOWED_HOSTS=
 
 # ====== UPSTASH REDIS (OPCIONAL) ======
 
@@ -810,6 +821,7 @@ MEDIA_DOWNLOAD_ALLOWED_HOSTS=
 # Ex.: alma-crm-a, alma-crm-b
 EVOLUTION_INSTANCE_PREFIX=alma-crm-a
 # Recomendado em producao (o backend valida o webhook quando setado)
+# A Evolution API envia este segredo no header `Authorization: Bearer <secret>` (configurado na criacao da instancia).
 EVOLUTION_WEBHOOK_SECRET=sua-webhook-secret-aqui
 
 # ====== GOOGLE CALENDAR OAUTH - OPCIONAL ======
@@ -1011,6 +1023,7 @@ pg_dump -U usuario -h host -d database > backup_$(date +%Y%m%d).sql
 - **Logs:** Acessar via painel do Coolify ou `docker logs`
 - **Health:** `GET /api/health` retorna status detalhado
 - **Metricas:** Coolify exibe uso de CPU/memoria do container
+- **WebSocket:** `/ws` roda em single-instance; para escala horizontal, usar pub/sub (ex.: Redis)
 
 ---
 
