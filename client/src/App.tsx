@@ -137,8 +137,8 @@ function Router() {
 
 function App() {
   return (
-    <ThemeProvider defaultTheme="dark">
-      <QueryClientProvider client={queryClient}>
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider defaultTheme="dark">
         <LanguageProvider>
           <TooltipProvider>
             <Toaster />
@@ -147,8 +147,8 @@ function App() {
             </ErrorBoundary>
           </TooltipProvider>
         </LanguageProvider>
-      </QueryClientProvider>
-    </ThemeProvider>
+      </ThemeProvider>
+    </QueryClientProvider>
   );
 }
 
