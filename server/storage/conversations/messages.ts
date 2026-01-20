@@ -252,37 +252,32 @@ export async function markMessagesAsRead(conversationId: number, userId: string)
 
   if (!conversation) return 0;
 
-  // Get unread messages that this user hasn't read yet
-  const unreadMessages = await db
-    .select({ id: messages.id, readBy: messages.readBy })
-    .from(messages)
+  // Batch update: add userId to readBy array for all messages that don't already have it
+  // Uses array_append for efficient single-query update instead of N+1 queries
+  const result = await db
+    .update(messages)
+    .set({
+      readBy: sql`array_append(coalesce(${messages.readBy}, '{}'::text[]), ${userId}::text)`,
+    })
     .where(
       and(
         eq(messages.conversationId, conversationId),
         not(sql`coalesce(${messages.readBy}, '{}'::text[]) @> ARRAY[${userId}]::text[]`),
       ),
-    );
+    )
+    .returning({ id: messages.id });
 
-  if (unreadMessages.length === 0) return 0;
+  const updatedCount = result.length;
 
-  // Update each message to add user to readBy array
-  for (const msg of unreadMessages) {
-    const currentReadBy = msg.readBy || [];
-    if (!currentReadBy.includes(userId)) {
-      await db
-        .update(messages)
-        .set({ readBy: [...currentReadBy, userId] })
-        .where(eq(messages.id, msg.id));
-    }
+  if (updatedCount > 0) {
+    // Reset unread count on conversation
+    await db
+      .update(conversations)
+      .set({ unreadCount: 0 })
+      .where(and(eq(conversations.id, conversationId), eq(conversations.organizationId, tenantOrganizationId)));
   }
 
-  // Reset unread count on conversation
-  await db
-    .update(conversations)
-    .set({ unreadCount: 0 })
-    .where(and(eq(conversations.id, conversationId), eq(conversations.organizationId, tenantOrganizationId)));
-
-  return unreadMessages.length;
+  return updatedCount;
 }
 
 /**

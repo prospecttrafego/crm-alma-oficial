@@ -9,6 +9,7 @@ import { queryClient } from "@/lib/queryClient";
 import { calendarEventsApi, channelConfigsApi } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "@/contexts/LanguageContext";
+import { useWebSocket } from "@/hooks/useWebSocket";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -43,6 +44,7 @@ import { ChannelConfigDialog } from "./channel-config-dialog";
 export function IntegrationsSection() {
   const { t } = useTranslation();
   const { toast } = useToast();
+  const { isConnected } = useWebSocket();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [channelType, setChannelType] = useState<"email" | "whatsapp">("email");
   const [editingConfig, setEditingConfig] = useState<ChannelConfigPublic | undefined>();
@@ -64,7 +66,8 @@ export function IntegrationsSection() {
     queryKey: ["/api/integrations/google-calendar/status"],
     queryFn: calendarEventsApi.getGoogleCalendarStatus,
     enabled: gcConfigStatus?.configured,
-    refetchInterval: 30000,
+    // WebSocket handles google_calendar:sync_complete; only poll as fallback when WS is disconnected
+    refetchInterval: isConnected ? false : 30000,
   });
 
   // Google Calendar mutations

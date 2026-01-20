@@ -4,7 +4,25 @@ import { ApiRequestError } from "./api";
 type UnauthorizedBehavior = "returnNull" | "throw";
 
 /**
- * Query function factory with configurable 401 handling
+ * Query function factory with configurable 401 handling.
+ *
+ * @deprecated LEGACY PATTERN - Prefer using explicit queryFn from API modules.
+ *
+ * This function constructs URLs from queryKey.join("/"), which is fragile:
+ * - Objects or non-string primitives in queryKey will break
+ * - No type safety or Zod validation
+ *
+ * Preferred pattern:
+ * ```typescript
+ * import { notificationsApi } from "@/lib/api";
+ *
+ * useQuery({
+ *   queryKey: ["/api/notifications"],
+ *   queryFn: notificationsApi.list, // Uses ApiClient with Zod validation
+ * });
+ * ```
+ *
+ * For new code, always use domain-specific API modules from `@/lib/api/`.
  */
 export const getQueryFn: <T>(options: {
   on401: UnauthorizedBehavior;

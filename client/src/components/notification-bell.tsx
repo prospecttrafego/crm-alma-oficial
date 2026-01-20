@@ -26,6 +26,7 @@ import { useTranslation } from "@/contexts/LanguageContext";
 import { notificationsApi } from "@/lib/api/notifications";
 import { useToast } from "@/hooks/use-toast";
 import { useDesktopNotifications } from "@/hooks/useDesktopNotifications";
+import { useWebSocket } from "@/hooks/useWebSocket";
 import { formatRelativeTimeFromNow } from "@/lib/relativeTime";
 
 const notificationIcons: Record<string, typeof Bell> = {
@@ -61,6 +62,7 @@ export function NotificationBell() {
   const [open, setOpen] = useState(false);
   const { t, language } = useTranslation();
   const { toast } = useToast();
+  const { isConnected } = useWebSocket();
   const intlLocale = language === "pt-BR" ? "pt-BR" : "en-US";
   const {
     isSupported: desktopNotificationsSupported,
@@ -77,8 +79,8 @@ export function NotificationBell() {
   const { data: unreadData } = useQuery<{ count: number }>({
     queryKey: ["/api/notifications/unread-count"],
     queryFn: notificationsApi.unreadCount,
-    // WebSocket handles real-time updates, but keep a fallback interval for safety
-    refetchInterval: 60000,
+    // WebSocket handles real-time updates; only poll as fallback when WS is disconnected
+    refetchInterval: isConnected ? false : 60000,
   });
 
   const markReadMutation = useMutation({

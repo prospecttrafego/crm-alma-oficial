@@ -10,6 +10,7 @@ import { queryClient } from "@/lib/queryClient";
 import { calendarEventsApi } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "@/contexts/LanguageContext";
+import { useWebSocket } from "@/hooks/useWebSocket";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -30,6 +31,7 @@ import type { GoogleCalendarStatus } from "@shared/types";
 export default function CalendarIntegrationPage() {
   const { t } = useTranslation();
   const { toast } = useToast();
+  const { isConnected: wsConnected } = useWebSocket();
 
   // Google Calendar status
   const { data: gcConfigStatus } = useQuery<{ configured: boolean }>({
@@ -45,7 +47,8 @@ export default function CalendarIntegrationPage() {
     queryKey: ["/api/integrations/google-calendar/status"],
     queryFn: calendarEventsApi.getGoogleCalendarStatus,
     enabled: gcConfigStatus?.configured,
-    refetchInterval: 30000,
+    // WebSocket handles google_calendar:sync_complete; only poll as fallback when WS is disconnected
+    refetchInterval: wsConnected ? false : 30000,
   });
 
   // Google Calendar mutations

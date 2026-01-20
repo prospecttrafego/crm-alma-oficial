@@ -30,6 +30,7 @@ export type WebSocketEventType =
   | "channel:config:created"
   | "channel:config:updated"
   | "channel:config:deleted"
+  | "google_calendar:sync_complete"
   | "typing"
   | "user:online"
   | "user:offline"
@@ -82,6 +83,7 @@ const eventToQueryMap: Record<string, string[]> = {
   "channel:config:created": ["/api/channel-configs"],
   "channel:config:updated": ["/api/channel-configs"],
   "channel:config:deleted": ["/api/channel-configs"],
+  "google_calendar:sync_complete": ["/api/integrations/google-calendar/status", "/api/calendar-events"],
 };
 
 function toTimestamp(value: unknown): number {
@@ -205,9 +207,6 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
       ws.onmessage = (event) => {
         try {
           const message: WebSocketMessage = JSON.parse(event.data);
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/4c918a94-219d-47dd-b910-955f475d04dc',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run1',hypothesisId:'H1',location:'client/src/hooks/useWebSocket.ts:205',message:'WebSocket message received',data:{type:(message as any)?.type,hasData:Boolean((message as any)?.data)},timestamp:Date.now()})}).catch(()=>{});
-          // #endregion
 
           // Callback customizado
           onMessage?.(message);
@@ -427,12 +426,21 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
                   return { ...old, pages: newPages };
                 });
               }
+            } else if (message.type === "notification:new" && message.data) {
+              // Handle notification:new with enriched payload (unreadCount)
+              const payload = message.data as { unreadCount?: number };
+              if (typeof payload.unreadCount === "number") {
+                // Update unread count directly without refetch
+                queryClient.setQueryData<{ count: number }>(
+                  ["/api/notifications/unread-count"],
+                  { count: payload.unreadCount }
+                );
+              }
+              // Still invalidate notifications list to fetch new notification details
+              queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
             } else {
               // Para outros eventos, usar invalidacao normal
               const queriesToInvalidate = eventToQueryMap[message.type];
-              // #region agent log
-              fetch('http://127.0.0.1:7242/ingest/4c918a94-219d-47dd-b910-955f475d04dc',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run1',hypothesisId:'H1',location:'client/src/hooks/useWebSocket.ts:429',message:'WS autoInvalidate decision',data:{type:(message as any)?.type,hasMapping:Boolean(queriesToInvalidate),queriesToInvalidate:queriesToInvalidate??null},timestamp:Date.now()})}).catch(()=>{});
-              // #endregion
               if (queriesToInvalidate) {
                 queriesToInvalidate.forEach((queryKey) => {
                   queryClient.invalidateQueries({ queryKey: [queryKey] });

@@ -413,6 +413,20 @@ export async function cleanupJobs(maxAgeMs: number = 24 * 60 * 60 * 1000): Promi
 export { isRedisAvailable };
 
 /**
+ * Check if the queue is healthy enough to accept async jobs.
+ * In production, returns false if Redis is not available (fail-fast policy).
+ * This should be checked before accepting ?async=true requests.
+ *
+ * @returns true if async jobs can be safely accepted
+ */
+export function isQueueHealthyForAsync(): boolean {
+  if (isProduction && !isRedisAvailable()) {
+    return false;
+  }
+  return true;
+}
+
+/**
  * Health check for job queue
  */
 export async function getJobQueueHealth(): Promise<QueueHealth> {

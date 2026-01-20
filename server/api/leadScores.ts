@@ -3,10 +3,10 @@ import { z } from "zod";
 import { leadScoreEntityTypes, type LeadScoreEntityType } from "@shared/schema";
 import { isAuthenticated } from "../auth";
 import { storage } from "../storage";
-import { enqueueJob } from "../jobs/queue";
+import { enqueueJob, isQueueHealthyForAsync } from "../jobs/queue";
 import { JobTypes, type CalculateLeadScorePayload } from "../jobs/handlers";
 import { asyncHandler, validateParams, validateQuery } from "../middleware";
-import { sendSuccess, sendNotFound, sendValidationError } from "../response";
+import { sendSuccess, sendNotFound, sendValidationError, sendServiceUnavailable } from "../response";
 
 // Schemas de validacao
 const leadScoreParamsSchema = z.object({
@@ -70,6 +70,11 @@ export function registerLeadScoreRoutes(app: Express) {
 
       // Async mode: queue the job and return immediately
       if (isAsync) {
+        // Fail-fast: reject async requests if queue is unhealthy (Redis unavailable in production)
+        if (!isQueueHealthyForAsync()) {
+          return sendServiceUnavailable(res, "Async processing unavailable - Redis is not configured");
+        }
+
         const payload: CalculateLeadScorePayload = {
           entityType: entityType as "contact" | "deal",
           entityId,

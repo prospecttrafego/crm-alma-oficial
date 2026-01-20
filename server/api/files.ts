@@ -4,7 +4,7 @@ import { fileEntityTypes, type FileEntityType } from "@shared/schema";
 import { isAuthenticated } from "../auth";
 import { storage } from "../storage";
 import { ObjectStorageService } from "../integrations/supabase/storage";
-import { enqueueJob } from "../jobs/queue";
+import { enqueueJob, isQueueHealthyForAsync } from "../jobs/queue";
 import { JobTypes, type TranscribeAudioPayload } from "../jobs/handlers";
 import { asyncHandler, validateBody, validateParams, validateQuery, getCurrentUser } from "../middleware";
 import { createFileSchema } from "../validation";
@@ -237,6 +237,11 @@ export function registerFileRoutes(app: Express) {
 
       // Async mode: queue the job
       if (isAsync) {
+        // Fail-fast: reject async requests if queue is unhealthy (Redis unavailable in production)
+        if (!isQueueHealthyForAsync()) {
+          return sendServiceUnavailable(res, "Async processing unavailable - Redis is not configured");
+        }
+
         const payload: TranscribeAudioPayload = {
           audioUrl: resolvedUrl,
           language,
@@ -295,6 +300,11 @@ export function registerFileRoutes(app: Express) {
 
       // Async mode: queue the job
       if (isAsync) {
+        // Fail-fast: reject async requests if queue is unhealthy (Redis unavailable in production)
+        if (!isQueueHealthyForAsync()) {
+          return sendServiceUnavailable(res, "Async processing unavailable - Redis is not configured");
+        }
+
         const payload: TranscribeAudioPayload = {
           audioUrl: signedUrl,
           language: req.validatedBody?.language,

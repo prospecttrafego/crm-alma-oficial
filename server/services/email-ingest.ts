@@ -137,7 +137,9 @@ export async function processIncomingEmail(
         entityType: "conversation",
         entityId: updatedConversation.id,
       });
-      broadcastToUser(updatedConversation.assignedToId, "notification:new", {});
+      // Enrich notification payload with unread count (non-blocking on failure)
+      const unreadCount = await storage.getUnreadNotificationCount(updatedConversation.assignedToId).catch(() => undefined);
+      broadcastToUser(updatedConversation.assignedToId, "notification:new", { unreadCount });
 
       // Send push notification if user is offline
       try {

@@ -191,7 +191,9 @@ export function registerDealRoutes(app: Express) {
           entityType: "deal",
           entityId: deal.id,
         });
-        broadcastToUser(userId, "notification:new", {});
+        // Enrich notification payload with unread count (non-blocking on failure)
+        const unreadCount = await storage.getUnreadNotificationCount(userId).catch(() => undefined);
+        broadcastToUser(userId, "notification:new", { unreadCount });
       }
       sendSuccess(res, deal);
     }),

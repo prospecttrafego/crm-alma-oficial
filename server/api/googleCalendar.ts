@@ -4,7 +4,7 @@ import { z } from "zod";
 import { isAuthenticated } from "../auth";
 import { storage } from "../storage";
 import { broadcast } from "../ws/index";
-import { enqueueJob } from "../jobs/queue";
+import { enqueueJob, isQueueHealthyForAsync } from "../jobs/queue";
 import { JobTypes, type SyncGoogleCalendarPayload } from "../jobs/handlers";
 import { asyncHandler, validateQuery, getCurrentUser } from "../middleware";
 import { sendSuccess, sendValidationError, sendServiceUnavailable } from "../response";
@@ -268,6 +268,11 @@ export function registerGoogleCalendarRoutes(app: Express) {
 
       // Async mode: queue the job
       if (isAsync) {
+        // Fail-fast: reject async requests if queue is unhealthy (Redis unavailable in production)
+        if (!isQueueHealthyForAsync()) {
+          return sendServiceUnavailable(res, "Async processing unavailable - Redis is not configured");
+        }
+
         const payload: SyncGoogleCalendarPayload = {
           userId,
           organizationId: user.organizationId,
@@ -377,9 +382,6 @@ export function registerGoogleCalendarRoutes(app: Express) {
 
         // Broadcast sync complete via WebSocket
         broadcast("google_calendar:sync_complete", { userId, imported, updated, deleted });
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/4c918a94-219d-47dd-b910-955f475d04dc',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run1',hypothesisId:'H1',location:'server/api/googleCalendar.ts:379',message:'Broadcast google_calendar:sync_complete emitted',data:{eventType:'google_calendar:sync_complete',imported,updated,deleted,hasUserId:Boolean(userId)},timestamp:Date.now()})}).catch(()=>{});
-        // #endregion
 
         sendSuccess(res, {
           success: true,

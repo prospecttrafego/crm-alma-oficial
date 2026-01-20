@@ -16,7 +16,7 @@ import {
   validateParams,
   asyncHandler,
 } from "../middleware";
-import { sendSuccess, sendNotFound, sendError, sendValidationError, ErrorCodes } from "../response";
+import { sendSuccess, sendNotFound, sendError, sendValidationError, sendServiceUnavailable, ErrorCodes } from "../response";
 import { storage } from "../storage";
 import { broadcast } from "../ws/index";
 import {
@@ -28,7 +28,7 @@ import {
   type ParsedEmail,
 } from "../integrations/email";
 import { logger } from "../logger";
-import { enqueueJob } from "../jobs/queue";
+import { enqueueJob, isQueueHealthyForAsync } from "../jobs/queue";
 import { JobTypes, type SyncEmailPayload } from "../jobs/handlers";
 import { processIncomingEmail } from "../services/email-ingest";
 import {
@@ -253,6 +253,11 @@ export function registerChannelConfigRoutes(app: Express) {
 
       // Async mode: queue the job
       if (async) {
+        // Fail-fast: reject async requests if queue is unhealthy (Redis unavailable in production)
+        if (!isQueueHealthyForAsync()) {
+          return sendServiceUnavailable(res, "Async processing unavailable - Redis is not configured");
+        }
+
         const payload: SyncEmailPayload = {
           channelConfigId: id,
           organizationId,

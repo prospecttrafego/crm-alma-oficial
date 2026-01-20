@@ -283,12 +283,14 @@ async function handleSyncGoogleCalendar(payload: SyncGoogleCalendarPayload): Pro
 
 /**
  * Sync email in background
+ * Uses shared processIncomingEmail function to avoid code duplication
  */
 async function handleSyncEmail(payload: SyncEmailPayload): Promise<{
   newEmails: number;
   errors: string[];
 }> {
   const { syncEmails } = await import("../integrations/email");
+  const { processIncomingEmail } = await import("../services/email-ingest");
 
   logger.info("[Jobs:Email] Starting sync", { channelConfigId: payload.channelConfigId });
 
@@ -304,66 +306,8 @@ async function handleSyncEmail(payload: SyncEmailPayload): Promise<{
 
   const lastSyncUid = emailConfig.lastSyncUid;
   const result = await syncEmails(emailConfig, lastSyncUid, async (email: ParsedEmail) => {
-    // Process each email (same logic as in channelConfigs.ts)
-    const senderEmail = email.from[0]?.address;
-    if (!senderEmail) return;
-
-    const externalId = email.messageId ? `email:${email.messageId}` : null;
-    if (externalId) {
-      const existingMessage = await storage.getMessageByExternalId(externalId);
-      if (existingMessage) return;
-    }
-
-    let contact = await storage.getContactByEmail(senderEmail, payload.organizationId);
-
-    if (!contact) {
-      const senderName = email.from[0]?.name || senderEmail.split("@")[0];
-      const nameParts = senderName.split(" ");
-      contact = await storage.createContact({
-        firstName: nameParts[0] || senderName,
-        lastName: nameParts.slice(1).join(" ") || "",
-        email: senderEmail,
-        organizationId: payload.organizationId,
-        source: "email",
-      });
-    }
-
-    const existingConversations = await storage.getConversationsByContact(contact.id);
-    let conversation = existingConversations.find(
-      (c) => c.channel === "email" && c.subject === email.subject
-    );
-
-    if (!conversation) {
-      conversation = await storage.createConversation({
-        subject: email.subject,
-        channel: "email",
-        status: "open",
-        contactId: contact.id,
-        organizationId: payload.organizationId,
-        assignedToId: payload.userId,
-      });
-    }
-
-    const content = email.text || (email.html ? email.html.replace(/<[^>]*>/g, " ").trim() : "(Sem conteúdo)");
-
-    await storage.createMessage({
-      conversationId: conversation.id,
-      content,
-      contentType: "text",
-      senderType: "contact",
-      isInternal: false,
-      externalId: externalId || undefined,
-      metadata: {
-        emailMessageId: email.messageId,
-        emailDate: email.date.toISOString(),
-      } as any,
-    });
-
-    await storage.updateConversation(conversation.id, {
-      lastMessageAt: new Date(),
-      unreadCount: (conversation.unreadCount || 0) + 1,
-      status: "open",
-    });
+    // Delegate to shared processIncomingEmail function (DRY)
+    await processIncomingEmail(email, payload.channelConfigId, payload.organizationId, payload.userId);
   });
 
   const updates = {

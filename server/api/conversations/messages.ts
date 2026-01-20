@@ -99,7 +99,9 @@ async function notifyMentionedUsers(params: {
       entityType: "conversation",
       entityId: conversationId,
     });
-    broadcastToUser(mentionedUserId, "notification:new", {});
+    // Enrich notification payload with unread count (non-blocking on failure)
+    const unreadCount = await storage.getUnreadNotificationCount(mentionedUserId).catch(() => undefined);
+    broadcastToUser(mentionedUserId, "notification:new", { unreadCount });
 
     await sendPushIfOffline(mentionedUserId, "mention", {
       senderName,
@@ -131,7 +133,9 @@ async function notifyAssignedUser(params: {
     entityType: "conversation",
     entityId: conversationId,
   });
-  broadcastToUser(assignedToId, "notification:new", {});
+  // Enrich notification payload with unread count (non-blocking on failure)
+  const unreadCount = await storage.getUnreadNotificationCount(assignedToId).catch(() => undefined);
+  broadcastToUser(assignedToId, "notification:new", { unreadCount });
 
   await sendPushIfOffline(assignedToId, "message:new", {
     senderName,

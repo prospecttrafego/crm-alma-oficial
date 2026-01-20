@@ -1038,6 +1038,58 @@ pg_dump -U usuario -h host -d database > backup_$(date +%Y%m%d).sql
 
 ---
 
+## Estrategia Real-time (WebSocket vs Polling)
+
+Esta secao documenta a estrategia oficial de atualizacoes em tempo real no Alma CRM.
+
+### Principio Geral
+
+**WebSocket e a fonte primaria de atualizacoes em tempo real.** Polling (`refetchInterval`) deve ser usado apenas como fallback quando WebSocket estiver desconectado.
+
+### Eventos WebSocket (Backend → Frontend)
+
+O backend emite os seguintes eventos via WebSocket (`server/ws/index.ts`):
+
+| Evento | Payload | Queries Invalidadas |
+|--------|---------|---------------------|
+| `pipeline:created/updated/deleted` | Pipeline completo | `/api/pipelines` |
+| `pipeline:stage:created/updated/deleted` | Stage completo | `/api/pipelines` |
+| `deal:created/updated/moved/deleted` | Deal completo | `/api/deals`, `/api/pipelines` |
+| `conversation:created/updated` | Conversa completa ou parcial | `/api/conversations` |
+| `message:created/updated/deleted` | Mensagem completa | Cache update direto (sem refetch) |
+| `notification:new` | `{ unreadCount }` | `/api/notifications`, `/api/notifications/unread-count` |
+| `calendar:event:created/updated/deleted` | Evento completo | `/api/calendar-events` |
+| `channel:config:created/updated/deleted` | Config redacted | `/api/channel-configs` |
+| `google_calendar:sync_complete` | `{ userId, imported, updated, deleted }` | `/api/integrations/google-calendar/status`, `/api/calendar-events` |
+| `typing` | `{ conversationId, userId, userName }` | Nenhuma (estado local) |
+| `user:online/offline` | `{ userId, lastSeenAt }` | Nenhuma (estado local) |
+
+### Polling (refetchInterval) - Uso Oficial
+
+| Componente | Intervalo | Condicao | Justificativa |
+|------------|-----------|----------|---------------|
+| `notification-bell.tsx` | 60s | Somente quando WS desconectado | Fallback de seguranca |
+| `whatsapp-qr-modal.tsx` | 3s | Somente durante `isConnecting` | Fluxo de pareamento QR |
+| `calendar.tsx` | 30s | Somente quando WS desconectado | Fallback para status sync |
+| `channels/index.tsx` | 30s | Somente quando WS desconectado | Fallback para status sync |
+
+**Regra:** Novos componentes NAO devem usar `refetchInterval` fixo. Use invalidacao via WebSocket.
+
+### Preferencias de Usuario (Idioma, Tema, etc.)
+
+**Fonte de verdade:**
+- Quando autenticado: `user.preferences` no backend
+- Pre-login: `localStorage` como cache/fallback
+
+**Fluxo:**
+1. Ao alterar preferencia, salvar em `localStorage` (UI instantanea)
+2. Se autenticado, persistir no backend via `usersApi.updateMe()`
+3. Ao fazer login, preferencias do backend sobrescrevem localStorage
+
+**Implementacao:** `LanguageContext.tsx` (nao usar `useLanguage.ts` - foi removido por duplicacao)
+
+---
+
 ## Debitos Tecnicos Conhecidos
 
 Esta secao documenta funcionalidades planejadas mas ainda nao implementadas.
