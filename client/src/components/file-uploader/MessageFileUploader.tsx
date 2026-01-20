@@ -1,9 +1,9 @@
-import { useRef, useState } from "react";
+import { useRef } from "react";
 import { Paperclip, X, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { filesApi } from "@/lib/api/files";
+import { useFileUpload } from "@/hooks/useFileUpload";
 import { getFileIcon } from "./utils";
-import type { PendingFile } from "./types";
+import type { PendingFile } from "@/pages/inbox/types";
 
 interface MessageFileUploaderProps {
   onFilesChange: (files: PendingFile[]) => void;
@@ -12,50 +12,22 @@ interface MessageFileUploaderProps {
 
 export function MessageFileUploader({ onFilesChange, pendingFiles }: MessageFileUploaderProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [uploading, setUploading] = useState(false);
+  const { uploadFiles, uploading } = useFileUpload();
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = e.target.files;
     if (!selectedFiles || selectedFiles.length === 0) return;
 
-    setUploading(true);
+    const results = await uploadFiles(Array.from(selectedFiles));
 
-    const newPendingFiles: PendingFile[] = [];
-
-    for (const file of Array.from(selectedFiles)) {
-      try {
-        const { uploadURL, objectPath } = await filesApi.getUploadUrl({ size: file.size });
-
-        const uploadResponse = await fetch(uploadURL, {
-          method: "PUT",
-          body: file,
-          headers: {
-            "Content-Type": file.type || "application/octet-stream",
-          },
-        });
-
-        if (!uploadResponse.ok) {
-          throw new Error(`Upload failed with status ${uploadResponse.status}`);
-        }
-
-        newPendingFiles.push({
-          id: crypto.randomUUID(),
-          file,
-          objectPath,
-          status: "uploaded",
-        });
-      } catch (error) {
-        console.error("Upload error:", error);
-        newPendingFiles.push({
-          id: crypto.randomUUID(),
-          file,
-          status: "error",
-        });
-      }
-    }
+    const newPendingFiles: PendingFile[] = results.map((result) => ({
+      id: crypto.randomUUID(),
+      file: result.file,
+      objectPath: result.objectPath,
+      status: result.success ? "uploaded" : "error",
+    }));
 
     onFilesChange([...pendingFiles, ...newPendingFiles]);
-    setUploading(false);
 
     if (fileInputRef.current) {
       fileInputRef.current.value = "";

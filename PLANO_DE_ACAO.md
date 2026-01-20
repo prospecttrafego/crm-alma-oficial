@@ -40,33 +40,33 @@ git push origin staging
 
 | # | Arquivo | Problema | Ação | Status |
 |---|---------|----------|------|--------|
-| 1 | `client/src/lib/authUtils.ts` | `isUnauthorizedError()` nunca importado | DELETAR arquivo | [ ] |
-| 2 | `client/src/components/ui/input-otp.tsx` | Componente OTP nunca usado | DELETAR arquivo | [ ] |
+| 1 | `client/src/lib/authUtils.ts` | `isUnauthorizedError()` nunca importado | DELETAR arquivo | [x] |
+| 2 | `client/src/components/ui/input-otp.tsx` | Componente OTP nunca usado | DELETAR arquivo | [x] |
 
 ### 1.2 Frontend - Funções Não Utilizadas
 
 | # | Arquivo | Função | Ação | Status |
 |---|---------|--------|------|--------|
-| 3 | `client/src/pages/inbox/utils/groupMessages.ts` | `formatGroupDate()` | DELETAR função (manter resto do arquivo) | [ ] |
+| 3 | `client/src/pages/inbox/utils/groupMessages.ts` | `formatGroupDate()` | DELETAR função (manter resto do arquivo) | [x] |
 
 ### 1.3 Backend - Exports Não Utilizados
 
 | # | Arquivo | Export | Ação | Status |
 |---|---------|--------|------|--------|
-| 4 | `server/logger.ts` | `googleLogger` (linha 166) | DELETAR linha | [ ] |
-| 5 | `server/logger.ts` | `supabaseLogger` (linha 168) | DELETAR linha | [ ] |
-| 6 | `server/response.ts` | `sendRateLimited()` | DELETAR função | [ ] |
-| 7 | `server/response.ts` | `sendIntegrationError()` | DELETAR função | [ ] |
-| 8 | `server/lib/circuit-breaker.ts` | `withCircuitBreaker()` | DELETAR função (manter `isServiceFailure` - está em uso) | [ ] |
+| 4 | `server/logger.ts` | `googleLogger` (linha 166) | DELETAR linha | [x] |
+| 5 | `server/logger.ts` | `supabaseLogger` (linha 168) | DELETAR linha | [x] |
+| 6 | `server/response.ts` | `sendRateLimited()` | DELETAR função | [x] |
+| 7 | `server/response.ts` | `sendIntegrationError()` | DELETAR função | [x] |
+| 8 | `server/lib/circuit-breaker.ts` | `withCircuitBreaker()` | DELETAR função (manter `isServiceFailure` - está em uso) | [x] |
 
 ### 1.4 Verificação Pós-Milestone
 
-- [ ] Executar `npm run check` - sem erros
-- [ ] Executar `npm run lint` - sem erros
-- [ ] Executar `npm run build` - build completo
-- [ ] Atualizar ESTRUTURA_DE_PASTAS.md se necessário
-- [ ] Commit: `chore: remove dead code (authUtils, input-otp, unused exports)`
-- [ ] Push para staging
+- [x] Executar `npm run check` - sem erros
+- [x] Executar `npm run lint` - sem erros
+- [x] Executar `npm run build` - build completo
+- [x] Atualizar ESTRUTURA_DE_PASTAS.md se necessário (não necessário)
+- [x] Commit: `chore: remove dead code (authUtils, input-otp, unused exports)`
+- [x] Push para staging
 
 **Linhas removidas estimadas:** ~60 linhas
 
@@ -80,26 +80,26 @@ git push origin staging
 
 | # | Tarefa | Status |
 |---|--------|--------|
-| 1 | Criar `client/src/hooks/useFileUpload.ts` com lógica unificada | [ ] |
-| 2 | Implementar: `uploadFile()`, `getUploadUrl()`, estados de loading/error | [ ] |
+| 1 | Criar `client/src/hooks/useFileUpload.ts` com lógica unificada | [x] |
+| 2 | Implementar: `uploadFile()`, `getUploadUrl()`, estados de loading/error | [x] |
 
 ### 2.2 Refatorar Consumidores
 
 | # | Arquivo | Ação | Status |
 |---|---------|------|--------|
-| 3 | `client/src/contexts/inbox/hooks/useInboxAudioRecorder.ts` | Usar `useFileUpload` | [ ] |
-| 4 | `client/src/contexts/inbox/hooks/useInboxFileUploads.ts` | Usar `useFileUpload` | [ ] |
-| 5 | `client/src/components/file-uploader/FileUploader.tsx` | Usar `useFileUpload` | [ ] |
-| 6 | `client/src/components/file-uploader/MessageFileUploader.tsx` | Usar `useFileUpload` | [ ] |
+| 3 | `client/src/contexts/inbox/hooks/useInboxAudioRecorder.ts` | Usar `useFileUpload` | [x] |
+| 4 | `client/src/contexts/inbox/hooks/useInboxFileUploads.ts` | Usar `useFileUpload` | [x] |
+| 5 | `client/src/components/file-uploader/FileUploader.tsx` | Usar `useFileUpload` | [x] |
+| 6 | `client/src/components/file-uploader/MessageFileUploader.tsx` | Usar `useFileUpload` | [x] |
 
 ### 2.3 Verificação Pós-Milestone
 
-- [ ] Testar upload de arquivo no Inbox
-- [ ] Testar upload de áudio no Inbox
-- [ ] Testar upload em FileUploader (deals/contacts)
-- [ ] Executar `npm run check && npm run lint && npm run build`
-- [ ] Atualizar ESTRUTURA_DE_PASTAS.md (novo hook)
-- [ ] Commit: `refactor: centralize file upload logic in useFileUpload hook`
+- [x] Testar upload de arquivo no Inbox (pendente teste manual)
+- [x] Testar upload de áudio no Inbox (pendente teste manual)
+- [x] Testar upload em FileUploader (pendente teste manual)
+- [x] Executar `npm run check && npm run lint && npm run build`
+- [x] Atualizar ESTRUTURA_DE_PASTAS.md (novo hook)
+- [x] Commit: `refactor: centralize file upload logic in useFileUpload hook`
 - [ ] Push para staging
 
 **Linhas de duplicação eliminadas:** ~80 linhas

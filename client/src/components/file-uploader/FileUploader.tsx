@@ -1,9 +1,10 @@
-import { useState, useRef } from "react";
+import { useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { filesApi } from "@/lib/api/files";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { useFileUpload } from "@/hooks/useFileUpload";
 import { Paperclip, Download, Trash2, Loader2 } from "lucide-react";
 import type { File as FileRecord, FileEntityType } from "@shared/schema";
 import { formatFileSize, getFileIcon } from "./utils";
@@ -27,8 +28,10 @@ export function FileUploader({
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [uploading, setUploading] = useState(false);
   const { downloadFile, downloadingId } = useFileDownload();
+  const { uploadFile, uploading } = useFileUpload({
+    onError: () => toast({ title: "Failed to upload file", variant: "destructive" }),
+  });
 
   const { data: files } = useQuery<FileRecord[]>({
     queryKey: ["/api/files", entityType, entityId],
@@ -53,48 +56,35 @@ export function FileUploader({
     const selectedFiles = e.target.files;
     if (!selectedFiles || selectedFiles.length === 0) return;
 
-    setUploading(true);
+    for (const file of Array.from(selectedFiles)) {
+      const result = await uploadFile(file);
 
-    try {
-      for (const file of Array.from(selectedFiles)) {
-        const { uploadURL, objectPath } = await filesApi.getUploadUrl({ size: file.size });
+      if (result.success && result.objectPath) {
+        try {
+          const registeredFile = await filesApi.register({
+            name: file.name,
+            mimeType: file.type,
+            size: file.size,
+            objectPath: result.objectPath,
+            entityType,
+            entityId,
+          });
 
-        const uploadResponse = await fetch(uploadURL, {
-          method: "PUT",
-          body: file,
-          headers: {
-            "Content-Type": file.type || "application/octet-stream",
-          },
-        });
+          if (onUploadComplete) {
+            onUploadComplete(registeredFile);
+          }
 
-        if (!uploadResponse.ok) {
-          throw new Error(`Upload failed with status ${uploadResponse.status}`);
+          queryClient.invalidateQueries({ queryKey: ["/api/files", entityType, entityId] });
+          toast({ title: `${file.name} uploaded successfully` });
+        } catch (error) {
+          console.error("Registration error:", error);
+          toast({ title: "Failed to register file", variant: "destructive" });
         }
-
-        const registeredFile = await filesApi.register({
-          name: file.name,
-          mimeType: file.type,
-          size: file.size,
-          objectPath,
-          entityType,
-          entityId,
-        });
-
-        if (onUploadComplete) {
-          onUploadComplete(registeredFile);
-        }
-
-        queryClient.invalidateQueries({ queryKey: ["/api/files", entityType, entityId] });
-        toast({ title: `${file.name} uploaded successfully` });
       }
-    } catch (error) {
-      console.error("Upload error:", error);
-      toast({ title: "Failed to upload file", variant: "destructive" });
-    } finally {
-      setUploading(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
+    }
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
     }
   };
 

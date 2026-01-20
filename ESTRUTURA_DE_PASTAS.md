@@ -108,6 +108,7 @@ client/
   - `usePushNotifications.ts`: Firebase Cloud Messaging (push)
   - `useToast.ts`: notificações toast in-app
   - `useNotificationSound.ts`: reprodução de sons de notificação
+  - `useFileUpload.ts`: upload centralizado de arquivos para storage (Supabase)
 - Nota: idioma é gerenciado via `LanguageContext` (em `contexts/`), não há hook separado.
 - O que pode mudar: melhorar organização, separar hooks por tema, adicionar novos hooks para features.
 

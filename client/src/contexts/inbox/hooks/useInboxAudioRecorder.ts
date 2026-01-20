@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { filesApi } from "@/lib/api/files";
 import { conversationsApi } from "@/lib/api/conversations";
+import { useFileUpload } from "@/hooks/useFileUpload";
 import { queryClient } from "@/lib/queryClient";
 import type { ConversationWithRelations } from "@/lib/api/conversations";
 
@@ -25,6 +26,10 @@ export function useInboxAudioRecorder({
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
+
+  const { uploadFile } = useFileUpload({
+    onError: () => onError("Erro ao enviar áudio"),
+  });
 
   useEffect(() => {
     return () => {
@@ -107,17 +112,14 @@ export function useInboxAudioRecorder({
     if (!audioBlob || !selectedConversation) return;
 
     try {
-      // Upload audio file
-      const { uploadURL, objectPath } = await filesApi.getUploadUrl({ size: audioBlob.size });
+      // Convert Blob to File for upload
+      const audioFile = new File([audioBlob], `audio_${Date.now()}.webm`, { type: "audio/webm" });
 
-      const uploadResponse = await fetch(uploadURL, {
-        method: "PUT",
-        body: audioBlob,
-        headers: { "Content-Type": "audio/webm" },
-      });
+      // Upload audio file using centralized hook
+      const result = await uploadFile(audioFile);
 
-      if (!uploadResponse.ok) {
-        throw new Error(`Upload failed with status ${uploadResponse.status}`);
+      if (!result.success || !result.objectPath) {
+        throw new Error(result.error || "Upload failed");
       }
 
       // Create message with audio
@@ -128,10 +130,10 @@ export function useInboxAudioRecorder({
 
       // Attach audio file to message
       await filesApi.register({
-        name: `audio_${Date.now()}.webm`,
+        name: audioFile.name,
         mimeType: "audio/webm",
         size: audioBlob.size,
-        objectPath,
+        objectPath: result.objectPath,
         entityType: "message",
         entityId: messageData.id,
       });
@@ -148,7 +150,7 @@ export function useInboxAudioRecorder({
     } catch (_error) {
       onError("Erro ao enviar áudio");
     }
-  }, [audioBlob, selectedConversation, isInternalComment, onSuccess, onError, onSentSound]);
+  }, [audioBlob, selectedConversation, isInternalComment, onSuccess, onError, onSentSound, uploadFile]);
 
   return {
     isRecording,
