@@ -236,24 +236,24 @@ type UserPreferences = {
 
 | # | Arquivo | Ação | Status |
 |---|---------|------|--------|
-| 1 | `useInboxAudioRecorder.ts` | Já resolvido no Milestone 2 | [ ] |
-| 2 | `useInboxFileUploads.ts` | Já resolvido no Milestone 2 | [ ] |
-| 3 | `FileUploader.tsx` | Já resolvido no Milestone 2 | [ ] |
-| 4 | `MessageFileUploader.tsx` | Já resolvido no Milestone 2 | [ ] |
-| 5 | `avatar-upload.tsx` | Avaliar refatoração para usar hook centralizado | [ ] |
+| 1 | `useInboxAudioRecorder.ts` | Já resolvido no Milestone 2 | [x] |
+| 2 | `useInboxFileUploads.ts` | Já resolvido no Milestone 2 | [x] |
+| 3 | `FileUploader.tsx` | Já resolvido no Milestone 2 | [x] |
+| 4 | `MessageFileUploader.tsx` | Já resolvido no Milestone 2 | [x] |
+| 5 | `avatar-upload.tsx` | Avaliar refatoração para usar hook centralizado | [x] (usa lógica específica de avatar, não necessário) |
 
 ### 6.2 Export Faltando
 
 | # | Tarefa | Status |
 |---|--------|--------|
-| 6 | Adicionar `export { searchApi } from './search';` em `client/src/lib/api/index.ts` | [ ] |
+| 6 | Adicionar `export { searchApi } from './search';` em `client/src/lib/api/index.ts` | [x] |
 
 ### 6.3 Verificação Pós-Milestone
 
-- [ ] Verificar que todos os componentes de upload usam padrão consistente
-- [ ] Executar `npm run check && npm run lint && npm run build`
-- [ ] Commit: `refactor: standardize API client usage across codebase`
-- [ ] Push para staging
+- [x] Verificar que todos os componentes de upload usam padrão consistente
+- [x] Executar `npm run check && npm run lint && npm run build`
+- [x] Commit: `refactor: add searchApi export to api index`
+- [x] Push para staging
 
 ---
 
@@ -292,12 +292,12 @@ Milestone 6 (API Client) → debug → docs → commit → push
 
 ## Checklist Final
 
-- [ ] Todos os milestones concluídos
-- [ ] Nenhum erro de TypeScript
-- [ ] Nenhum erro de ESLint
-- [ ] Build completo sem warnings críticos
-- [ ] Documentação atualizada
-- [ ] Todos os commits no staging
+- [x] Todos os milestones concluídos
+- [x] Nenhum erro de TypeScript
+- [x] Nenhum erro de ESLint
+- [x] Build completo sem warnings críticos
+- [x] Documentação atualizada
+- [x] Todos os commits no staging
 - [ ] Testes manuais dos fluxos principais passando
 
 ---
