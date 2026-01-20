@@ -89,24 +89,3 @@ export function groupMessages(messages: InboxMessage[]): MessageGroup[] {
   return groups;
 }
 
-/**
- * Format a date for group display (shows date if not today)
- */
-export function formatGroupDate(date: Date): string {
-  const today = new Date();
-  const isToday =
-    date.getDate() === today.getDate() &&
-    date.getMonth() === today.getMonth() &&
-    date.getFullYear() === today.getFullYear();
-
-  if (isToday) {
-    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  }
-
-  return date.toLocaleDateString([], {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}

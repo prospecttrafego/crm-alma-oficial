@@ -106,19 +106,8 @@ export const sendValidationError = (res: Response, message: string, details?: un
 export const sendConflict = (res: Response, message: string) =>
   sendError(res, ErrorCodes.CONFLICT, message, 409);
 
-export const sendRateLimited = (res: Response, retryAfter?: number) =>
-  sendError(
-    res,
-    ErrorCodes.RATE_LIMITED,
-    `Muitas requisições. Tente novamente em ${retryAfter || "alguns"} segundos.`,
-    429
-  );
-
 export const sendInternalError = (res: Response, message: string = "Erro interno do servidor") =>
   sendError(res, ErrorCodes.INTERNAL_ERROR, message, 500);
-
-export const sendIntegrationError = (res: Response, service: string, message: string) =>
-  sendError(res, ErrorCodes.INTEGRATION_ERROR, `Erro na integração ${service}: ${message}`, 502);
 
 export const sendServiceUnavailable = (res: Response, message: string = "Serviço indisponível") =>
   sendError(res, ErrorCodes.SERVICE_UNAVAILABLE, message, 503);

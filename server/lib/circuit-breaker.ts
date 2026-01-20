@@ -278,13 +278,3 @@ export function isServiceFailure(error: unknown): boolean {
   return false;
 }
 
-/**
- * Create a wrapper function that applies circuit breaker to any async function
- */
-export function withCircuitBreaker<TArgs extends unknown[], TResult>(
-  fn: (...args: TArgs) => Promise<TResult>,
-  options: CircuitBreakerOptions
-): (...args: TArgs) => Promise<TResult> {
-  const breaker = getCircuitBreaker(options);
-  return (...args: TArgs) => breaker.execute(() => fn(...args));
-}

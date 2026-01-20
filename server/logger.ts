@@ -163,6 +163,4 @@ export function createServiceLogger(service: string) {
 
 // Loggers pre-configurados para servicos
 export const whatsappLogger = createServiceLogger("whatsapp");
-export const googleLogger = createServiceLogger("google-calendar");
 export const openaiLogger = createServiceLogger("openai");
-export const supabaseLogger = createServiceLogger("supabase");

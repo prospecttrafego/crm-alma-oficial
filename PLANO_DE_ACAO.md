@@ -1,166 +1,317 @@
-# Plano de Ação — Eficiência e Coerência Arquitetural (Alma CRM)
+# Plano de Ação — Limpeza e Padronização do Codebase (Alma CRM)
 
-Este documento organiza os ajustes identificados na auditoria com **milestones** e **tarefas** (checkbox) para acompanhar execução.
-
-> Nota: a auditoria foi **concluída** e este plano está **congelado**. Ele só deve ser alterado se os testes (ou produção) revelarem novos achados.
-
----
-
-## Milestone 0 — Baseline (medição e inventário antes de mudar)
-
-**Por que é necessário:** sem um baseline, a gente corre o risco de "otimizar no escuro" e trocar um problema por outro. A ideia é fechar a auditoria com uma visão completa (frontend, backend e integração) e anexar sinais objetivos (bundle/chunks, hotspots de refetch, fluxo WS vs polling).
-
-- [x] Mapear todos os `refetchInterval` no frontend e justificar cada um (ou remover).
-- [x] Mapear todos os eventos WebSocket emitidos no backend e sua estratégia no frontend (invalidate vs cache update).
-- [x] Garantir que o contrato de eventos WS esteja alinhado (tipos emitidos no backend = tipos tratados no frontend).
-- [x] Rodar build e registrar tamanho/quantidade de chunks (antes) para guiar mudanças no code splitting.
-- [ ] Revisar "double source of truth" em preferências (backend `user.preferences` vs `localStorage`) e documentar regra oficial.
-- [x] Registrar baseline de chunks grandes:
-  - [x] `vendor-tSQUg4m7.js` (~565kb) — chunk genérico com core vendors (React, etc.)
-  - [x] `vendor-recharts`, `vendor-emoji`, `vendor-zod`, `vendor-ui` (splits confirmados e funcionando)
+> **Objetivo**: Eliminar código morto, duplicações, inconsistências e drift de contratos.
+> **Princípio**: Codebase limpo, robusto e preparado para escala.
+> **Última atualização**: 2026-01-20
 
 ---
 
-## Milestone 1 — Unificar estratégia de real-time (WS) vs polling/refetch
+## Workflow Padrão por Milestone
 
-**Por que é necessário:** hoje há pontos onde **dois mecanismos fazem o mesmo trabalho** (WS invalidando queries e polling periódico). Isso aumenta custo (rede/DB), cria "flapping" (estado oscilando) e torna o sistema mais difícil de debugar.
+Ao finalizar CADA milestone, executar obrigatoriamente:
 
-### 1.1 Notificações: remover concorrência WS + polling fixo
+```bash
+# 1. Debug e Verificação
+npm run check        # TypeScript sem erros
+npm run lint         # ESLint sem erros
+npm run build        # Build completo
 
-- [x] Tornar `refetchInterval` do unread count **condicional** (somente quando WS estiver desconectado), ou remover polling.
-- [x] Padronizar atualização: escolher entre
-  - [x] **WS → update otimista** (unreadCount) + refetch sob demanda — IMPLEMENTADO
-  - [ ] ~~WS → invalidate (refetch) sem update otimista duplicado~~
-- [x] Definir e documentar "fonte de verdade" para `unreadCount`. — Backend é fonte de verdade, WS envia unreadCount no payload
+# 2. Teste manual do fluxo afetado (quando aplicável)
 
-**Justificativa técnica:** WebSocket já invalida `/api/notifications` e `/api/notifications/unread-count`; o polling fixo vira redundância e custo recorrente.
+# 3. Atualizar documentação (apenas se necessário)
+# - README.md: visão geral, comandos, quick start
+# - ESTRUTURA_DE_PASTAS.md: se arquivos/pastas mudaram
+# - Outros docs específicos conforme a mudança
+# - CLAUDE.md: SOMENTE remover info obsoleta ou corrigir erros
 
-### 1.2 Consolidar estratégia de cache update (quando possível) vs invalidation
-
-- [x] Listar eventos que já fazem **cache update** (ex.: `message:created`) e manter consistência. — Documentado em CLAUDE.md
-- [x] Evitar invalidar listas grandes quando o payload do evento permite update incremental. — Implementado para notification:new
-
----
-
-## Milestone 2 — Unificar "data layer" do frontend (HTTP + erros + contratos)
-
-**Por que é necessário:** existem **dois caminhos paralelos** de request/unwrap/erro: o `ApiClient` (com validação Zod de resposta) e o default `queryFn` do React Query baseado em `queryKey.join("/")`. Isso cria duplicação, inconsistência e riscos de URLs inválidas.
-
-- [x] Decidir padrão oficial:
-  - [x] **Opção A (recomendada)**: `ApiClient` como única forma de request (React Query sempre chama `api.get/post/...`). — ADOTADO
-  - [ ] ~~Opção B: default `queryFn` delega ao `ApiClient` com contrato explícito de `queryKey`~~
-- [x] Remover/aposentar `getQueryFn` baseado em `queryKey.join("/")` (ou restringir fortemente o formato de `queryKey`). — Adicionado @deprecated JSDoc
-- [ ] Padronizar shape de `queryKey` (strings/params) para evitar objetos acidentais. — Trabalho futuro (migração gradual)
+# 4. Commit e Push
+git add .
+git commit -m "milestone X: descrição concisa"
+git push origin staging
+```
 
 ---
 
-## Milestone 3 — Eliminar redundâncias e sobreposição de responsabilidade no frontend
+## Milestone 1 — Remoção de Código Morto (Risco Zero)
 
-**Por que é necessário:** código duplicado tende a divergir ("drift"), aumentando bugs e custo de manutenção.
+**Por que é necessário:** Código morto aumenta complexidade cognitiva, confunde desenvolvedores e infla o bundle.
 
-### 3.1 Idioma: manter um único API público
+### 1.1 Frontend - Arquivos Não Utilizados
 
-- [x] Remover `client/src/hooks/useLanguage.ts` (ou transformar em wrapper fino do `LanguageContext`). — DELETADO
-- [x] Garantir que apenas `LanguageContext` faça: prioridade `user.preferences` → `localStorage` → default. — Confirmado
+| # | Arquivo | Problema | Ação | Status |
+|---|---------|----------|------|--------|
+| 1 | `client/src/lib/authUtils.ts` | `isUnauthorizedError()` nunca importado | DELETAR arquivo | [ ] |
+| 2 | `client/src/components/ui/input-otp.tsx` | Componente OTP nunca usado | DELETAR arquivo | [ ] |
 
-### 3.2 Preferências (tema/som/outros): definir contrato "server-first"
+### 1.2 Frontend - Funções Não Utilizadas
 
-- [ ] Documentar regra: quando autenticado, backend é fonte de verdade; `localStorage` apenas cache/fallback pré-login.
-- [ ] Evitar lógica duplicada em múltiplos hooks/componentes.
+| # | Arquivo | Função | Ação | Status |
+|---|---------|--------|------|--------|
+| 3 | `client/src/pages/inbox/utils/groupMessages.ts` | `formatGroupDate()` | DELETAR função (manter resto do arquivo) | [ ] |
 
----
+### 1.3 Backend - Exports Não Utilizados
 
-## Milestone 4 — Reavaliar code splitting (evitar overengineering de chunks)
+| # | Arquivo | Export | Ação | Status |
+|---|---------|--------|------|--------|
+| 4 | `server/logger.ts` | `googleLogger` (linha 166) | DELETAR linha | [ ] |
+| 5 | `server/logger.ts` | `supabaseLogger` (linha 168) | DELETAR linha | [ ] |
+| 6 | `server/response.ts` | `sendRateLimited()` | DELETAR função | [ ] |
+| 7 | `server/response.ts` | `sendIntegrationError()` | DELETAR função | [ ] |
+| 8 | `server/lib/circuit-breaker.ts` | `withCircuitBreaker()` | DELETAR função (manter `isServiceFailure` - está em uso) | [ ] |
 
-**Por que é necessário:** combinar `React.lazy()` por rotas com um `manualChunks()` muito granular pode criar muitos chunks pequenos (overhead de requests/parse). O objetivo é manter split apenas para libs realmente pesadas e rotas grandes.
+### 1.4 Verificação Pós-Milestone
 
-- [x] Medir bundle/chunks "antes" e registrar no baseline (Milestone 0). — Registrado (build 2024-01-20)
-- [x] Revisar `manualChunks()` para evitar granularidade excessiva. — Configuração atual é adequada
-- [x] Manter splits "high impact" (ex.: charts/emoji/firebase) e simplificar o restante. — Confirmado
+- [ ] Executar `npm run check` - sem erros
+- [ ] Executar `npm run lint` - sem erros
+- [ ] Executar `npm run build` - build completo
+- [ ] Atualizar ESTRUTURA_DE_PASTAS.md se necessário
+- [ ] Commit: `chore: remove dead code (authUtils, input-otp, unused exports)`
+- [ ] Push para staging
 
----
-
-## Milestone 5 — Otimizações no backend para reduzir refetch desnecessário
-
-**Por que é necessário:** alguns eventos WS saem com payload vazio (`{}`), forçando o cliente a refetch e elevando carga de DB em cenários de volume.
-
-- [x] Para `notification:new`, considerar enviar payload mínimo útil:
-  - [x] `unreadCount` atualizado e/ou — IMPLEMENTADO
-  - [ ] ~~a própria notificação recém-criada (quando aplicável)~~
-- [x] Garantir que o payload não inclua PII sensível desnecessária. — Apenas unreadCount é enviado
-
----
-
-## Milestone 6 — Validação de contratos: segurança sem "jank" em payloads grandes
-
-**Por que é necessário:** validação runtime com Zod é excelente para segurança/contrato, mas pode ter custo perceptível em payloads grandes (especialmente em mobile).
-
-- [ ] Definir política: validação estrita em dev/staging; em produção, considerar:
-  - [ ] amostragem, ou
-  - [ ] validação apenas em endpoints críticos, ou
-  - [ ] validação com limites/tamanhos.
-
-> **Nota:** Adiado — comportamento atual (validação em dev) é aceitável para o momento.
+**Linhas removidas estimadas:** ~60 linhas
 
 ---
 
-## Milestone 7 — Consistência de "unread" e mensagens (modelo + performance)
+## Milestone 2 — Consolidar Duplicações de Upload
 
-**Por que é necessário:** hoje existe um mix de abordagens para "unread":
-- `messages.readBy` é **por usuário** (correto para multi-user),
-- `conversations.unreadCount` é **um único número por conversa** (tende a divergir em cenários com múltiplos usuários),
-- e existe um conjunto de funções de cache em Redis para mensagens/unread que, no estado atual, parecem **não estar integradas** ao fluxo principal (código "morto"/overengineering).
+**Por que é necessário:** Mesma lógica de upload repetida em 4 lugares causa drift e bugs difíceis de rastrear.
 
-Isso gera risco de **inconsistência** (fontes de verdade concorrentes) e gargalos de performance (ex.: marcar mensagens como lidas com updates por mensagem).
+### 2.1 Criar Hook Centralizado
 
-- [ ] Definir regra oficial para "unread":
-  - [ ] **Opção A (recomendada)**: unread "por usuário" deriva de `readBy` (e `unreadCount` vira derivado/viewport específico ou é removido).
-  - [ ] Opção B: manter `unreadCount` como campo "rápido", mas então ele precisa ser **por usuário** (modelagem muda).
-- [x] Otimizar `markMessagesAsRead` para evitar loop N updates (usar update em lote/SQL). — IMPLEMENTADO (single query com array_append)
-- [ ] Decidir sobre cache Redis de mensagens/unread:
-  - [ ] Integrar de verdade (com invalidação clara e sem drift), ou
-  - [ ] Remover código de cache não utilizado para reduzir complexidade.
-- [ ] Validar contrato do endpoint `GET /api/conversations/:id` (shape de `messages`) para evitar payload inconsistente no frontend.
+| # | Tarefa | Status |
+|---|--------|--------|
+| 1 | Criar `client/src/hooks/useFileUpload.ts` com lógica unificada | [ ] |
+| 2 | Implementar: `uploadFile()`, `getUploadUrl()`, estados de loading/error | [ ] |
 
----
+### 2.2 Refatorar Consumidores
 
-## Milestone 8 — Integrações: reduzir polling e eliminar "drift" de contratos
+| # | Arquivo | Ação | Status |
+|---|---------|------|--------|
+| 3 | `client/src/contexts/inbox/hooks/useInboxAudioRecorder.ts` | Usar `useFileUpload` | [ ] |
+| 4 | `client/src/contexts/inbox/hooks/useInboxFileUploads.ts` | Usar `useFileUpload` | [ ] |
+| 5 | `client/src/components/file-uploader/FileUploader.tsx` | Usar `useFileUpload` | [ ] |
+| 6 | `client/src/components/file-uploader/MessageFileUploader.tsx` | Usar `useFileUpload` | [ ] |
 
-**Por que é necessário:** hoje existem integrações que dependem de **polling periódico** (ex.: Google Calendar status a cada 30s; WhatsApp status a cada 3s durante conexão) mesmo existindo infra de WebSocket. Além disso, há eventos emitidos no backend que **não existem no contrato do frontend**, o que vira custo sem benefício e comportamento confuso.
+### 2.3 Verificação Pós-Milestone
 
-### 8.1 Google Calendar: evento WS emitido, mas frontend não trata
+- [ ] Testar upload de arquivo no Inbox
+- [ ] Testar upload de áudio no Inbox
+- [ ] Testar upload em FileUploader (deals/contacts)
+- [ ] Executar `npm run check && npm run lint && npm run build`
+- [ ] Atualizar ESTRUTURA_DE_PASTAS.md (novo hook)
+- [ ] Commit: `refactor: centralize file upload logic in useFileUpload hook`
+- [ ] Push para staging
 
-- [x] Alinhar o contrato do evento `google_calendar:sync_complete` no frontend (tipos + tratamento). — IMPLEMENTADO
-- [x] Decidir estratégia:
-  - [x] **Preferida**: WS dispara invalidation de `["/api/integrations/google-calendar/status"]` e `["/api/calendar-events"]` — IMPLEMENTADO
-  - [x] e o polling (`refetchInterval: 30000`) vira fallback **somente quando WS estiver offline** — IMPLEMENTADO
-
-### 8.2 WhatsApp: conexão/QR e atualização de status
-
-- [ ] Decidir contrato canônico de real-time para WhatsApp:
-  - [ ] **Preferida**: backend emite `channel:config:updated` (com payload redacted) sempre que `connectionStatus/qrCode` mudar
-  - [ ] e remover eventos "custom" (`whatsapp_status`, `whatsapp_qr`) se o frontend não consumir
-- [x] Tornar polling do QR modal (`refetchInterval: 3000`) "bounded" (somente enquanto `qr_pending/connecting`) — já é assim, validado
-
-### 8.3 Email: eliminar duplicação de lógica entre sync imediato e job async
-
-**Achado:** existe um service (`processIncomingEmail`) e, ao mesmo tempo, o handler de job `SYNC_EMAIL` contém lógica duplicada (comentada como "same logic as channelConfigs.ts").
-
-- [x] Extrair um `EmailSyncService` (ou função) único que:
-  - [x] chama `syncEmails(...)` e delega cada email para `processIncomingEmail(...)` — JÁ EXISTE
-  - [x] atualiza `lastSyncUid/lastSyncAt` — IMPLEMENTADO
-- [x] Fazer o endpoint sync (imediato) e o job async usarem o mesmo serviço (DRY). — IMPLEMENTADO (handlers.ts usa processIncomingEmail)
+**Linhas de duplicação eliminadas:** ~80 linhas
 
 ---
 
-## Milestone 9 — Jobs/Queue: reduzir overengineering e aumentar previsibilidade em produção
+## Milestone 3 — Unificar Tipos e Utilitários Duplicados
 
-**Por que é necessário:** o projeto tem fila com Redis (Upstash) e fallback em memória. Isso é útil em dev, mas em produção pode virar "falha silenciosa" (jobs perdidos em restart) e duplicação de caminhos (sync vs async).
+**Por que é necessário:** Tipos e funções duplicados divergem com o tempo ("drift").
 
-- [x] Definir política de produção:
-  - [x] se `NODE_ENV=production` e Redis não está disponível: **fail fast** (ou bloquear endpoints `?async=true`) para evitar job "sumir" — IMPLEMENTADO (isQueueHealthyForAsync)
-- [x] Padronizar endpoints async:
-  - [x] listar quais endpoints suportam `?async=true` e garantir UX consistente (jobId/status/erros) — Documentado em CLAUDE.md
-- [ ] Revisar `load retries/backoff` da fila para não causar latência em cascata em situações de Redis instável
+### 3.1 Tipo `PendingFile`
 
+| # | Tarefa | Status |
+|---|--------|--------|
+| 1 | Manter definição canônica em `client/src/pages/inbox/types.ts` | [ ] |
+| 2 | Atualizar `MessageFileUploader.tsx` para importar de `@/pages/inbox/types` | [ ] |
+| 3 | Deletar `client/src/components/file-uploader/types.ts` | [ ] |
 
+### 3.2 Função `getFileIcon`
+
+| # | Tarefa | Status |
+|---|--------|--------|
+| 4 | Manter definição canônica em `client/src/components/file-uploader/utils.tsx` | [ ] |
+| 5 | Atualizar `FileAttachments.tsx` para importar de `@/components/file-uploader/utils` | [ ] |
+| 6 | Remover definição duplicada em `FileAttachments.tsx` | [ ] |
+
+### 3.3 Verificação Pós-Milestone
+
+- [ ] Executar `npm run check && npm run lint && npm run build`
+- [ ] Testar exibição de anexos no Inbox
+- [ ] Atualizar ESTRUTURA_DE_PASTAS.md se necessário
+- [ ] Commit: `refactor: unify PendingFile type and getFileIcon function`
+- [ ] Push para staging
+
+**Arquivos eliminados:** 1 | **Duplicações eliminadas:** 2
+
+---
+
+## Milestone 4 — Unificar Preferências de Usuário (Double Source of Truth)
+
+**Por que é necessário:** Preferências estão em dois lugares (localStorage e backend), causando inconsistência.
+
+### 4.1 Estado Atual
+
+| Preferência | localStorage | Backend DB | Sync Atual |
+|-------------|--------------|------------|------------|
+| Theme | ✓ Armazenado | ✗ Não existe | Nenhum |
+| Language | ✓ Armazenado | ✓ `user.preferences` | Parcial |
+| Sound | ✓ Armazenado | ✗ Não existe | Nenhum |
+
+### 4.2 Solução: Backend como Fonte de Verdade
+
+| # | Tarefa | Status |
+|---|--------|--------|
+| 1 | Expandir tipo `UserPreferences` em `server/storage/users.ts` | [ ] |
+| 2 | Adicionar campos: `theme`, `soundEnabled` ao schema se necessário | [ ] |
+| 3 | Atualizar `client/src/components/theme-provider.tsx` para sync com backend | [ ] |
+| 4 | Atualizar `client/src/contexts/LanguageContext.tsx` para sync com backend | [ ] |
+| 5 | Atualizar `client/src/hooks/useNotificationSound.ts` para sync com backend | [ ] |
+
+### 4.3 Fluxo Esperado
+
+```
+1. Login → GET /api/auth/me retorna preferences completas
+2. Frontend popula localStorage como cache
+3. Mudança de preferência → localStorage (UI instantânea) + PATCH /api/users/me
+4. Backend é fonte de verdade, localStorage é cache
+```
+
+### 4.4 Tipo Expandido
+
+```typescript
+type UserPreferences = {
+  language?: "pt-BR" | "en";
+  theme?: "light" | "dark" | "system";
+  soundEnabled?: boolean;
+};
+```
+
+### 4.5 Verificação Pós-Milestone
+
+- [ ] Testar: alterar tema → logout → login → tema persiste
+- [ ] Testar: alterar idioma → logout → login → idioma persiste
+- [ ] Testar: alterar som → logout → login → preferência persiste
+- [ ] Executar `npm run check && npm run lint && npm run build`
+- [ ] Atualizar CLAUDE.md seção "Preferencias de Usuario"
+- [ ] Commit: `feat: unify user preferences with backend as source of truth`
+- [ ] Push para staging
+
+---
+
+## Milestone 5 — Corrigir Drift de Eventos WebSocket
+
+**Por que é necessário:** Eventos emitidos no backend sem handler no frontend = código morto e confusão.
+
+### 5.1 Evento `message:read` - Emitido mas Não Tratado
+
+| # | Tarefa | Status |
+|---|--------|--------|
+| 1 | Verificar se o evento é necessário para a UX | [ ] |
+| 2 | **Se SIM**: Adicionar handler em `useWebSocket.ts` | [ ] |
+| 3 | **Se NÃO**: Remover emissão em `server/api/conversations/messages.ts` | [ ] |
+
+### 5.2 Eventos de Calendário - Melhorar Eficiência
+
+| # | Tarefa | Status |
+|---|--------|--------|
+| 4 | Avaliar se `calendar:event:*` pode usar `setQueryData` (como pipelines/deals) | [ ] |
+| 5 | Se viável, implementar handlers com setQueryData em `useWebSocket.ts` | [ ] |
+
+### 5.3 Payloads - Garantir Consistência de Tipos
+
+| # | Tarefa | Status |
+|---|--------|--------|
+| 6 | Verificar `conversation:updated` payload (Date vs string) | [ ] |
+| 7 | Criar/atualizar tipos em `shared/types/` se necessário | [ ] |
+
+### 5.4 Verificação Pós-Milestone
+
+- [ ] Testar fluxo de mensagens no Inbox
+- [ ] Testar eventos de calendário (se aplicável)
+- [ ] Executar `npm run check && npm run lint && npm run build`
+- [ ] Atualizar CLAUDE.md seção WebSocket se handlers mudaram
+- [ ] Commit: `fix: align websocket events between backend and frontend`
+- [ ] Push para staging
+
+---
+
+## Milestone 6 — Padronizar API Client
+
+**Por que é necessário:** Uso inconsistente de fetch() direto vs API client causa duplicação e dificulta manutenção.
+
+### 6.1 Arquivos com fetch() Direto (Inconsistente)
+
+| # | Arquivo | Ação | Status |
+|---|---------|------|--------|
+| 1 | `useInboxAudioRecorder.ts` | Já resolvido no Milestone 2 | [ ] |
+| 2 | `useInboxFileUploads.ts` | Já resolvido no Milestone 2 | [ ] |
+| 3 | `FileUploader.tsx` | Já resolvido no Milestone 2 | [ ] |
+| 4 | `MessageFileUploader.tsx` | Já resolvido no Milestone 2 | [ ] |
+| 5 | `avatar-upload.tsx` | Avaliar refatoração para usar hook centralizado | [ ] |
+
+### 6.2 Export Faltando
+
+| # | Tarefa | Status |
+|---|--------|--------|
+| 6 | Adicionar `export { searchApi } from './search';` em `client/src/lib/api/index.ts` | [ ] |
+
+### 6.3 Verificação Pós-Milestone
+
+- [ ] Verificar que todos os componentes de upload usam padrão consistente
+- [ ] Executar `npm run check && npm run lint && npm run build`
+- [ ] Commit: `refactor: standardize API client usage across codebase`
+- [ ] Push para staging
+
+---
+
+## Resumo de Métricas
+
+| Métrica | Antes | Depois |
+|---------|-------|--------|
+| Arquivos mortos | 2 | 0 |
+| Funções não usadas | 6 | 0 |
+| Duplicações de lógica | 4+ | 0 |
+| Sources of truth para prefs | 2 | 1 |
+| Eventos WS sem handler | 1+ | 0 |
+| Linhas de código removidas | - | ~150+ |
+
+---
+
+## Ordem de Execução
+
+```
+Milestone 1 (Código Morto) → debug → docs → commit → push
+    ↓
+Milestone 2 (Upload Hook) → debug → docs → commit → push
+    ↓
+Milestone 3 (Tipos/Utils) → debug → docs → commit → push
+    ↓
+Milestone 4 (Preferências) → debug → docs → commit → push
+    ↓
+Milestone 5 (WebSocket) → debug → docs → commit → push
+    ↓
+Milestone 6 (API Client) → debug → docs → commit → push
+    ↓
+✅ COMPLETO
+```
+
+---
+
+## Checklist Final
+
+- [ ] Todos os milestones concluídos
+- [ ] Nenhum erro de TypeScript
+- [ ] Nenhum erro de ESLint
+- [ ] Build completo sem warnings críticos
+- [ ] Documentação atualizada
+- [ ] Todos os commits no staging
+- [ ] Testes manuais dos fluxos principais passando
+
+---
+
+## Notas Importantes
+
+1. **CSV utils NÃO é código morto** - verificado que `exportRowsToCsv` e `exportFullReportToCsv` são usados em `reports.tsx`
+
+2. **`isServiceFailure` está em uso** - verificado que é importado em `evolution/api.ts` e `openai/scoring.ts`. Apenas `withCircuitBreaker` pode ser removido.
+
+3. **CLAUDE.md deve permanecer enxuto** - apenas remover informações obsoletas ou corrigir erros. Não adicionar detalhes excessivos.
+
+4. **Documentação específica vai nos docs específicos:**
+   - Estrutura de pastas → ESTRUTURA_DE_PASTAS.md
+   - Como rodar local → RODAR_LOCAL.md
+   - Deploy → DEPLOY_COOLIFY_HOSTINGER.md
+   - Design system → DESIGN_SYSTEM.md
