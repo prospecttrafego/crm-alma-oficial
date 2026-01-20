@@ -93,17 +93,7 @@ export function ContextPanel({
   const [contactCustomFields, setContactCustomFields] = useState<CustomFieldRow[]>([]);
   const [dealCustomFields, setDealCustomFields] = useState<CustomFieldRow[]>([]);
 
-  if (collapsed) {
-    return <div className="flex h-full flex-col" />;
-  }
-
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat(language === "pt-BR" ? "pt-BR" : "en-US", {
-      style: "currency",
-      currency: language === "pt-BR" ? "BRL" : "USD",
-    }).format(value);
-  };
-
+  // All hooks must be called BEFORE any early returns (React Rules of Hooks)
   const contactTags = useMemo(
     () => (conversation.contact?.tags ? conversation.contact.tags : []),
     [conversation.contact?.tags],
@@ -206,7 +196,7 @@ export function ContextPanel({
 
       toast({ title: "Atualizado com sucesso" });
       setIsEditing(false);
-    } catch (error) {
+    } catch {
       toast({
         title: t("toast.error"),
         description: "Falha ao salvar alterações.",
@@ -224,6 +214,19 @@ export function ContextPanel({
     toast,
     t,
   ]);
+
+  // Helper function (not a hook, can be defined after hooks)
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat(language === "pt-BR" ? "pt-BR" : "en-US", {
+      style: "currency",
+      currency: language === "pt-BR" ? "BRL" : "USD",
+    }).format(value);
+  };
+
+  // Early return AFTER all hooks are called
+  if (collapsed) {
+    return <div className="flex h-full flex-col" />;
+  }
 
   const addContactField = () =>
     setContactCustomFields((prev) => [...prev, { key: "", value: "" }]);

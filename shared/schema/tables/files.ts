@@ -1,4 +1,4 @@
-import { index, integer, jsonb, pgTable, timestamp, varchar } from "drizzle-orm/pg-core";
+import { index, integer, pgTable, timestamp, varchar } from "drizzle-orm/pg-core";
 import type { FileEntityType } from "../enums";
 import { organizations } from "./organizations";
 import { users } from "./auth";

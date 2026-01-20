@@ -88,7 +88,7 @@ async function notifyMentionedUsers(params: {
   messagePreview: string;
   mentionedUserIds: string[];
 }) {
-  const { conversationId, senderId, senderName, senderAvatar, messagePreview, mentionedUserIds } = params;
+  const { conversationId, senderName, senderAvatar, messagePreview, mentionedUserIds } = params;
 
   for (const mentionedUserId of mentionedUserIds) {
     await storage.createNotification({

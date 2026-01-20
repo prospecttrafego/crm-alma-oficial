@@ -6,7 +6,7 @@ import { db } from "../../db";
 import { messages, type File as FileRecord, type Message } from "@shared/schema";
 import { logger } from "../../logger";
 import { asyncHandler, validateParams, getCurrentUser } from "../../middleware";
-import { sendSuccess, sendNotFound } from "../../response";
+import { sendNotFound } from "../../response";
 import { contactIdParamsSchema } from "./schemas";
 
 export function registerLgpdExportRoutes(app: Express) {

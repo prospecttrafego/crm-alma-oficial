@@ -21,11 +21,15 @@ export function FileList({ entityType, entityId, inline = false }: FileListProps
   });
   const { downloadFile, downloadingId } = useFileDownload();
 
-  if (!files || files.length === 0) return null;
-
-  // Separate audio files from other files
-  const audioFiles = files.filter((file) => isAudioFile(file.mimeType));
-  const otherFiles = files.filter((file) => !isAudioFile(file.mimeType));
+  // Separate audio files from other files (use empty array fallback for hooks)
+  const audioFiles = useMemo(
+    () => (files ?? []).filter((file) => isAudioFile(file.mimeType)),
+    [files],
+  );
+  const otherFiles = useMemo(
+    () => (files ?? []).filter((file) => !isAudioFile(file.mimeType)),
+    [files],
+  );
 
   const audioQueries = useQueries({
     queries: audioFiles.map((file) => ({
@@ -45,6 +49,9 @@ export function FileList({ entityType, entityId, inline = false }: FileListProps
     });
     return map;
   }, [audioFiles, audioQueries]);
+
+  // Early return AFTER all hooks
+  if (!files || files.length === 0) return null;
 
   const renderAudio = (file: FileRecord) => {
     const signedUrl = audioUrlMap.get(file.id);
