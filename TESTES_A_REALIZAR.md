@@ -8,9 +8,9 @@ Este documento lista **o que deve ser testado** após aplicar os ajustes do `PLA
 
 ## 1) Smoke tests gerais
 
-- [ ] `npm run check` (TypeScript) sem erros
+- [x] `npm run check` (TypeScript) sem erros — verificado em 2025-01-20
 - [ ] `npm run lint` sem erros
-- [ ] `npm run build` completa com sucesso
+- [x] `npm run build` completa com sucesso — verificado em 2025-01-20
 - [ ] Login/logout funcionam (sessão e cookies OK)
 - [ ] WebSocket conecta após login (presença online/offline aparece)
 

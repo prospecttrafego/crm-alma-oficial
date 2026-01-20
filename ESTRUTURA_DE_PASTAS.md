@@ -103,10 +103,12 @@ client/
 - O que é: "atalhos" de lógica do frontend (ex.: autenticação, WebSocket, notificações, push).
 - Hooks principais:
   - `useAuth.ts`: autenticação e sessão
-  - `useWebSocket.ts`: conexão WebSocket e eventos real-time
+  - `useWebSocket.ts`: conexão WebSocket e eventos real-time (inclui `isConnected` para conditional polling)
   - `useDesktopNotifications.ts`: Web Notifications API (notificações desktop)
   - `usePushNotifications.ts`: Firebase Cloud Messaging (push)
   - `useToast.ts`: notificações toast in-app
+  - `useNotificationSound.ts`: reprodução de sons de notificação
+- Nota: idioma é gerenciado via `LanguageContext` (em `contexts/`), não há hook separado.
 - O que pode mudar: melhorar organização, separar hooks por tema, adicionar novos hooks para features.
 
 #### `client/src/lib/`
