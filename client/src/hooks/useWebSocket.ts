@@ -205,6 +205,9 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
       ws.onmessage = (event) => {
         try {
           const message: WebSocketMessage = JSON.parse(event.data);
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/4c918a94-219d-47dd-b910-955f475d04dc',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run1',hypothesisId:'H1',location:'client/src/hooks/useWebSocket.ts:205',message:'WebSocket message received',data:{type:(message as any)?.type,hasData:Boolean((message as any)?.data)},timestamp:Date.now()})}).catch(()=>{});
+          // #endregion
 
           // Callback customizado
           onMessage?.(message);
@@ -427,6 +430,9 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
             } else {
               // Para outros eventos, usar invalidacao normal
               const queriesToInvalidate = eventToQueryMap[message.type];
+              // #region agent log
+              fetch('http://127.0.0.1:7242/ingest/4c918a94-219d-47dd-b910-955f475d04dc',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run1',hypothesisId:'H1',location:'client/src/hooks/useWebSocket.ts:429',message:'WS autoInvalidate decision',data:{type:(message as any)?.type,hasMapping:Boolean(queriesToInvalidate),queriesToInvalidate:queriesToInvalidate??null},timestamp:Date.now()})}).catch(()=>{});
+              // #endregion
               if (queriesToInvalidate) {
                 queriesToInvalidate.forEach((queryKey) => {
                   queryClient.invalidateQueries({ queryKey: [queryKey] });

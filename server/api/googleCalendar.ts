@@ -377,6 +377,9 @@ export function registerGoogleCalendarRoutes(app: Express) {
 
         // Broadcast sync complete via WebSocket
         broadcast("google_calendar:sync_complete", { userId, imported, updated, deleted });
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/4c918a94-219d-47dd-b910-955f475d04dc',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run1',hypothesisId:'H1',location:'server/api/googleCalendar.ts:379',message:'Broadcast google_calendar:sync_complete emitted',data:{eventType:'google_calendar:sync_complete',imported,updated,deleted,hasUserId:Boolean(userId)},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion
 
         sendSuccess(res, {
           success: true,
