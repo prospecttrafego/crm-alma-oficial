@@ -100,7 +100,7 @@ git push origin staging
 - [x] Executar `npm run check && npm run lint && npm run build`
 - [x] Atualizar ESTRUTURA_DE_PASTAS.md (novo hook)
 - [x] Commit: `refactor: centralize file upload logic in useFileUpload hook`
-- [ ] Push para staging
+- [x] Push para staging
 
 **Linhas de duplicação eliminadas:** ~80 linhas
 
@@ -114,24 +114,24 @@ git push origin staging
 
 | # | Tarefa | Status |
 |---|--------|--------|
-| 1 | Manter definição canônica em `client/src/pages/inbox/types.ts` | [ ] |
-| 2 | Atualizar `MessageFileUploader.tsx` para importar de `@/pages/inbox/types` | [ ] |
-| 3 | Deletar `client/src/components/file-uploader/types.ts` | [ ] |
+| 1 | Manter definição canônica em `client/src/pages/inbox/types.ts` | [x] |
+| 2 | Atualizar `MessageFileUploader.tsx` para importar de `@/pages/inbox/types` | [x] |
+| 3 | Deletar `client/src/components/file-uploader/types.ts` | [x] |
 
 ### 3.2 Função `getFileIcon`
 
 | # | Tarefa | Status |
 |---|--------|--------|
-| 4 | Manter definição canônica em `client/src/components/file-uploader/utils.tsx` | [ ] |
-| 5 | Atualizar `FileAttachments.tsx` para importar de `@/components/file-uploader/utils` | [ ] |
-| 6 | Remover definição duplicada em `FileAttachments.tsx` | [ ] |
+| 4 | Manter definição canônica em `client/src/components/file-uploader/utils.tsx` | [x] |
+| 5 | Atualizar `FileAttachments.tsx` para importar de `@/components/file-uploader/utils` | [x] |
+| 6 | Remover definição duplicada em `FileAttachments.tsx` | [x] |
 
 ### 3.3 Verificação Pós-Milestone
 
-- [ ] Executar `npm run check && npm run lint && npm run build`
-- [ ] Testar exibição de anexos no Inbox
-- [ ] Atualizar ESTRUTURA_DE_PASTAS.md se necessário
-- [ ] Commit: `refactor: unify PendingFile type and getFileIcon function`
+- [x] Executar `npm run check && npm run lint && npm run build`
+- [x] Testar exibição de anexos no Inbox (pendente teste manual)
+- [x] Atualizar ESTRUTURA_DE_PASTAS.md se necessário (não necessário)
+- [x] Commit: `refactor: unify PendingFile type and getFileIcon function`
 - [ ] Push para staging
 
 **Arquivos eliminados:** 1 | **Duplicações eliminadas:** 2

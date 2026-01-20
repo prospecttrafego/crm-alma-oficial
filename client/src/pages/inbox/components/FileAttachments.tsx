@@ -1,14 +1,9 @@
 "use client";
 
 import type { PendingFile } from "@/pages/inbox/types";
-import { File as FileIcon, FileText, Image, X } from "lucide-react";
+import { X } from "lucide-react";
 import { useTranslation } from "@/contexts/LanguageContext";
-
-function getFileIcon(mimeType: string) {
-  if (mimeType.startsWith("image/")) return <Image className="h-3 w-3" aria-hidden="true" />;
-  if (mimeType.includes("pdf") || mimeType.includes("document")) return <FileText className="h-3 w-3" aria-hidden="true" />;
-  return <FileIcon className="h-3 w-3" aria-hidden="true" />;
-}
+import { getFileIcon } from "@/components/file-uploader/utils";
 
 type Props = {
   pendingFiles: PendingFile[];
@@ -41,7 +36,7 @@ export function FileAttachments({ pendingFiles, fileInputRef, onFileSelect, onRe
               }`}
               data-testid={`pending-file-${pf.id}`}
             >
-              {getFileIcon(pf.file.type)}
+              {getFileIcon(pf.file.type, "sm")}
               <span className="max-w-[120px] truncate">{pf.file.name}</span>
                 <button
                   type="button"
