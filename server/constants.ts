@@ -48,12 +48,6 @@ export const DB_POOL_MAX_USES = 7500;
 // Caching (Redis)
 // =============================================================================
 
-/** Messages cache TTL in seconds (5 minutes) */
-export const MESSAGES_CACHE_TTL_SECONDS = 300;
-
-/** Maximum number of messages to cache per conversation */
-export const MAX_CACHED_MESSAGES = 20;
-
 /** Generic cache TTL in seconds (5 minutes) */
 export const DEFAULT_CACHE_TTL_SECONDS = 300;
 

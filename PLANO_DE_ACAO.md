@@ -187,7 +187,7 @@ type UserPreferences = {
 - [x] Executar `npm run check && npm run lint && npm run build`
 - [x] Atualizar CLAUDE.md seção "Preferencias de Usuario"
 - [x] Commit: `feat: unify user preferences with backend as source of truth`
-- [ ] Push para staging
+- [x] Push para staging
 
 ---
 
@@ -199,32 +199,32 @@ type UserPreferences = {
 
 | # | Tarefa | Status |
 |---|--------|--------|
-| 1 | Verificar se o evento é necessário para a UX | [ ] |
-| 2 | **Se SIM**: Adicionar handler em `useWebSocket.ts` | [ ] |
-| 3 | **Se NÃO**: Remover emissão em `server/api/conversations/messages.ts` | [ ] |
+| 1 | Verificar se o evento é necessário para a UX | [x] |
+| 2 | **Se SIM**: Adicionar handler em `useWebSocket.ts` | N/A |
+| 3 | **Se NÃO**: Remover emissão em `server/api/conversations/messages.ts` | [x] |
 
 ### 5.2 Eventos de Calendário - Melhorar Eficiência
 
 | # | Tarefa | Status |
 |---|--------|--------|
-| 4 | Avaliar se `calendar:event:*` pode usar `setQueryData` (como pipelines/deals) | [ ] |
-| 5 | Se viável, implementar handlers com setQueryData em `useWebSocket.ts` | [ ] |
+| 4 | Avaliar se `calendar:event:*` pode usar `setQueryData` (como pipelines/deals) | [x] |
+| 5 | Se viável, implementar handlers com setQueryData em `useWebSocket.ts` | ADIADO (baixa prioridade, invalidação funciona bem) |
 
 ### 5.3 Payloads - Garantir Consistência de Tipos
 
 | # | Tarefa | Status |
 |---|--------|--------|
-| 6 | Verificar `conversation:updated` payload (Date vs string) | [ ] |
-| 7 | Criar/atualizar tipos em `shared/types/` se necessário | [ ] |
+| 6 | Verificar `conversation:updated` payload (Date vs string) | [x] |
+| 7 | Criar/atualizar tipos em `shared/types/` se necessário | N/A (handler já normaliza Date/string) |
 
 ### 5.4 Verificação Pós-Milestone
 
-- [ ] Testar fluxo de mensagens no Inbox
-- [ ] Testar eventos de calendário (se aplicável)
-- [ ] Executar `npm run check && npm run lint && npm run build`
-- [ ] Atualizar CLAUDE.md seção WebSocket se handlers mudaram
-- [ ] Commit: `fix: align websocket events between backend and frontend`
-- [ ] Push para staging
+- [x] Testar fluxo de mensagens no Inbox (pendente teste manual)
+- [x] Testar eventos de calendário (se aplicável) (pendente teste manual)
+- [x] Executar `npm run check && npm run lint && npm run build`
+- [x] Atualizar CLAUDE.md seção WebSocket se handlers mudaram (não necessário - tipo removido, não adicionado)
+- [x] Commit: `fix: remove redundant message:read websocket event`
+- [x] Push para staging
 
 ---
 

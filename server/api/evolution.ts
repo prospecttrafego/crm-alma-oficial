@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { isAuthenticated } from "../auth";
 import { storage } from "../storage";
-import { broadcast, broadcastToConversation } from "../ws/index";
+import { broadcastToConversation } from "../ws/index";
 import { evolutionApi } from "../integrations/evolution/api";
 import { evolutionHandler, type EvolutionWebhookEvent } from "../integrations/evolution/handler";
 import { whatsappLogger } from "../logger";
@@ -95,14 +95,9 @@ export function registerEvolutionRoutes(app: Express) {
 
       const organizationId = config.organizationId;
 
-      // Set broadcast functions for real-time updates
-      evolutionHandler.setBroadcast((orgId, eventType, data) => {
-        // Mantemos apenas eventos estritamente necessários para o frontend (integração),
-        // sem namespace `whatsapp:*` para evitar drift de contrato e comportamento confuso.
-        // Observação: eventos canônicos de negócio (deal:created, conversation:updated, message:created)
-        // são emitidos diretamente no handler via wsBroadcast/broadcastToConversation.
-        broadcast(eventType, { organizationId: orgId, ...((data && typeof data === "object") ? (data as any) : { data }) });
-      });
+      // Set broadcast function for conversation-specific real-time updates
+      // NOTE: Global broadcasts (channel:config:updated, deal:created, etc.) are now
+      // emitted directly via wsBroadcast in the handler for cleaner code.
       evolutionHandler.setBroadcastToConversation((conversationId, eventType, data) => {
         broadcastToConversation(conversationId, eventType, data);
       });

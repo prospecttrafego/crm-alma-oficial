@@ -33,8 +33,7 @@ export type WebSocketEventType =
   | "google_calendar:sync_complete"
   | "typing"
   | "user:online"
-  | "user:offline"
-  | "message:read";
+  | "user:offline";
 
 export interface WebSocketMessage<T = unknown> {
   type: WebSocketEventType;
@@ -62,29 +61,75 @@ interface UseWebSocketOptions {
 }
 
 // Mapeamento de eventos para queries a invalidar
+// NOTE: Events with setQueryData handlers below are removed to avoid double invalidation
 const eventToQueryMap: Record<string, string[]> = {
-  "pipeline:created": ["/api/pipelines"],
-  "pipeline:updated": ["/api/pipelines"],
-  "pipeline:deleted": ["/api/pipelines"],
-  "pipeline:stage:created": ["/api/pipelines"],
-  "pipeline:stage:updated": ["/api/pipelines"],
-  "pipeline:stage:deleted": ["/api/pipelines"],
-  "deal:created": ["/api/deals", "/api/pipelines"],
-  "deal:updated": ["/api/deals"],
-  "deal:moved": ["/api/deals"],
-  "deal:deleted": ["/api/deals"],
+  // Pipeline events use setQueryData handlers - no invalidation needed
+  // Deal events use setQueryData handlers - no invalidation needed
+  // Channel config events use setQueryData handlers - no invalidation needed
   "conversation:created": ["/api/conversations"],
-  "conversation:updated": ["/api/conversations"],
-  "message:created": ["/api/conversations"],
-  "notification:new": ["/api/notifications", "/api/notifications/unread-count"],
+  // message:created, message:updated, message:deleted use setQueryData handlers
+  // notification:new uses setQueryData + selective invalidation
   "calendar:event:created": ["/api/calendar-events"],
   "calendar:event:updated": ["/api/calendar-events"],
   "calendar:event:deleted": ["/api/calendar-events"],
-  "channel:config:created": ["/api/channel-configs"],
-  "channel:config:updated": ["/api/channel-configs"],
-  "channel:config:deleted": ["/api/channel-configs"],
   "google_calendar:sync_complete": ["/api/integrations/google-calendar/status", "/api/calendar-events"],
 };
+
+// Type for Pipeline with stages (matches API response)
+interface PipelineStage {
+  id: number;
+  name: string;
+  pipelineId: number;
+  order: number;
+  color: string | null;
+  isWon: boolean;
+  isLost: boolean;
+  createdAt: Date | string;
+  [key: string]: unknown;
+}
+
+interface Pipeline {
+  id: number;
+  name: string;
+  organizationId: number;
+  isDefault: boolean;
+  createdAt: Date | string;
+  stages?: PipelineStage[];
+  [key: string]: unknown;
+}
+
+// Type for Deal (matches API response)
+interface Deal {
+  id: number;
+  title: string;
+  value: string | number | null;
+  currency: string;
+  pipelineId: number;
+  stageId: number;
+  contactId: number | null;
+  companyId: number | null;
+  organizationId: number;
+  ownerId: string | null;
+  probability: number | null;
+  expectedCloseDate: Date | string | null;
+  status: string;
+  source: string | null;
+  notes: string | null;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+  [key: string]: unknown;
+}
+
+// Type for Channel Config (matches API response)
+interface ChannelConfig {
+  id: number;
+  name: string;
+  type: string;
+  organizationId: number;
+  isActive: boolean;
+  createdAt: Date | string;
+  [key: string]: unknown;
+}
 
 function toTimestamp(value: unknown): number {
   if (!value) return 0;
@@ -438,6 +483,112 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
               }
               // Still invalidate notifications list to fetch new notification details
               queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
+            }
+            // ========== PIPELINE HANDLERS (setQueryData) ==========
+            else if (message.type === "pipeline:created" && message.data) {
+              const newPipeline = message.data as Pipeline;
+              queryClient.setQueryData<Pipeline[]>(["/api/pipelines"], (old) => {
+                if (!old) return [newPipeline];
+                // Avoid duplicates
+                if (old.some((p) => p.id === newPipeline.id)) return old;
+                return [...old, newPipeline];
+              });
+            } else if (message.type === "pipeline:updated" && message.data) {
+              const updatedPipeline = message.data as Pipeline;
+              queryClient.setQueryData<Pipeline[]>(["/api/pipelines"], (old) => {
+                if (!old) return old;
+                return old.map((p) => (p.id === updatedPipeline.id ? { ...p, ...updatedPipeline } : p));
+              });
+            } else if (message.type === "pipeline:deleted" && message.data) {
+              const payload = message.data as { id: number };
+              queryClient.setQueryData<Pipeline[]>(["/api/pipelines"], (old) => {
+                if (!old) return old;
+                return old.filter((p) => p.id !== payload.id);
+              });
+            } else if (message.type === "pipeline:stage:created" && message.data) {
+              const newStage = message.data as PipelineStage;
+              queryClient.setQueryData<Pipeline[]>(["/api/pipelines"], (old) => {
+                if (!old) return old;
+                return old.map((p) => {
+                  if (p.id !== newStage.pipelineId) return p;
+                  const stages = p.stages || [];
+                  if (stages.some((s) => s.id === newStage.id)) return p;
+                  return { ...p, stages: [...stages, newStage].sort((a, b) => a.order - b.order) };
+                });
+              });
+            } else if (message.type === "pipeline:stage:updated" && message.data) {
+              const updatedStage = message.data as PipelineStage;
+              queryClient.setQueryData<Pipeline[]>(["/api/pipelines"], (old) => {
+                if (!old) return old;
+                return old.map((p) => {
+                  if (p.id !== updatedStage.pipelineId) return p;
+                  const stages = (p.stages || []).map((s) =>
+                    s.id === updatedStage.id ? { ...s, ...updatedStage } : s
+                  );
+                  return { ...p, stages: stages.sort((a, b) => a.order - b.order) };
+                });
+              });
+            } else if (message.type === "pipeline:stage:deleted" && message.data) {
+              const payload = message.data as { id: number; pipelineId: number };
+              queryClient.setQueryData<Pipeline[]>(["/api/pipelines"], (old) => {
+                if (!old) return old;
+                return old.map((p) => {
+                  if (p.id !== payload.pipelineId) return p;
+                  return { ...p, stages: (p.stages || []).filter((s) => s.id !== payload.id) };
+                });
+              });
+            }
+            // ========== DEAL HANDLERS (setQueryData) ==========
+            else if (message.type === "deal:created" && message.data) {
+              const newDeal = message.data as Deal;
+              queryClient.setQueryData<Deal[]>(["/api/deals"], (old) => {
+                if (!old) return [newDeal];
+                if (old.some((d) => d.id === newDeal.id)) return old;
+                return [...old, newDeal];
+              });
+            } else if (message.type === "deal:updated" && message.data) {
+              const updatedDeal = message.data as Deal;
+              queryClient.setQueryData<Deal[]>(["/api/deals"], (old) => {
+                if (!old) return old;
+                return old.map((d) => (d.id === updatedDeal.id ? { ...d, ...updatedDeal } : d));
+              });
+            } else if (message.type === "deal:moved" && message.data) {
+              const movedDeal = message.data as { id: number; stageId: number; pipelineId?: number };
+              queryClient.setQueryData<Deal[]>(["/api/deals"], (old) => {
+                if (!old) return old;
+                return old.map((d) =>
+                  d.id === movedDeal.id
+                    ? { ...d, stageId: movedDeal.stageId, ...(movedDeal.pipelineId && { pipelineId: movedDeal.pipelineId }) }
+                    : d
+                );
+              });
+            } else if (message.type === "deal:deleted" && message.data) {
+              const payload = message.data as { id: number };
+              queryClient.setQueryData<Deal[]>(["/api/deals"], (old) => {
+                if (!old) return old;
+                return old.filter((d) => d.id !== payload.id);
+              });
+            }
+            // ========== CHANNEL CONFIG HANDLERS (setQueryData) ==========
+            else if (message.type === "channel:config:created" && message.data) {
+              const newConfig = message.data as ChannelConfig;
+              queryClient.setQueryData<ChannelConfig[]>(["/api/channel-configs"], (old) => {
+                if (!old) return [newConfig];
+                if (old.some((c) => c.id === newConfig.id)) return old;
+                return [...old, newConfig];
+              });
+            } else if (message.type === "channel:config:updated" && message.data) {
+              const updatedConfig = message.data as ChannelConfig;
+              queryClient.setQueryData<ChannelConfig[]>(["/api/channel-configs"], (old) => {
+                if (!old) return old;
+                return old.map((c) => (c.id === updatedConfig.id ? { ...c, ...updatedConfig } : c));
+              });
+            } else if (message.type === "channel:config:deleted" && message.data) {
+              const payload = message.data as { id: number };
+              queryClient.setQueryData<ChannelConfig[]>(["/api/channel-configs"], (old) => {
+                if (!old) return old;
+                return old.filter((c) => c.id !== payload.id);
+              });
             } else {
               // Para outros eventos, usar invalidacao normal
               const queriesToInvalidate = eventToQueryMap[message.type];

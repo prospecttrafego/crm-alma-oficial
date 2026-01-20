@@ -69,8 +69,7 @@ export interface EvolutionQRCodeUpdate {
   base64?: string;
 }
 
-// WebSocket broadcast function type
-type BroadcastFn = (organizationId: number, event: string, data: unknown) => void;
+// WebSocket broadcast function type (used for conversation-specific events)
 type BroadcastToConversationFn = (conversationId: number, event: string, data: unknown) => void;
 
 // Attachment structure for messages
@@ -90,7 +89,6 @@ interface ProcessedMedia {
 }
 
 export class EvolutionMessageHandler {
-  private broadcast: BroadcastFn | null = null;
   private broadcastToConversation: BroadcastToConversationFn | null = null;
   private objectStorage: ObjectStorageService | null = null;
 
@@ -98,13 +96,6 @@ export class EvolutionMessageHandler {
     if (this.objectStorage) return this.objectStorage;
     this.objectStorage = new ObjectStorageService();
     return this.objectStorage;
-  }
-
-  /**
-   * Set the broadcast function for WebSocket notifications
-   */
-  setBroadcast(fn: BroadcastFn) {
-    this.broadcast = fn;
   }
 
   /**
@@ -377,7 +368,7 @@ export class EvolutionMessageHandler {
   private async handleConnectionUpdate(
     event: EvolutionWebhookEvent,
     channelConfigId: number,
-    organizationId: number
+    _organizationId: number
   ): Promise<void> {
     const data = event.data as EvolutionConnectionUpdate;
 
@@ -408,14 +399,18 @@ export class EvolutionMessageHandler {
         });
       }
 
-      // Broadcast status update
-      if (this.broadcast) {
-        this.broadcast(organizationId, 'whatsapp_status', {
-          channelConfigId,
-          status: connectionStatus,
-        });
-      } else {
-        whatsappLogger.debug("[Evolution Handler] Broadcast unavailable, skipping whatsapp_status event");
+      // Broadcast using canonical channel:config:updated event (frontend handles this)
+      const updatedConfig = await storage.getChannelConfig(channelConfigId);
+      if (updatedConfig) {
+        // Redact sensitive fields before broadcasting
+        const redactedConfig = { ...updatedConfig };
+        if (redactedConfig.whatsappConfig) {
+          const waConfig = { ...(redactedConfig.whatsappConfig as Record<string, unknown>) };
+          delete waConfig.accessToken;
+          delete waConfig.webhookVerifyToken;
+          redactedConfig.whatsappConfig = waConfig;
+        }
+        wsBroadcast("channel:config:updated", redactedConfig);
       }
     } catch (error) {
       whatsappLogger.error('[Evolution Handler] Error updating connection status', {
@@ -430,7 +425,7 @@ export class EvolutionMessageHandler {
   private async handleQRCodeUpdate(
     event: EvolutionWebhookEvent,
     channelConfigId: number,
-    organizationId: number
+    _organizationId: number
   ): Promise<void> {
     const data = event.data as EvolutionQRCodeUpdate;
 
@@ -449,14 +444,18 @@ export class EvolutionMessageHandler {
         });
       }
 
-      // Broadcast QR code update
-      if (this.broadcast) {
-        this.broadcast(organizationId, 'whatsapp_qr', {
-          channelConfigId,
-          qrCode: data.base64 || data.code,
-        });
-      } else {
-        whatsappLogger.debug("[Evolution Handler] Broadcast unavailable, skipping whatsapp_qr event");
+      // Broadcast using canonical channel:config:updated event (frontend handles this)
+      const updatedConfig = await storage.getChannelConfig(channelConfigId);
+      if (updatedConfig) {
+        // Redact sensitive fields before broadcasting
+        const redactedConfig = { ...updatedConfig };
+        if (redactedConfig.whatsappConfig) {
+          const waConfig = { ...(redactedConfig.whatsappConfig as Record<string, unknown>) };
+          delete waConfig.accessToken;
+          delete waConfig.webhookVerifyToken;
+          redactedConfig.whatsappConfig = waConfig;
+        }
+        wsBroadcast("channel:config:updated", redactedConfig);
       }
     } catch (error) {
       whatsappLogger.error('[Evolution Handler] Error updating QR code', {

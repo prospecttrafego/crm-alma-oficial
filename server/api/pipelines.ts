@@ -271,10 +271,11 @@ export function registerPipelineRoutes(app: Express) {
     requireRole("admin"),
     validateParams(pipelineStageParamsSchema),
     asyncHandler(async (req, res) => {
-      const { id } = req.validatedParams;
+      const { id, pipelineId } = req.validatedParams;
 
       await storage.deletePipelineStage(id);
-      broadcast("pipeline:stage:deleted", { id });
+      // Include pipelineId for WebSocket handlers to update the correct pipeline
+      broadcast("pipeline:stage:deleted", { id, pipelineId });
       res.status(204).send();
     }),
   );

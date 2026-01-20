@@ -241,8 +241,7 @@ export function registerMessageRoutes(app: Express) {
 
       const count = await storage.markMessagesAsRead(conversationId, userId);
 
-      // Broadcast read event para usuarios inscritos na conversa
-      broadcastToConversation(conversationId, "message:read", { conversationId, userId, count });
+      // conversation:updated already broadcasts unreadCount - no need for separate message:read event
       const conversation = await storage.getConversation(conversationId);
       if (conversation) {
         broadcast("conversation:updated", {

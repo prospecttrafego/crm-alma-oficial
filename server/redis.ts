@@ -1,21 +1,21 @@
 /**
  * Servico Redis (Upstash) para cache, contadores e rate limiting
  */
+/**
+ * Redis Service (Upstash) for rate limiting, presence tracking, and generic cache
+ *
+ * NOTE: Message cache and unread count functions were removed (2026-01-20)
+ * as they were dead code never integrated into the main flow.
+ * The database is the source of truth for messages and unread counts.
+ */
 import { Redis } from "@upstash/redis";
 import { Ratelimit } from "@upstash/ratelimit";
-import { z } from "zod";
-import type { Message } from "@shared/schema";
 import { createServiceLogger } from "./logger";
 import {
   LOGIN_RATE_LIMIT_MAX,
-  MESSAGES_CACHE_TTL_SECONDS,
-  MAX_CACHED_MESSAGES,
   PRESENCE_TTL_SECONDS,
   DEFAULT_CACHE_TTL_SECONDS,
 } from "./constants";
-
-// Cache version - increment when Message schema changes to auto-invalidate old cache
-const CACHE_VERSION = "v1";
 
 const redisLogger = createServiceLogger("redis");
 
@@ -53,159 +53,6 @@ if (redisUrl && redisToken) {
   redisLogger.info("[Redis] Conectado ao Upstash");
 } else {
   redisLogger.info("[Redis] Variaveis de ambiente nao configuradas, funcionando sem cache");
-}
-
-// ========== CACHE DE MENSAGENS ==========
-
-// Versioned cache key to auto-invalidate on schema changes
-const MESSAGES_CACHE_KEY = (conversationId: number) => `alma:messages:${CACHE_VERSION}:${conversationId}`;
-
-// Zod schema for validating cached messages (minimal validation for performance)
-const cachedMessageSchema = z.object({
-  id: z.number(),
-  conversationId: z.number(),
-  content: z.string(),
-  createdAt: z.string().or(z.date()).nullable(),
-}).passthrough();
-
-const cachedMessagesArraySchema = z.array(cachedMessageSchema);
-
-/**
- * Obter mensagens do cache with schema validation
- * Returns null if cache is invalid or schema mismatch (auto-heals on next write)
- */
-export async function getCachedMessages(conversationId: number): Promise<Message[] | null> {
-  if (!redis) return null;
-
-  try {
-    const cached = await redis.get<unknown>(MESSAGES_CACHE_KEY(conversationId));
-    if (!cached) return null;
-
-    // Validate cached data against schema
-    const result = cachedMessagesArraySchema.safeParse(cached);
-    if (!result.success) {
-      redisLogger.warn("[Redis] Cache schema mismatch, invalidating", {
-        conversationId,
-        error: result.error.message,
-      });
-      // Invalidate stale cache
-      await redis.del(MESSAGES_CACHE_KEY(conversationId));
-      return null;
-    }
-
-    return cached as Message[];
-  } catch (error) {
-    redisLogger.error("[Redis] Erro ao obter cache de mensagens", { error });
-    return null;
-  }
-}
-
-/**
- * Salvar mensagens no cache (ultimas 20)
- */
-export async function setCachedMessages(conversationId: number, messages: Message[]): Promise<void> {
-  if (!redis) return;
-
-  try {
-    // Cachear apenas as ultimas 20 mensagens
-    const toCache = messages.slice(-MAX_CACHED_MESSAGES);
-    await redis.setex(MESSAGES_CACHE_KEY(conversationId), MESSAGES_CACHE_TTL_SECONDS, toCache);
-  } catch (error) {
-    redisLogger.error("[Redis] Erro ao salvar cache de mensagens", { error });
-  }
-}
-
-/**
- * Adicionar nova mensagem ao cache existente
- */
-export async function addMessageToCache(conversationId: number, message: Message): Promise<void> {
-  if (!redis) return;
-
-  try {
-    const cached = await getCachedMessages(conversationId);
-    if (cached) {
-      const updated = [...cached, message].slice(-MAX_CACHED_MESSAGES);
-      await setCachedMessages(conversationId, updated);
-    }
-  } catch (error) {
-    redisLogger.error("[Redis] Erro ao adicionar mensagem ao cache", { error });
-  }
-}
-
-/**
- * Invalidar cache de mensagens
- */
-export async function invalidateMessagesCache(conversationId: number): Promise<void> {
-  if (!redis) return;
-
-  try {
-    await redis.del(MESSAGES_CACHE_KEY(conversationId));
-  } catch (error) {
-    redisLogger.error("[Redis] Erro ao invalidar cache de mensagens", { error });
-  }
-}
-
-// ========== CONTADORES DE MENSAGENS NAO LIDAS ==========
-
-const UNREAD_COUNT_KEY = (conversationId: number) => `alma:unread:${conversationId}`;
-const UNREAD_COUNT_TTL = 86400; // 24 horas
-
-/**
- * Obter contador de nao lidas do cache
- */
-export async function getUnreadCount(conversationId: number): Promise<number | null> {
-  if (!redis) return null;
-
-  try {
-    const count = await redis.get<number>(UNREAD_COUNT_KEY(conversationId));
-    return count;
-  } catch (error) {
-    redisLogger.error("[Redis] Erro ao obter contador de nao lidas", { error });
-    return null;
-  }
-}
-
-/**
- * Definir contador de nao lidas
- */
-export async function setUnreadCount(conversationId: number, count: number): Promise<void> {
-  if (!redis) return;
-
-  try {
-    await redis.setex(UNREAD_COUNT_KEY(conversationId), UNREAD_COUNT_TTL, count);
-  } catch (error) {
-    redisLogger.error("[Redis] Erro ao definir contador de nao lidas", { error });
-  }
-}
-
-/**
- * Incrementar contador de nao lidas
- */
-export async function incrementUnreadCount(conversationId: number): Promise<number> {
-  if (!redis) return 0;
-
-  try {
-    const key = UNREAD_COUNT_KEY(conversationId);
-    const newCount = await redis.incr(key);
-    await redis.expire(key, UNREAD_COUNT_TTL);
-    return newCount;
-  } catch (error) {
-    redisLogger.error("[Redis] Erro ao incrementar contador de nao lidas", { error });
-    return 0;
-  }
-}
-
-/**
- * Resetar contador de nao lidas (quando usuario le mensagens)
- */
-export async function resetUnreadCount(conversationId: number): Promise<void> {
-  if (!redis) return;
-
-  try {
-    await redis.del(UNREAD_COUNT_KEY(conversationId));
-  } catch (error) {
-    redisLogger.error("[Redis] Erro ao resetar contador de nao lidas", { error });
-  }
 }
 
 // ========== RATE LIMITING ==========
