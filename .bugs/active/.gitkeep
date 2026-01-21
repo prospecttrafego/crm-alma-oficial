@@ -1,0 +1,6 @@
+# Esta pasta contém bugs ativos (não resolvidos)
+# Adicione uma subpasta para cada bug seguindo o padrão:
+# NNN-nome-descritivo/
+#   ├── descricao.md
+#   ├── screenshots...
+#   └── logs...
