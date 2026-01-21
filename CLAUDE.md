@@ -18,6 +18,24 @@ Este documento foca em **instrucoes obrigatorias** e **regras de desenvolvimento
 
 ---
 
+## Bugs e Erros Conhecidos
+
+**IMPORTANTE:** Antes de iniciar qualquer tarefa de correcao, verificar a pasta `.bugs/`:
+
+```
+.bugs/
+├── README.md          # Indice e instrucoes
+├── active/            # Bugs pendentes (NAO RESOLVIDOS)
+├── resolved/          # Bugs ja corrigidos (historico)
+└── templates/         # Template para novos bugs
+```
+
+- **Leia `.bugs/README.md`** para entender a estrutura
+- **Verifique `.bugs/active/`** para bugs pendentes com screenshots, logs e descricoes detalhadas
+- **Apos corrigir**, mova a pasta do bug para `resolved/` e adicione notas da correcao
+
+---
+
 ## Diretrizes de Desenvolvimento (OBRIGATORIO)
 
 **Regras que DEVEM ser seguidas em TODA alteracao:**
