@@ -170,24 +170,25 @@ O CRM usa WebSocket para atualizacoes em tempo real (mensagens, deals, notificac
 - Atualizacoes em tempo real nao funcionam
 - QR Code do WhatsApp conecta mas status nao atualiza
 
-### Configuracao no Coolify/Nginx:
+### Configuracao no Coolify (Traefik):
 
-Se voce tiver acesso a configuracao customizada de proxy, adicione:
+O Coolify v4 usa **Traefik** como proxy reverso. Para WebSocket funcionar corretamente, configure os timeouts no proxy:
 
-```nginx
-location /ws {
-    proxy_pass http://localhost:3000;
-    proxy_http_version 1.1;
-    proxy_set_header Upgrade $http_upgrade;
-    proxy_set_header Connection "upgrade";
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    proxy_read_timeout 86400;
-    proxy_send_timeout 86400;
-}
+1. Acesse o painel do Coolify
+2. Va para **Server** (seu servidor)
+3. Clique em **Proxy** na sidebar
+4. Na secao de configuracao, adicione os seguintes comandos:
+
+```yaml
+command:
+  - "--entrypoints.https.transport.respondingTimeouts.readTimeout=5m"
+  - "--entrypoints.https.transport.respondingTimeouts.writeTimeout=5m"
+  - "--entrypoints.https.transport.respondingTimeouts.idleTimeout=5m"
 ```
+
+5. Salve e reinicie o proxy
+
+**Nota:** O Traefik passa os headers de upgrade WebSocket automaticamente. O unico ajuste necessario e o timeout para evitar que conexoes sejam fechadas apos 60 segundos de inatividade.
 
 ### Verificacao:
 
@@ -195,7 +196,7 @@ location /ws {
 2. Verifique se a conexao WebSocket esta com status 101 (Switching Protocols)
 3. NAO deve haver erros "Invalid frame header"
 
-> Documentacao detalhada: `.bugs/active/002-Arquitetura-Sistema/nginx-websocket-config.md`
+> Documentacao detalhada: `.bugs/active/002-Arquitetura-Sistema/traefik-websocket-config.md`
 
 ---
 

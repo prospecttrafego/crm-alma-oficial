@@ -15,25 +15,23 @@ O sistema possui 33+ problemas arquiteturais distribuidos em 3 camadas (WebSocke
 
 ## FASE 1: Correcoes Criticas (Bloqueiam WhatsApp)
 
-### 1.1 Configurar Nginx/Coolify para WebSocket
+### 1.1 Configurar Traefik/Coolify para WebSocket
 **Prioridade:** CRITICA
 **Tipo:** Configuracao externa
 **Responsavel:** Usuario (infraestrutura)
 
-- [ ] Acessar configuracao do Coolify/Nginx
-- [ ] Adicionar configuracao de proxy WebSocket:
-```nginx
-location /ws {
-    proxy_pass http://backend:3000;
-    proxy_http_version 1.1;
-    proxy_set_header Upgrade $http_upgrade;
-    proxy_set_header Connection "upgrade";
-    proxy_set_header Host $host;
-    proxy_read_timeout 86400;
-}
+- [ ] Acessar painel do Coolify → Server → Proxy
+- [ ] Adicionar configuracao de timeout para WebSocket:
+```yaml
+command:
+  - "--entrypoints.https.transport.respondingTimeouts.readTimeout=5m"
+  - "--entrypoints.https.transport.respondingTimeouts.writeTimeout=5m"
+  - "--entrypoints.https.transport.respondingTimeouts.idleTimeout=5m"
 ```
-- [ ] Reiniciar servico
+- [ ] Salvar e reiniciar o proxy
 - [ ] Testar conexao WebSocket em staging
+
+**Nota:** O Traefik passa headers de upgrade WebSocket automaticamente. O unico ajuste necessario e o timeout.
 
 ### 1.2 Corrigir Race Condition no Tenant (CONCLUIDO)
 **Prioridade:** CRITICA
@@ -252,7 +250,7 @@ import type { Contact } from "@shared/schema";
 |------|------|-----|
 | 2026-01-22 | Bug identificado e investigado | Claude |
 | 2026-01-22 | Plano de correcao criado | Claude |
-| 2026-01-22 | Fase 1.1 - Documentacao Nginx criada | Claude |
+| 2026-01-22 | Fase 1.1 - Documentacao Traefik criada (corrigido de Nginx) | Claude |
 | 2026-01-22 | Fase 1.2 - Race condition tenant CORRIGIDO | Claude |
 | 2026-01-22 | Fase 1.3 - Indices verificados (ja existiam) | Claude |
 | 2026-01-22 | Fase 2.3 - N+1 queries leadScores CORRIGIDO | Claude |
@@ -265,7 +263,7 @@ import type { Contact } from "@shared/schema";
 
 ## Notas Importantes
 
-1. **A Fase 1.1 (Nginx) depende de configuracao externa** - nao pode ser feita pelo codigo
+1. **A Fase 1.1 (Traefik) depende de configuracao externa** - nao pode ser feita pelo codigo
 2. **As Fases devem ser executadas em ordem** - cada uma depende das anteriores
 3. **Testar apos cada correcao** - nao acumular mudancas sem teste
 4. **Fazer backup antes de migrations** - indices podem afetar performance temporariamente
