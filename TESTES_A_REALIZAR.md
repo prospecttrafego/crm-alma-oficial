@@ -1288,7 +1288,7 @@ Data: YYYY-MM-DD
 ## 7.0 TESTES DE CORRECOES ARQUITETURAIS (Bug #002)
 
 ### 7.1 WebSocket em Staging/Producao
-**Relacionado a:** Bug #002 - Fase 1.1 (Configuracao Nginx)
+**Relacionado a:** Bug #002 - Fase 1.1 (Configuracao Traefik/Coolify)
 
 | Teste | Passos | Resultado Esperado |
 |-------|--------|-------------------|
@@ -1297,7 +1297,7 @@ Data: YYYY-MM-DD
 | WS-003 | Criar deal em uma aba | Deal aparece na outra aba em tempo real |
 | WS-004 | Receber mensagem WhatsApp | Mensagem aparece na Inbox sem refresh |
 
-**Se falhar:** Verificar configuracao Nginx/Coolify conforme `.bugs/active/002-Arquitetura-Sistema/nginx-websocket-config.md`
+**Se falhar:** Verificar configuracao Traefik/Coolify conforme `.bugs/active/002-Arquitetura-Sistema/traefik-websocket-config.md`
 
 ### 7.2 Connection Pool sob Carga
 **Relacionado a:** Bug #002 - Fase 3.4 (Connection Pool)

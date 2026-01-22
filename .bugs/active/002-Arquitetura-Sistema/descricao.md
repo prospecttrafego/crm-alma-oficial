@@ -32,23 +32,21 @@ Durante a investigacao do Bug #001 (QR Code WhatsApp), foi identificado que o pr
 
 ### 1. PROBLEMAS DE WEBSOCKET (7 encontrados)
 
-#### 1.1 Proxy/Nginx - Invalid Frame Header (CRITICO)
-**Arquivo:** Configuracao externa (nginx/proxy)
+#### 1.1 Proxy/Traefik - Invalid Frame Header (CRITICO)
+**Arquivo:** Configuracao externa (Traefik via Coolify)
 **Sintoma:** Console mostra `Invalid frame header`
-**Causa:** Proxy nao esta passando headers de upgrade WebSocket corretamente
+**Causa:** Timeout padrao do Traefik fecha conexoes WebSocket apos 60 segundos
 **Impacto:** WebSocket nao funciona em producao/staging, apenas local
 
-**Correcao necessaria no nginx:**
-```nginx
-location /ws {
-    proxy_pass http://backend:3000;
-    proxy_http_version 1.1;
-    proxy_set_header Upgrade $http_upgrade;
-    proxy_set_header Connection "upgrade";
-    proxy_set_header Host $host;
-    proxy_read_timeout 86400;
-}
+**Correcao necessaria no Traefik (via Coolify > Server > Proxy):**
+```yaml
+command:
+  - "--entrypoints.https.transport.respondingTimeouts.readTimeout=5m"
+  - "--entrypoints.https.transport.respondingTimeouts.writeTimeout=5m"
+  - "--entrypoints.https.transport.respondingTimeouts.idleTimeout=5m"
 ```
+
+**Nota:** O Traefik passa headers de upgrade WebSocket automaticamente. O unico ajuste e o timeout.
 
 #### 1.2 Race Condition na Autenticacao (CRITICO)
 **Arquivo:** `server/ws/index.ts:89-120`

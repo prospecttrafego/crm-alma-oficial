@@ -255,7 +255,7 @@ import type { Contact } from "@shared/schema";
 | 2026-01-22 | Fase 1.3 - Indices verificados (ja existiam) | Claude |
 | 2026-01-22 | Fase 2.3 - N+1 queries leadScores CORRIGIDO | Claude |
 | 2026-01-22 | Fase 3.4 - Connection pool timeout CORRIGIDO | Claude |
-| YYYY-MM-DD | Configuracao Nginx aplicada (usuario) | - |
+| YYYY-MM-DD | Configuracao Traefik aplicada (usuario) | - |
 | YYYY-MM-DD | Testes em staging | - |
 | YYYY-MM-DD | Bug movido para resolved | - |
 

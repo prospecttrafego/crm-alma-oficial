@@ -142,7 +142,7 @@ O console mostra erros de WebSocket: `Invalid frame header`
 **Status:** A ser investigado após correção do bug principal
 
 **Possíveis causas:**
-- Configuração de proxy/nginx
+- Configuração de proxy/traefik
 - Headers de upgrade não passando
 
 ---
