@@ -9,7 +9,7 @@ import { queryClient } from "@/lib/queryClient";
 import { calendarEventsApi, channelConfigsApi } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "@/contexts/LanguageContext";
-import { useWebSocket } from "@/hooks/useWebSocket";
+import { useWebSocketContext } from "@/contexts/WebSocketContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -44,7 +44,7 @@ import { ChannelConfigDialog } from "./channel-config-dialog";
 export function IntegrationsSection() {
   const { t } = useTranslation();
   const { toast } = useToast();
-  const { isConnected } = useWebSocket();
+  const { isConnected } = useWebSocketContext();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [channelType, setChannelType] = useState<"email" | "whatsapp">("email");
   const [editingConfig, setEditingConfig] = useState<ChannelConfigPublic | undefined>();

@@ -10,7 +10,7 @@ import { queryClient } from "@/lib/queryClient";
 import { calendarEventsApi } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "@/contexts/LanguageContext";
-import { useWebSocket } from "@/hooks/useWebSocket";
+import { useWebSocketContext } from "@/contexts/WebSocketContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -31,7 +31,7 @@ import type { GoogleCalendarStatus } from "@shared/types";
 export default function CalendarIntegrationPage() {
   const { t } = useTranslation();
   const { toast } = useToast();
-  const { isConnected: wsConnected } = useWebSocket();
+  const { isConnected: wsConnected } = useWebSocketContext();
 
   // Google Calendar status
   const { data: gcConfigStatus } = useQuery<{ configured: boolean }>({

@@ -26,7 +26,7 @@ import { useTranslation } from "@/contexts/LanguageContext";
 import { notificationsApi } from "@/lib/api/notifications";
 import { useToast } from "@/hooks/use-toast";
 import { useDesktopNotifications } from "@/hooks/useDesktopNotifications";
-import { useWebSocket } from "@/hooks/useWebSocket";
+import { useWebSocketContext } from "@/contexts/WebSocketContext";
 import { formatRelativeTimeFromNow } from "@/lib/relativeTime";
 
 const notificationIcons: Record<string, typeof Bell> = {
@@ -62,7 +62,7 @@ export function NotificationBell() {
   const [open, setOpen] = useState(false);
   const { t, language } = useTranslation();
   const { toast } = useToast();
-  const { isConnected } = useWebSocket();
+  const { isConnected } = useWebSocketContext();
   const intlLocale = language === "pt-BR" ? "pt-BR" : "en-US";
   const {
     isSupported: desktopNotificationsSupported,
