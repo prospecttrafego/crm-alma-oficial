@@ -20,9 +20,12 @@ export const whatsAppConnectResponseSchema = z
     // Pode ser omitido quando o backend já detecta a instância como conectada
     // e retorna apenas { status: "connected" }.
     qrCode: z.string().optional(),
-    pairingCode: z.string().optional(),
+    // NOTA: Evolution API retorna null quando não há pairing code.
+    // Usando .nullish() para aceitar string | null | undefined.
+    pairingCode: z.string().nullish(),
     status: z.string(),
-    message: z.string().optional(),
+    // NOTA: Usando .nullish() pois APIs externas podem retornar null.
+    message: z.string().nullish(),
   })
   .strict();
 export type WhatsAppConnectResponse = z.infer<typeof whatsAppConnectResponseSchema>;

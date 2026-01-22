@@ -143,7 +143,7 @@ export async function connectWhatsApp(
         return {
           instanceName,
           status: "connected",
-          message,
+          message: message ?? undefined,
         };
       }
 
@@ -238,12 +238,13 @@ export async function connectWhatsApp(
     },
   });
 
+  // Normaliza campos para undefined (ao invés de null) para compatibilidade com Zod schemas
   return {
     instanceName,
     qrCode,
-    pairingCode,
+    pairingCode: pairingCode ?? undefined,
     status: "qr_pending",
-    message,
+    message: message ?? undefined,
   };
 }
 

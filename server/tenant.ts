@@ -2,7 +2,12 @@ import { asc, count, eq } from "drizzle-orm";
 import { organizations } from "@shared/schema";
 import { db } from "./db";
 
-let cachedOrganizationId: number | null = null;
+/**
+ * Promise-based cache to prevent race conditions.
+ * When multiple requests call getSingleTenantOrganizationId() simultaneously,
+ * only ONE database query runs - all others await the same Promise.
+ */
+let organizationIdPromise: Promise<number> | null = null;
 
 function parseOrganizationId(raw: string | undefined): number | null {
   if (!raw) return null;
@@ -12,14 +17,10 @@ function parseOrganizationId(raw: string | undefined): number | null {
 }
 
 /**
- * Single-tenant organization ID.
- *
- * - If `DEFAULT_ORGANIZATION_ID` is set, it must exist in DB.
- * - If not set, it will be auto-derived only when exactly one organization exists.
+ * Internal function that performs the actual database lookup.
+ * This is only called once and cached via Promise.
  */
-export async function getSingleTenantOrganizationId(): Promise<number> {
-  if (cachedOrganizationId !== null) return cachedOrganizationId;
-
+async function fetchOrganizationId(): Promise<number> {
   const envOrgId = parseOrganizationId(process.env.DEFAULT_ORGANIZATION_ID);
   if (envOrgId) {
     const [org] = await db
@@ -34,7 +35,6 @@ export async function getSingleTenantOrganizationId(): Promise<number> {
       );
     }
 
-    cachedOrganizationId = envOrgId;
     return envOrgId;
   }
 
@@ -62,7 +62,33 @@ export async function getSingleTenantOrganizationId(): Promise<number> {
     );
   }
 
-  cachedOrganizationId = org.id;
   return org.id;
+}
+
+/**
+ * Single-tenant organization ID.
+ *
+ * - If `DEFAULT_ORGANIZATION_ID` is set, it must exist in DB.
+ * - If not set, it will be auto-derived only when exactly one organization exists.
+ *
+ * Uses Promise-based caching to prevent race conditions - all concurrent calls
+ * will await the same Promise instead of making multiple database queries.
+ */
+export async function getSingleTenantOrganizationId(): Promise<number> {
+  // If no Promise exists yet, create one that resolves to the organization ID.
+  // All concurrent calls will share this same Promise.
+  if (!organizationIdPromise) {
+    organizationIdPromise = fetchOrganizationId();
+  }
+
+  return organizationIdPromise;
+}
+
+/**
+ * Clear the cached organization ID.
+ * Useful for testing or when organization changes.
+ */
+export function clearOrganizationCache(): void {
+  organizationIdPromise = null;
 }
 

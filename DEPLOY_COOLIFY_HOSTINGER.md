@@ -161,7 +161,45 @@ Exemplo:
 
 Se voce nao usa WhatsApp/Evolution, pode deixar vazio.
 
-## 10) Troubleshooting rapido (quando da ruim)
+## 10) Configuracao WebSocket (IMPORTANTE)
+
+O CRM usa WebSocket para atualizacoes em tempo real (mensagens, deals, notificacoes). Para funcionar em producao/staging, o proxy precisa passar os headers de upgrade corretamente.
+
+### Sintoma de problema:
+- Console do navegador mostra: `Invalid frame header`
+- Atualizacoes em tempo real nao funcionam
+- QR Code do WhatsApp conecta mas status nao atualiza
+
+### Configuracao no Coolify/Nginx:
+
+Se voce tiver acesso a configuracao customizada de proxy, adicione:
+
+```nginx
+location /ws {
+    proxy_pass http://localhost:3000;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_read_timeout 86400;
+    proxy_send_timeout 86400;
+}
+```
+
+### Verificacao:
+
+1. Abra DevTools > Network > WS
+2. Verifique se a conexao WebSocket esta com status 101 (Switching Protocols)
+3. NAO deve haver erros "Invalid frame header"
+
+> Documentacao detalhada: `.bugs/active/002-Arquitetura-Sistema/nginx-websocket-config.md`
+
+---
+
+## 11) Troubleshooting rapido (quando da ruim)
 
 ### Paginas ficam em branco / nao carregam (Inbox, Pipeline, etc.)
 

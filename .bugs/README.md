@@ -4,6 +4,23 @@ Esta pasta contém documentação de bugs, erros e problemas identificados no si
 
 ---
 
+## ÍNDICE DE BUGS
+
+### Bugs Ativos
+
+| ID | Nome | Severidade | Área | Status |
+|----|------|------------|------|--------|
+| 001 | [EvolutionAPI-Integracao](./active/001-EvolutionAPI-Integracao/descricao.md) | CRÍTICO | whatsapp / inbox | CORRIGIDO (QR Code) - Aguardando teste |
+| 002 | [Arquitetura-Sistema](./active/002-Arquitetura-Sistema/descricao.md) | CRÍTICO | websocket / api / database | Em Andamento |
+
+### Bugs Resolvidos
+
+| ID | Nome | Data Resolução | Corrigido Por |
+|----|------|----------------|---------------|
+| - | - | - | - |
+
+---
+
 ## INSTRUÇÕES PARA IA
 
 Ao receber uma tarefa de correção de bugs:

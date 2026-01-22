@@ -60,6 +60,26 @@ Este documento foca em **instrucoes obrigatorias** e **regras de desenvolvimento
    - Validacao de entrada: schemas derivados via `drizzle-zod` em `shared/contracts.ts` (consumidos via `server/validation/`)
    - Validacao de respostas: `shared/apiSchemas*.ts` (consumidos via `client/src/lib/api/`)
 
+8. **Schemas Zod para APIs externas**:
+   - Usar `.nullish()` ao inves de `.optional()` para campos que podem vir como `null` de APIs externas (ex: Evolution API)
+   - Normalizar campos no backend antes de retornar (`value ?? undefined`) para garantir consistencia
+   - Motivo: APIs externas frequentemente retornam `null` ao inves de omitir campos, e `.optional()` nao aceita `null`
+
+9. **Evitar N+1 queries**:
+   - NUNCA fazer queries dentro de loops (for, forEach, map)
+   - Usar `inArray()` do Drizzle para buscar multiplos registros de uma vez
+   - Exemplo correto:
+     ```typescript
+     const ids = items.map(i => i.id);
+     const results = await db.select().from(table).where(inArray(table.id, ids));
+     const resultMap = new Map(results.map(r => [r.id, r]));
+     ```
+
+10. **Caching com Promise (evitar race conditions)**:
+    - Para valores calculados uma vez e cacheados, usar Promise-based caching
+    - Isso garante que multiplas chamadas concorrentes aguardem a mesma Promise
+    - Exemplo: `server/tenant.ts` usa este padrao para organizationId
+
 ---
 
 ## Visao Geral do Projeto

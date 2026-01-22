@@ -584,6 +584,49 @@ curl -X POST http://localhost:3000/api/conversations/1/read -b cookies.txt
 
 ## PARTE 6: TESTES DE WHATSAPP (Evolution API)
 
+### 6.0 Conexao WhatsApp - QR Code (Bug #001 - Corrigido)
+
+**Objetivo:** Verificar se o QR code e exibido corretamente no modal de conexao.
+
+**Bug relacionado:** `.bugs/resolved/001-EvolutionAPI-Integracao/`
+
+**Teste via UI:**
+1. Acessar `/settings/integrations/whatsapp`
+2. Criar nova configuracao ou usar existente
+3. Clicar em "Escanear QR Code"
+4. Verificar se QR code aparece em ~3 segundos
+
+**O que testar:**
+- [ ] QR code e exibido (nao mostra "Erro - Resposta invalida do servidor")
+- [ ] Console do navegador NAO mostra erros de validacao Zod
+- [ ] `pairingCode` pode ser `null` sem causar erro
+- [ ] Escanear QR code muda status para "Conectado"
+
+**Teste via API:**
+```bash
+curl -X POST http://localhost:3000/api/channel-configs/1/whatsapp/connect \
+  -H "Content-Type: application/json" \
+  -b cookies.txt \
+  -d '{}'
+```
+
+**Resposta esperada:**
+```json
+{
+  "success": true,
+  "data": {
+    "instanceName": "...",
+    "qrCode": "data:image/png;base64,...",
+    "pairingCode": null,  // OK - pode ser null
+    "status": "qr_pending"
+  }
+}
+```
+
+**Por que importa:** Bug critico que impedia conexao do WhatsApp. Causa raiz: schema Zod usava `.optional()` que nao aceita `null`.
+
+---
+
 ### 6.1 Webhook: Mensagem Recebida
 
 **Objetivo:** Simular recebimento de mensagem WhatsApp.
@@ -1239,6 +1282,40 @@ Data: YYYY-MM-DD
 2. ...
 3. ...
 ```
+
+---
+
+## 7.0 TESTES DE CORRECOES ARQUITETURAIS (Bug #002)
+
+### 7.1 WebSocket em Staging/Producao
+**Relacionado a:** Bug #002 - Fase 1.1 (Configuracao Nginx)
+
+| Teste | Passos | Resultado Esperado |
+|-------|--------|-------------------|
+| WS-001 | Abrir DevTools > Network > WS em staging | Conexao WebSocket estabelecida (status 101) |
+| WS-002 | Verificar console em staging | NAO deve aparecer "Invalid frame header" |
+| WS-003 | Criar deal em uma aba | Deal aparece na outra aba em tempo real |
+| WS-004 | Receber mensagem WhatsApp | Mensagem aparece na Inbox sem refresh |
+
+**Se falhar:** Verificar configuracao Nginx/Coolify conforme `.bugs/active/002-Arquitetura-Sistema/nginx-websocket-config.md`
+
+### 7.2 Connection Pool sob Carga
+**Relacionado a:** Bug #002 - Fase 3.4 (Connection Pool)
+
+| Teste | Passos | Resultado Esperado |
+|-------|--------|-------------------|
+| CP-001 | Abrir 5+ abas do CRM simultaneamente | Todas carregam sem timeout |
+| CP-002 | Navegar rapidamente entre paginas | Nao deve haver erro 500 ou "connection timeout" |
+
+### 7.3 Performance de Lead Scores (N+1 Fix)
+**Relacionado a:** Bug #002 - Fase 2.3 (N+1 Queries)
+
+| Teste | Passos | Resultado Esperado |
+|-------|--------|-------------------|
+| LS-001 | Acessar contato com muitas conversas | Carregamento rapido (<2s) |
+| LS-002 | Acessar deal com muitas conversas | Carregamento rapido (<2s) |
+
+**Nota:** Antes da correcao, 10 conversas = 10 queries. Agora = 1 query.
 
 ---
 

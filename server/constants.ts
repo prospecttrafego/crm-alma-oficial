@@ -38,8 +38,8 @@ export const DB_POOL_MIN = 5;
 /** Idle connection timeout in milliseconds */
 export const DB_POOL_IDLE_TIMEOUT_MS = 30000;
 
-/** Connection acquisition timeout in milliseconds */
-export const DB_POOL_CONNECTION_TIMEOUT_MS = 2000;
+/** Connection acquisition timeout in milliseconds (10 seconds for resilience under load) */
+export const DB_POOL_CONNECTION_TIMEOUT_MS = 10000;
 
 /** Maximum times a connection can be reused before being closed */
 export const DB_POOL_MAX_USES = 7500;

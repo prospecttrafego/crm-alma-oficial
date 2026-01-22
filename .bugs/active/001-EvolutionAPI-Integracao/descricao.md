@@ -101,14 +101,42 @@ Coloquei todos os códigos e texto de LOGS no arquivo "informacoes-devtools.md" 
 
 ---
 
-## Resolução (preencher após corrigir)
+## Resolução
 
 | Campo | Valor |
 |-------|-------|
-| **Data Corrigido** | YYYY-MM-DD |
-| **Corrigido por** | Nome / IA |
-| **Commit** | hash |
-| **Arquivos Alterados** | |
+| **Data Corrigido** | 2026-01-22 |
+| **Corrigido por** | Claude (IA) |
+| **Commit** | (pendente) |
+| **Arquivos Alterados** | `shared/apiSchemas.integrations.ts`, `server/services/whatsapp-config.ts` |
 
 ### O que foi feito
-<!-- Explique a correção -->
+
+**Causa Raiz Identificada:**
+O backend retornava `pairingCode: null` na resposta JSON, mas o schema Zod do frontend usava `.optional()` que aceita apenas `string | undefined`, não `null`. A validação falhava silenciosamente lançando erro `INVALID_RESPONSE`.
+
+**Correções Aplicadas:**
+
+1. **Schema Zod (`shared/apiSchemas.integrations.ts`):**
+   - Mudou `pairingCode: z.string().optional()` para `z.string().nullish()`
+   - Mudou `message: z.string().optional()` para `z.string().nullish()`
+   - `.nullish()` aceita `string | null | undefined`
+
+2. **Backend (`server/services/whatsapp-config.ts`):**
+   - Normalizou campos antes de retornar: `pairingCode: pairingCode ?? undefined`
+   - Garante que campos opcionais nunca são `null`, apenas `undefined` ou com valor
+
+**Por que o bug era difícil de identificar:**
+- A resposta HTTP era 200 OK
+- O QR code estava presente e válido na resposta
+- O erro era na camada de validação do cliente, silencioso para o usuário
+- A mensagem "Erro - Resposta inválida do servidor" não indicava qual campo falhou
+
+**Lições aprendidas adicionadas ao CLAUDE.md:**
+- Usar `.nullish()` ao invés de `.optional()` para campos que vêm de APIs externas
+- Normalizar campos no backend antes de retornar (`value ?? undefined`)
+
+**Documentação atualizada:**
+- CLAUDE.md (diretriz #8)
+- TESTES_A_REALIZAR.md (teste 6.0)
+- plano-correcao.md (este arquivo)

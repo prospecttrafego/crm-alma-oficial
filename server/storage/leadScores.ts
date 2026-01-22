@@ -13,7 +13,7 @@ import {
   type LeadScoreEntityType,
 } from "@shared/schema";
 import { db } from "../db";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { getTenantOrganizationId } from "./helpers";
 
 export async function getLeadScore(
@@ -131,11 +131,19 @@ export async function getContactScoringData(contactId: number): Promise<{
   let lastMessageDate: Date | null = null;
   const channels: Set<string> = new Set();
 
-  for (const conv of contactConversations) {
-    channels.add(conv.channel);
-    const convMessages = await db.select().from(messages).where(eq(messages.conversationId, conv.id));
-    totalMessages += convMessages.length;
-    convMessages.forEach((m) => {
+  // Collect channels from conversations
+  contactConversations.forEach((conv) => channels.add(conv.channel));
+
+  // Single query for all messages (fixes N+1 problem)
+  if (contactConversations.length > 0) {
+    const conversationIds = contactConversations.map((c) => c.id);
+    const allMessages = await db
+      .select()
+      .from(messages)
+      .where(inArray(messages.conversationId, conversationIds));
+
+    totalMessages = allMessages.length;
+    allMessages.forEach((m) => {
       if (m.createdAt && (!lastMessageDate || m.createdAt > lastMessageDate)) {
         lastMessageDate = m.createdAt;
       }
@@ -277,11 +285,19 @@ export async function getDealScoringData(dealId: number): Promise<{
   let lastMessageDate: Date | null = null;
   const channels: Set<string> = new Set();
 
-  for (const conv of dealConversations) {
-    channels.add(conv.channel);
-    const convMessages = await db.select().from(messages).where(eq(messages.conversationId, conv.id));
-    totalMessages += convMessages.length;
-    convMessages.forEach((m) => {
+  // Collect channels from conversations
+  dealConversations.forEach((conv) => channels.add(conv.channel));
+
+  // Single query for all messages (fixes N+1 problem)
+  if (dealConversations.length > 0) {
+    const conversationIds = dealConversations.map((c) => c.id);
+    const allMessages = await db
+      .select()
+      .from(messages)
+      .where(inArray(messages.conversationId, conversationIds));
+
+    totalMessages = allMessages.length;
+    allMessages.forEach((m) => {
       if (m.createdAt && (!lastMessageDate || m.createdAt > lastMessageDate)) {
         lastMessageDate = m.createdAt;
       }
