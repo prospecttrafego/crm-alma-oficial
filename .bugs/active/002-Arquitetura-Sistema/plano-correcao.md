@@ -20,16 +20,16 @@ O sistema possui 33+ problemas arquiteturais distribuidos em 3 camadas (WebSocke
 **Tipo:** Configuracao externa
 **Responsavel:** Usuario (infraestrutura)
 
-- [ ] Acessar painel do Coolify → Server → Proxy
-- [ ] Adicionar configuracao de timeout para WebSocket:
+- [X] Acessar painel do Coolify → Server → Proxy
+- [X] Adicionar configuracao de timeout para WebSocket:
 ```yaml
 command:
   - "--entrypoints.https.transport.respondingTimeouts.readTimeout=5m"
   - "--entrypoints.https.transport.respondingTimeouts.writeTimeout=5m"
   - "--entrypoints.https.transport.respondingTimeouts.idleTimeout=5m"
 ```
-- [ ] Salvar e reiniciar o proxy
-- [ ] Testar conexao WebSocket em staging
+- [X] Salvar e reiniciar o proxy
+- [X] Testar conexao WebSocket em staging
 
 **Nota:** O Traefik passa headers de upgrade WebSocket automaticamente. O unico ajuste necessario e o timeout.
 
