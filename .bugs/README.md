@@ -38,16 +38,6 @@ Ao receber uma tarefa de correção de bugs:
 
 ---
 
-## Bugs Ativos
-
-| ID | Nome | Severidade | Área | Status |
-|----|------|------------|------|--------|
-| - | - | - | - | Nenhum bug documentado ainda |
-
-> **Nota:** Atualize esta tabela ao adicionar novos bugs.
-
----
-
 ## Como Adicionar um Novo Bug
 
 ### 1. Criar pasta com número sequencial
